@@ -1,0 +1,2 @@
+// .eslintrc.js
+module.exports = {};
