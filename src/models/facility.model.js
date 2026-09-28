@@ -1,2 +1,16 @@
-// src/models/facility.model.js
-module.exports = {};
+module.exports = (sequelize, DataTypes) => sequelize.define('Facility', {
+	id: { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true },
+	name: { type: DataTypes.STRING },
+	type: { type: DataTypes.STRING },
+	level: { type: DataTypes.STRING },
+	region: { type: DataTypes.STRING },
+	zone: { type: DataTypes.STRING },
+	woreda: { type: DataTypes.STRING },
+	kebele: { type: DataTypes.STRING },
+	street_address: { type: DataTypes.STRING },
+	contact_info: { type: DataTypes.STRING },
+	created_by: { type: DataTypes.INTEGER },
+	updated_by: { type: DataTypes.INTEGER },
+	created_at: { type: DataTypes.DATE },
+	updated_at: { type: DataTypes.DATE },
+}, { tableName: 'facilities', timestamps: true, createdAt: 'created_at', updatedAt: 'updated_at' });

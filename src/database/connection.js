@@ -1,2 +1,5 @@
 // src/database/connection.js
-module.exports = {};
+
+const sequelize = require('../config/database');
+
+module.exports = sequelize;

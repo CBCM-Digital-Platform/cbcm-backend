@@ -1,2 +1,16 @@
-// src/models/assessment.model.js
-module.exports = {};
+module.exports = (sequelize, DataTypes) => sequelize.define('Assessment', {
+	id: { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true },
+	mentee_id: { type: DataTypes.INTEGER },
+	mentor_id: { type: DataTypes.INTEGER },
+	facility_id: { type: DataTypes.INTEGER },
+	cycle_id: { type: DataTypes.INTEGER },
+	thematic_area_id: { type: DataTypes.INTEGER },
+	status: { type: DataTypes.STRING },
+	aggregate_score: { type: DataTypes.FLOAT },
+	feedback: { type: DataTypes.TEXT },
+	prerequisites_met: { type: DataTypes.BOOLEAN, defaultValue: false },
+	updated_by: { type: DataTypes.INTEGER },
+	created_at: { type: DataTypes.DATE },
+	updated_at: { type: DataTypes.DATE },
+	finalized_at: { type: DataTypes.DATE },
+}, { tableName: 'assessments', timestamps: true, createdAt: 'created_at', updatedAt: 'updated_at' });

@@ -1,2 +1,19 @@
-// src/models/clinical-encounter.model.js
-module.exports = {};
+module.exports = (sequelize, DataTypes) => sequelize.define('ClinicalEncounter', {
+	id: { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true },
+	assignment_id: { type: DataTypes.INTEGER },
+	mentor_id: { type: DataTypes.INTEGER },
+	mentee_id: { type: DataTypes.INTEGER },
+	facility_id: { type: DataTypes.INTEGER },
+	mode: { type: DataTypes.STRING },
+	scheduled_at: { type: DataTypes.DATE },
+	started_at: { type: DataTypes.DATE },
+	ended_at: { type: DataTypes.DATE },
+	clinical_setting: { type: DataTypes.STRING },
+	session_goals: { type: DataTypes.TEXT },
+	status: { type: DataTypes.STRING },
+	cancellation_reason: { type: DataTypes.TEXT },
+	recording_file_id: { type: DataTypes.INTEGER },
+	updated_by: { type: DataTypes.INTEGER },
+	created_at: { type: DataTypes.DATE },
+	updated_at: { type: DataTypes.DATE },
+}, { tableName: 'clinical_encounters', timestamps: true, createdAt: 'created_at', updatedAt: 'updated_at' });

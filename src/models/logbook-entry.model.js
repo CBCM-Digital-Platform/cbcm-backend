@@ -1,2 +1,19 @@
-// src/models/logbook-entry.model.js
-module.exports = {};
+module.exports = (sequelize, DataTypes) => sequelize.define('LogbookEntry', {
+	id: { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true },
+	mentee_id: { type: DataTypes.INTEGER },
+	encounter_id: { type: DataTypes.INTEGER },
+	thematic_area_id: { type: DataTypes.INTEGER },
+	procedure_type: { type: DataTypes.STRING },
+	hours: { type: DataTypes.FLOAT },
+	clinical_notes: { type: DataTypes.TEXT },
+	status: { type: DataTypes.STRING },
+	revision_reason: { type: DataTypes.TEXT },
+	outcome: { type: DataTypes.TEXT },
+	goal_progress: { type: DataTypes.FLOAT },
+	mentor_approval: { type: DataTypes.BOOLEAN, defaultValue: false },
+	approved_by: { type: DataTypes.INTEGER },
+	approved_at: { type: DataTypes.DATE },
+	created_by: { type: DataTypes.INTEGER },
+	logged_at: { type: DataTypes.DATE },
+	updated_at: { type: DataTypes.DATE },
+}, { tableName: 'logbook_entries', timestamps: false });
