@@ -19,6 +19,7 @@ const definitions = {
 	AssessmentChecklistItem: require('./assessment-checklist-item.model'),
 	AssessmentEvidence: require('./assessment-evidence.model'),
 	LearningModule: require('./learning-module.model'),
+	LearningModuleContent: require('./learning-module-content.model'),
 	LearningModuleProgress: require('./learning-module-progress.model'),
 	Quiz: require('./quiz.model'),
 	QuizQuestion: require('./quiz-question.model'),
@@ -97,6 +98,7 @@ const foreignKeys = [
 	['LearningModule', 'ThematicArea', 'thematic_area_id', 'thematicArea', 'learningModules'],
 	['LearningModule', 'User', 'created_by', 'createdBy', 'learningModulesCreated'],
 	['LearningModule', 'User', 'updated_by', 'updatedBy', 'learningModulesUpdated'],
+	['LearningModuleContent', 'LearningModule', 'module_id', 'module', 'contents'],
 	['LearningModuleProgress', 'User', 'mentee_id', 'mentee', 'learningProgress'],
 	['LearningModuleProgress', 'LearningModule', 'module_id', 'module', 'progressRecords'],
 	['Quiz', 'LearningModule', 'module_id', 'module', 'quizzes'],
@@ -211,6 +213,10 @@ models.User.belongsToMany(models.Conversation, {
 	foreignKey: 'user_id',
 	otherKey: 'conversation_id',
 	as: 'conversations',
+});
+models.Conversation.belongsTo(models.Message, {
+	foreignKey: 'last_message_id',
+	as: 'lastMessage',
 });
 models.ClinicalEncounter.belongsToMany(models.ThematicArea, {
 	through: models.EncounterFocusArea,
