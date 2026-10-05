@@ -1,2 +1,38 @@
 // src/middlewares/auth/authenticate.middleware.js
-module.exports = {};
+const jwt = require('jsonwebtoken');
+const env = require('../../config/env');
+const { User } = require('../../models');
+const AppError = require('../../errors/app-error');
+
+async function authenticate(req, res, next) {
+  try {
+    const authHeader = req.headers.authorization || '';
+    const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : null;
+    if (!token) {
+      throw new AppError('Access token is required.', 401, 'UNAUTHORIZED');
+    }
+
+    const decoded = jwt.verify(token, env.JWT_ACCESS_SECRET);
+    const user = await User.findByPk(decoded.sub || decoded.userId || decoded.id);
+    if (!user) {
+      throw new AppError('Invalid session.', 401, 'INVALID_SESSION');
+    }
+
+    if (String(user.status || '').toLowerCase() !== 'active') {
+      throw new AppError('Your account is inactive or suspended.', 401, 'ACCOUNT_INACTIVE');
+    }
+
+    req.user = user;
+    return next();
+  } catch (error) {
+    if (error instanceof jwt.TokenExpiredError) {
+      return next(new AppError('Access token has expired.', 401, 'TOKEN_EXPIRED'));
+    }
+    if (error instanceof jwt.JsonWebTokenError) {
+      return next(new AppError('Access token is invalid.', 401, 'INVALID_TOKEN'));
+    }
+    return next(error instanceof AppError ? error : new AppError(error.message || 'Authentication failed.', 401, 'UNAUTHORIZED'));
+  }
+}
+
+module.exports = authenticate;
