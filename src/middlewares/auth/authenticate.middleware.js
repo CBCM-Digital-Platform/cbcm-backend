@@ -13,6 +13,9 @@ async function authenticate(req, res, next) {
     }
 
     const decoded = jwt.verify(token, env.JWT_ACCESS_SECRET);
+    if (decoded.token_use !== 'access') {
+      throw new AppError('Access token is invalid.', 401, 'INVALID_TOKEN');
+    }
     const user = await User.findByPk(decoded.sub || decoded.userId || decoded.id);
     if (!user) {
       throw new AppError('Invalid session.', 401, 'INVALID_SESSION');
@@ -20,6 +23,20 @@ async function authenticate(req, res, next) {
 
     if (String(user.status || '').toLowerCase() !== 'active') {
       throw new AppError('Your account is inactive or suspended.', 401, 'ACCOUNT_INACTIVE');
+    }
+    const passwordVersion = user.password_changed_at ? new Date(user.password_changed_at).getTime() : 0;
+    if (decoded.password_version !== passwordVersion) {
+      throw new AppError('Session is no longer valid.', 401, 'INVALID_SESSION');
+    }
+
+    const allowedDuringPasswordChange = [
+      '/api/v1/auth/change-password',
+      '/api/v1/auth/logout',
+      '/api/v1/auth/session',
+    ];
+    const requestPath = req.originalUrl.split('?')[0];
+    if (user.must_change_password && !allowedDuringPasswordChange.includes(requestPath)) {
+      throw new AppError('You must change your password before continuing.', 403, 'PASSWORD_CHANGE_REQUIRED');
     }
 
     req.user = user;

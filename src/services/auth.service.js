@@ -1,19 +1,25 @@
 // src/services/auth.service.js
-const { Op } = require('sequelize');
-const { User, RefreshToken, PasswordResetToken, UserPreference } = require('../models');
+const { User, RefreshToken, UserPreference, Facility, ActivityLog } = require('../models');
 const AppError = require('../errors/app-error');
 const authRepository = require('../repositories/auth.repository');
 const { hashPassword, comparePassword, hashToken, randomToken } = require('../utils/hash.util');
-const { generateAccessToken, generateRefreshTokenValue, getRefreshTokenExpiry } = require('../utils/token.util');
+const { generateAccessToken, generateRefreshTokenValue, getRefreshTokenExpiry, getPasswordResetTokenExpiry } = require('../utils/token.util');
+const emailUtil = require('../utils/email.util');
 const env = require('../config/env');
+const { USER_ROLES } = require('../constants/roles.constants');
 
-const USER_SYSTEM_ROLES = new Set(['admin', 'mentor', 'mentee', 'facility_admin']);
+const USER_SYSTEM_ROLES = new Set(USER_ROLES);
+const RESET_MESSAGE = 'If that email exists, a reset link will be sent.';
 
 function sanitizeUser(user) {
   if (!user) return null;
   const plain = user.toJSON ? user.toJSON() : { ...user };
-  const { password_hash, ...safeUser } = plain;
-  return safeUser;
+  const fields = [
+    'id', 'full_name', 'email', 'phone', 'role', 'facility_id',
+    'highest_qualification', 'training_status', 'avatar_url', 'status',
+    'must_change_password', 'created_at', 'updated_at',
+  ];
+  return Object.fromEntries(fields.filter((field) => plain[field] !== undefined).map((field) => [field, plain[field]]));
 }
 
 function isUserEligible(user) {
@@ -49,9 +55,13 @@ async function login({ email, password, deviceInfo }) {
     expiresAt,
   });
 
+  await logActivity({ actorId: user.id, action: 'login', entityId: user.id });
+
   return {
     accessToken,
+    accessTokenExpiresIn: env.JWT_ACCESS_EXPIRES_IN,
     refreshToken: rawRefreshToken,
+    refreshTokenExpiresAt: expiresAt.toISOString(),
     user: sanitizeUser(user),
     refreshTokenRecord: refreshToken,
   };
@@ -63,10 +73,16 @@ async function refreshToken({ refreshToken }) {
   }
 
   const tokenHash = hashToken(refreshToken);
-  const existingToken = await authRepository.findValidRefreshToken(tokenHash);
+  const existingToken = await authRepository.findRefreshTokenByHash(tokenHash);
 
   if (!existingToken || !existingToken.user) {
-    throw new AppError('Refresh token is invalid or expired.', 401, 'INVALID_REFRESH_TOKEN');
+    throw new AppError('Refresh token is invalid.', 401, 'INVALID_REFRESH_TOKEN');
+  }
+  if (existingToken.revoked_at) {
+    throw new AppError('Refresh token has already been revoked or used.', 401, 'REFRESH_TOKEN_REVOKED');
+  }
+  if (new Date(existingToken.expires_at) <= new Date()) {
+    throw new AppError('Refresh token has expired.', 401, 'REFRESH_TOKEN_EXPIRED');
   }
 
   if (!isUserEligible(existingToken.user)) {
@@ -76,20 +92,25 @@ async function refreshToken({ refreshToken }) {
   const user = existingToken.user;
   const newRefreshTokenValue = generateRefreshTokenValue();
   const newRefreshHash = hashToken(newRefreshTokenValue);
-  const now = new Date();
+  const expiresAt = getRefreshTokenExpiry();
 
   const finalToken = await User.sequelize.transaction(async (transaction) => {
-    await authRepository.revokeRefreshTokenById(existingToken.id, transaction);
+    const [consumedCount] = await authRepository.consumeRefreshToken(existingToken.id, transaction);
+    if (!consumedCount) {
+      throw new AppError('Refresh token has already been revoked or used.', 401, 'REFRESH_TOKEN_REVOKED');
+    }
     const newTokenEntry = await authRepository.createRefreshTokenEntry({
       userId: user.id,
       tokenHash: newRefreshHash,
       deviceInfo: existingToken.device_info,
-      expiresAt: getRefreshTokenExpiry(),
+      expiresAt,
     });
 
     return {
       accessToken: generateAccessToken(user),
+      accessTokenExpiresIn: env.JWT_ACCESS_EXPIRES_IN,
       refreshToken: newRefreshTokenValue,
+      refreshTokenExpiresAt: expiresAt.toISOString(),
       refreshTokenEntry: newTokenEntry,
       user: sanitizeUser(user),
     };
@@ -105,13 +126,15 @@ async function logout({ user, refreshToken }) {
 
   if (refreshToken) {
     const tokenHash = hashToken(refreshToken);
-    const tokenRecord = await RefreshToken.findOne({ where: { user_id: user.id, token_hash: tokenHash, revoked_at: null } });
-    if (tokenRecord) {
+    const tokenRecord = await RefreshToken.findOne({ where: { user_id: user.id, token_hash: tokenHash } });
+    if (tokenRecord && !tokenRecord.revoked_at) {
       await tokenRecord.update({ revoked_at: new Date() });
     }
   } else {
     await authRepository.revokeAllUserRefreshTokens(user.id);
   }
+
+  await logActivity({ actorId: user.id, action: 'logout', entityId: user.id });
 
   return { revoked: true };
 }
@@ -123,29 +146,24 @@ async function forgotPassword({ email }) {
   }
 
   const user = await authRepository.findUserByEmail(normalizedEmail);
-  if (!user) {
-    return { sent: false, message: 'If that email exists, a reset link will be sent.' };
-  }
+  if (!user || !isUserEligible(user)) return { message: RESET_MESSAGE };
 
   const resetToken = randomToken(32);
   const resetHash = hashToken(resetToken);
-  const expiresAt = new Date(Date.now() + Number(env.PASSWORD_RESET_EXPIRES_IN.match(/[0-9]+/) || 60) * 60 * 1000);
+  const expiresAt = getPasswordResetTokenExpiry();
 
-  await PasswordResetToken.create({
-    user_id: user.id,
-    token_hash: resetHash,
-    requested_at: new Date(),
-    expires_at: expiresAt,
-    used_at: null,
+  await User.sequelize.transaction(async (transaction) => {
+    await authRepository.invalidatePasswordResetTokens(user.id, transaction);
+    await authRepository.createPasswordResetTokenEntry({ userId: user.id, tokenHash: resetHash, expiresAt, transaction });
   });
 
   const resetUrl = `${env.FRONTEND_URL}/reset-password?token=${encodeURIComponent(resetToken)}`;
-  return {
-    sent: true,
-    message: 'If that email exists, a reset link will be sent.',
-    resetToken: env.NODE_ENV === 'production' ? undefined : resetToken,
-    resetUrl: env.NODE_ENV === 'production' ? undefined : resetUrl,
-  };
+  try {
+    await emailUtil.sendPasswordResetEmail({ to: user.email, resetUrl });
+  } catch {
+    // The response remains generic so delivery errors cannot confirm account existence.
+  }
+  return { message: RESET_MESSAGE };
 }
 
 async function resetPassword({ token, password }) {
@@ -154,23 +172,38 @@ async function resetPassword({ token, password }) {
   }
 
   const tokenHash = hashToken(token);
-  const resetToken = await authRepository.findActivePasswordResetToken(tokenHash);
+  const resetToken = await authRepository.findPasswordResetTokenByHash(tokenHash);
 
   if (!resetToken || !resetToken.user) {
-    throw new AppError('Reset token is invalid or expired.', 401, 'INVALID_RESET_TOKEN');
+    throw new AppError('Reset token is invalid.', 401, 'INVALID_RESET_TOKEN');
   }
-
-  if (password.length < 8) {
+  if (resetToken.used_at) {
+    throw new AppError('Reset token has already been used.', 401, 'RESET_TOKEN_USED');
+  }
+  if (new Date(resetToken.expires_at) <= new Date()) {
+    throw new AppError('Reset token has expired.', 401, 'RESET_TOKEN_EXPIRED');
+  }
+  if (!isUserEligible(resetToken.user)) {
+    throw new AppError('Account is inactive and cannot reset its password.', 401, 'ACCOUNT_INACTIVE');
+  }
+  if (typeof password !== 'string' || password.length < 8) {
     throw new AppError('Password must be at least 8 characters.', 400, 'VALIDATION_ERROR');
+  }
+  if (await comparePassword(password, resetToken.user.password_hash)) {
+    throw new AppError('New password must differ from the current password.', 400, 'PASSWORD_UNCHANGED');
   }
 
   const newPasswordHash = await hashPassword(password);
 
   await User.sequelize.transaction(async (transaction) => {
+    const [usedCount] = await authRepository.markPasswordResetTokenUsed(resetToken.id, transaction);
+    if (!usedCount) throw new AppError('Reset token has already been used.', 401, 'RESET_TOKEN_USED');
     await User.update({ password_hash: newPasswordHash, password_changed_at: new Date(), must_change_password: false }, { where: { id: resetToken.user_id }, transaction });
-    await authRepository.markPasswordResetTokenUsed(resetToken.id, transaction);
     await authRepository.revokeAllUserRefreshTokens(resetToken.user_id, transaction);
+    await authRepository.invalidatePasswordResetTokens(resetToken.user_id, transaction);
   });
+
+  await logActivity({ actorId: resetToken.user_id, action: 'password_reset', entityId: resetToken.user_id });
 
   return { reset: true };
 }
@@ -191,12 +224,17 @@ async function changePassword({ user, currentPassword, newPassword }) {
   if (newPassword.length < 8) {
     throw new AppError('New password must be at least 8 characters.', 400, 'VALIDATION_ERROR');
   }
+  if (await comparePassword(newPassword, currentUser.password_hash)) {
+    throw new AppError('New password must differ from the current password.', 400, 'PASSWORD_UNCHANGED');
+  }
 
   const newHash = await hashPassword(newPassword);
   await User.sequelize.transaction(async (transaction) => {
     await User.update({ password_hash: newHash, password_changed_at: new Date(), must_change_password: false }, { where: { id: user.id }, transaction });
     await authRepository.revokeAllUserRefreshTokens(user.id, transaction);
   });
+
+  await logActivity({ actorId: user.id, action: 'password_change', entityId: user.id });
 
   return { changed: true };
 }
@@ -218,7 +256,7 @@ async function updateUserProfile(userId, payload) {
   if (!user) throw new AppError('User not found.', 404, 'USER_NOT_FOUND');
 
   const updates = {};
-  const allowedFields = ['full_name', 'phone', 'highest_qualification', 'training_status', 'avatar_url', 'facility_id'];
+  const allowedFields = ['full_name', 'phone', 'highest_qualification', 'training_status', 'avatar_url'];
   for (const field of allowedFields) {
     if (Object.prototype.hasOwnProperty.call(payload, field)) {
       updates[field] = payload[field];
@@ -248,6 +286,11 @@ async function updateUserPreferences(userId, payload) {
   return existing.reload();
 }
 
+async function getUserPreferences(userId) {
+  const preferences = await authRepository.findUserPreferencesByUserId(userId);
+  return preferences ? preferences.toJSON() : null;
+}
+
 async function listUsers({ page = 1, limit = 20, role, status, facilityId }) {
   const filter = {};
   if (role) filter.role = role;
@@ -263,7 +306,7 @@ async function listUsers({ page = 1, limit = 20, role, status, facilityId }) {
   });
 
   return {
-    items: rows.map((entry) => entry.toJSON()),
+    items: rows.map(sanitizeUser),
     total: count,
     page: Number(page),
     limit: Number(limit),
@@ -289,41 +332,74 @@ async function createUserByAdmin(payload) {
     throw new AppError('An account already exists for this email.', 409, 'USER_EXISTS');
   }
 
-  const password = payload.password || randomToken(12);
+  if (payload.facility_id != null && !(await Facility.findByPk(payload.facility_id))) {
+    throw new AppError('Facility was not found.', 404, 'FACILITY_NOT_FOUND');
+  }
+
+  const password = payload.password;
+  if (typeof password !== 'string' || password.length < 8) {
+    throw new AppError('A temporary password of at least 8 characters is required.', 400, 'VALIDATION_ERROR');
+  }
   const hashed = await hashPassword(password);
-  const user = await User.create({
-    full_name: payload.full_name,
-    email,
-    phone: payload.phone || null,
-    password_hash: hashed,
-    role: cleanedRole,
-    facility_id: payload.facility_id || null,
-    highest_qualification: payload.highest_qualification || null,
-    training_status: payload.training_status || null,
-    avatar_url: payload.avatar_url || null,
-    status: payload.status || 'active',
-    must_change_password: payload.must_change_password !== false,
-    password_changed_at: new Date(),
-    created_by: payload.created_by || null,
-  });
+  let user;
+  try {
+    user = await User.create({
+      full_name: payload.full_name,
+      email,
+      phone: payload.phone || null,
+      password_hash: hashed,
+      role: cleanedRole,
+      facility_id: payload.facility_id || null,
+      highest_qualification: payload.highest_qualification || null,
+      training_status: payload.training_status || null,
+      avatar_url: payload.avatar_url || null,
+      status: 'active',
+      must_change_password: payload.must_change_password !== false,
+      password_changed_at: new Date(),
+      created_by: payload.created_by || null,
+    });
+  } catch (error) {
+    if (error.name === 'SequelizeUniqueConstraintError') {
+      throw new AppError('An account already exists for this email.', 409, 'USER_EXISTS');
+    }
+    throw error;
+  }
+
+  await logActivity({ actorId: payload.created_by, action: 'user_provisioned', entityId: user.id });
 
   return sanitizeUser(user);
 }
 
-async function updateUserStatus(userId, status) {
+async function updateUserStatus(userId, status, updatedBy) {
   const user = await authRepository.findUserById(userId);
   if (!user) throw new AppError('User not found.', 404, 'USER_NOT_FOUND');
   if (!['active', 'inactive', 'suspended'].includes(String(status))) {
     throw new AppError('Unsupported account status.', 422, 'INVALID_STATUS');
   }
-  await user.update({ status });
+  if (Number(updatedBy) === Number(userId) && status !== 'active') {
+    throw new AppError('Administrators cannot disable their own account.', 409, 'SELF_DEACTIVATION_FORBIDDEN');
+  }
+  await user.update({
+    status,
+    updated_by: updatedBy || null,
+    ...(status === 'active' ? {} : { password_changed_at: new Date() }),
+  });
+  if (status !== 'active') await authRepository.revokeAllUserRefreshTokens(user.id);
+  await logActivity({ actorId: updatedBy, action: 'user_status_changed', entityId: user.id });
   return sanitizeUser(user);
 }
 
-async function requireRole(user, allowedRoles) {
-  if (!user) throw new AppError('Authentication required.', 401, 'UNAUTHORIZED');
-  if (!allowedRoles.includes(String(user.role || '').toLowerCase())) {
-    throw new AppError('You do not have permission to perform this action.', 403, 'FORBIDDEN');
+async function logActivity({ actorId = null, action, entityId = null }) {
+  try {
+    await ActivityLog.create({
+      actor_id: actorId,
+      action,
+      entity_type: 'user',
+      entity_id: entityId,
+      details: JSON.stringify({}),
+    });
+  } catch {
+    // Audit logging must not turn a successful authentication action into a failure.
   }
 }
 
@@ -338,11 +414,11 @@ module.exports = {
   getUserProfile,
   updateUserProfile,
   updateUserPreferences,
+  getUserPreferences,
   listUsers,
   getUserByIdForAdmin,
   createUserByAdmin,
   updateUserStatus,
-  requireRole,
   sanitizeUser,
   isUserEligible,
 };
