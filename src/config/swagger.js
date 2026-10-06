@@ -48,8 +48,8 @@ const swaggerDefinition = {
         type: 'object',
         required: ['email', 'password'],
         properties: {
-          email: { type: 'string', format: 'email', example: 'user@example.com' },
-          password: { type: 'string', format: 'password', example: 'StrongPass1!' },
+          email: { type: 'string', format: 'email', example: 'admin@cbcm.org' },
+          password: { type: 'string', format: 'password', example: 'Admin@123' },
         },
       },
       RefreshTokenRequest: {

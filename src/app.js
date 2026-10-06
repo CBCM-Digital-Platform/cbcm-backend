@@ -27,7 +27,13 @@ app.get('/', (req, res) => {
   });
 });
 
-app.use('/api/docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
+app.use('/api/docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec, {
+  swaggerOptions: {
+    persistAuthorization: true,
+    tryItOutEnabled: true,
+  },
+  customSiteTitle: 'CBCM API Documentation',
+}));
 app.use('/api/v1', routes);
 app.use(notFoundHandler);
 app.use(errorHandler);
