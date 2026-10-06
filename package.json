@@ -10,7 +10,8 @@
     "test": "node --test",
     "test:models": "node scripts/test-models.js",
     "verify:models": "node scripts/verify-models-db.js",
-    "seed": "node scripts/seed.js"
+    "seed": "node scripts/seed.js",
+    "seed:production": "node scripts/seed-production.js"
   },
   "keywords": [],
   "author": "",
