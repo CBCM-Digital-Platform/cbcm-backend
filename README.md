@@ -40,6 +40,11 @@ FRONTEND_URL=http://localhost:3000
 CORS_ORIGIN=*
 ```
 
+4. Run database migrations (creates admin user):
+```bash
+npm run migrate
+```
+
 ### Running Locally
 
 1. Start the development server:
@@ -60,25 +65,26 @@ npm run dev
 
 ### Seeding Initial Admin User
 
-**For local development:**
+The admin user is created via database migration:
+
+**Run migrations:**
 ```bash
-npm run seed
+npm run migrate
 ```
 
-This creates an initial Super Admin:
+This will:
+- Create all database tables
+- Seed the initial admin user
 - Email: `admin@cbcm.org`
 - Password: `Admin@123`
 - You will be required to change this password on first login
 
-**For production (Render):**
+**Undo migrations (if needed):**
 ```bash
-npm run seed:production
+npm run migrate:undo
 ```
 
-This is a safe seed script that:
-- Checks if admin already exists before creating
-- Won't duplicate users if run multiple times
-- Can be run as a post-deploy hook on Render
+The migration is idempotent - it checks if the admin user already exists before creating, so it's safe to run multiple times.
 
 ## API Endpoints
 
@@ -120,6 +126,22 @@ FRONTEND_URL=<your-frontend-url>
 CORS_ORIGIN=*
 ```
 
+### Build Command on Render
+
+```
+npm install && npm run migrate
+```
+
+This will install dependencies and run database migrations (including creating the admin user) on every deployment.
+
+The migration is idempotent - it will skip creating the admin user if they already exist, so it's safe to run on every deployment.
+
+### Start Command
+
+```
+node src/server.js
+```
+
 ### Build Command
 ```
 npm install
@@ -142,11 +164,13 @@ This ensures the admin user exists after every deployment.
 
 ## Important Security Notes
 
-1. **Change default password immediately** - The seeded admin password is for initial setup only
-2. **Use strong secrets** - JWT secrets should be at least 32 characters
-3. **Environment variables** - Never commit `.env` file to version control
-4. **Database URL** - Use a secure connection string in production
-5. **CORS** - Restrict `CORS_ORIGIN` to your frontend domain in production
+1. **Change default admin password immediately** - The default password `Admin@123` is in the migration file for initial setup. Change it on first login.
+2. **For production deployments** - Consider modifying the migration file with a custom password before first deployment, or change it immediately after login.
+3. **Use strong secrets** - JWT secrets should be at least 32 characters
+4. **Environment variables** - Never commit `.env` file to version control
+5. **Database URL** - Use a secure connection string in production
+6. **CORS** - Restrict `CORS_ORIGIN` to your frontend domain in production
+7. **Password change required** - The seeded admin user must change password on first login (`must_change_password: true`)
 
 ## Testing
 
@@ -168,9 +192,10 @@ curl http://localhost:5000/
 
 ### Login fails with "INVALID_CREDENTIALS"
 
-- Ensure you've run the seed script: `npm run seed` (local) or `npm run seed:production` (Render)
-- Check the email and password are correct
+- Ensure you've run database migrations: `npm run migrate`
+- Check the email and password are correct (admin@cbcm.org / Admin@123)
 - Verify the database connection is working
+- Check if the admin user exists in the database
 
 ### Database connection errors
 

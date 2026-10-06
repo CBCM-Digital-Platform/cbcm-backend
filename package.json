@@ -11,7 +11,9 @@
     "test:models": "node scripts/test-models.js",
     "verify:models": "node scripts/verify-models-db.js",
     "seed": "node scripts/seed.js",
-    "seed:production": "node scripts/seed-production.js"
+    "seed:production": "node scripts/seed-production.js",
+    "migrate": "node node_modules/sequelize-cli/lib/sequelize db:migrate",
+    "migrate:undo": "node node_modules/sequelize-cli/lib/sequelize db:migrate:undo"
   },
   "keywords": [],
   "author": "",
