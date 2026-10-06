@@ -9,7 +9,8 @@
     "dev": "node --watch src/server.js",
     "test": "node --test",
     "test:models": "node scripts/test-models.js",
-    "verify:models": "node scripts/verify-models-db.js"
+    "verify:models": "node scripts/verify-models-db.js",
+    "seed": "node scripts/seed.js"
   },
   "keywords": [],
   "author": "",
