@@ -6,7 +6,7 @@ const swaggerDefinition = {
   info: {
     title: 'CBCM Backend API',
     version: '1.0.0',
-    description: 'CBCM authentication, user management, and profile APIs.',
+    description: 'CBCM authentication, user management, facilities, mentorship cycles, and cycle configuration APIs.',
   },
   servers: [
     { url: `http://localhost:${env.PORT || 5000}`, description: 'Local development server' },
@@ -246,6 +246,220 @@ const swaggerDefinition = {
               totalPages: { type: 'integer', example: 3 },
             },
           },
+        },
+      },
+      Facility: {
+        type: 'object',
+        required: ['id', 'name', 'type'],
+        properties: {
+          id: { type: 'integer', example: 1 },
+          name: { type: 'string', example: 'Central Health Center' },
+          type: { type: 'string', example: 'health_center' },
+          level: { type: 'string', nullable: true, example: 'primary' },
+          region: { type: 'string', nullable: true, example: 'Oromia' },
+          zone: { type: 'string', nullable: true, example: 'West Shewa' },
+          woreda: { type: 'string', nullable: true, example: 'Ambo' },
+          kebele: { type: 'string', nullable: true, example: '01' },
+          street_address: { type: 'string', nullable: true },
+          contact_info: { type: 'string', nullable: true },
+          created_at: { type: 'string', format: 'date-time' },
+          updated_at: { type: 'string', format: 'date-time' },
+        },
+      },
+      FacilityResponse: {
+        type: 'object',
+        properties: {
+          success: { type: 'boolean', example: true },
+          data: { $ref: '#/components/schemas/Facility' },
+          meta: { type: 'object', example: {} },
+        },
+      },
+      FacilityListResponse: {
+        type: 'object',
+        properties: {
+          success: { type: 'boolean', example: true },
+          data: { type: 'array', items: { $ref: '#/components/schemas/Facility' } },
+          meta: {
+            type: 'object',
+            properties: {
+              page: { type: 'integer', example: 1 },
+              limit: { type: 'integer', example: 20 },
+              total: { type: 'integer', example: 12 },
+              totalPages: { type: 'integer', example: 1 },
+            },
+          },
+        },
+      },
+      CreateFacilityRequest: {
+        type: 'object',
+        required: ['name', 'type'],
+        properties: {
+          name: { type: 'string', minLength: 1, example: 'Central Health Center' },
+          type: { type: 'string', minLength: 1, example: 'health_center' },
+          level: { type: 'string', nullable: true, example: 'primary' },
+          region: { type: 'string', nullable: true, example: 'Oromia' },
+          zone: { type: 'string', nullable: true, example: 'West Shewa' },
+          woreda: { type: 'string', nullable: true, example: 'Ambo' },
+          kebele: { type: 'string', nullable: true, example: '01' },
+          street_address: { type: 'string', nullable: true },
+          contact_info: { type: 'string', nullable: true },
+        },
+        additionalProperties: false,
+      },
+      UpdateFacilityRequest: {
+        type: 'object',
+        minProperties: 1,
+        properties: {
+          name: { type: 'string', minLength: 1 },
+          type: { type: 'string', minLength: 1 },
+          level: { type: 'string', nullable: true },
+          region: { type: 'string', nullable: true },
+          zone: { type: 'string', nullable: true },
+          woreda: { type: 'string', nullable: true },
+          kebele: { type: 'string', nullable: true },
+          street_address: { type: 'string', nullable: true },
+          contact_info: { type: 'string', nullable: true },
+        },
+        additionalProperties: false,
+      },
+      MentorshipCycle: {
+        type: 'object',
+        required: ['id', 'name', 'status'],
+        properties: {
+          id: { type: 'integer', example: 1 },
+          name: { type: 'string', example: '2026 Mentorship Cycle 1' },
+          status: { type: 'string', enum: ['draft', 'planned', 'active', 'completed', 'cancelled'], example: 'draft' },
+          start_date: { type: 'string', format: 'date', nullable: true, example: '2026-11-01' },
+          end_date: { type: 'string', format: 'date', nullable: true, example: '2027-04-30' },
+          created_at: { type: 'string', format: 'date-time' },
+          updated_at: { type: 'string', format: 'date-time' },
+        },
+      },
+      CycleResponse: {
+        type: 'object',
+        properties: {
+          success: { type: 'boolean', example: true },
+          data: { $ref: '#/components/schemas/MentorshipCycle' },
+          meta: { type: 'object', example: {} },
+        },
+      },
+      CycleListResponse: {
+        type: 'object',
+        properties: {
+          success: { type: 'boolean', example: true },
+          data: { type: 'array', items: { $ref: '#/components/schemas/MentorshipCycle' } },
+          meta: {
+            type: 'object',
+            properties: {
+              page: { type: 'integer', example: 1 },
+              limit: { type: 'integer', example: 20 },
+              total: { type: 'integer', example: 8 },
+              totalPages: { type: 'integer', example: 1 },
+            },
+          },
+        },
+      },
+      CreateCycleRequest: {
+        type: 'object',
+        required: ['name'],
+        properties: {
+          name: { type: 'string', minLength: 1, example: '2026 Mentorship Cycle 1' },
+          start_date: { type: 'string', format: 'date', nullable: true, example: '2026-11-01' },
+          end_date: { type: 'string', format: 'date', nullable: true, example: '2027-04-30' },
+        },
+        additionalProperties: false,
+      },
+      UpdateCycleRequest: {
+        type: 'object',
+        minProperties: 1,
+        properties: {
+          name: { type: 'string', minLength: 1 },
+          start_date: { type: 'string', format: 'date', nullable: true },
+          end_date: { type: 'string', format: 'date', nullable: true },
+        },
+        additionalProperties: false,
+      },
+      UpdateCycleStatusRequest: {
+        type: 'object',
+        required: ['status'],
+        properties: {
+          status: {
+            type: 'string',
+            enum: ['draft', 'planned', 'active', 'completed', 'cancelled'],
+            description: 'Transitions: draft to planned/cancelled; planned to active/cancelled; active to completed/cancelled. Completed and cancelled are terminal.',
+          },
+        },
+        additionalProperties: false,
+      },
+      CycleFacilityListResponse: {
+        type: 'object',
+        properties: {
+          success: { type: 'boolean', example: true },
+          data: { type: 'array', items: { $ref: '#/components/schemas/Facility' } },
+          meta: { type: 'object', example: {} },
+        },
+      },
+      CycleThematicAreaListResponse: {
+        type: 'object',
+        properties: {
+          success: { type: 'boolean', example: true },
+          data: {
+            type: 'array',
+            items: {
+              type: 'object',
+              required: ['id', 'code', 'name'],
+              properties: {
+                id: { type: 'integer', example: 1 },
+                code: { type: 'string', example: 'ANC' },
+                name: { type: 'string', example: 'Antenatal care' },
+              },
+            },
+          },
+          meta: { type: 'object', example: {} },
+        },
+      },
+      AssignCycleFacilityRequest: {
+        type: 'object',
+        required: ['facility_id'],
+        properties: { facility_id: { type: 'integer', minimum: 1, example: 2 } },
+        additionalProperties: false,
+      },
+      AssignCycleThematicAreaRequest: {
+        type: 'object',
+        required: ['thematic_area_id'],
+        properties: { thematic_area_id: { type: 'integer', minimum: 1, example: 1 } },
+        additionalProperties: false,
+      },
+      CycleFacilityAssignmentResponse: {
+        type: 'object',
+        properties: {
+          success: { type: 'boolean', example: true },
+          data: {
+            type: 'object',
+            properties: {
+              cycle_id: { type: 'integer', example: 1 },
+              facility_id: { type: 'integer', example: 2 },
+              assigned: { type: 'boolean', example: true },
+              removed: { type: 'boolean', example: false },
+            },
+          },
+          meta: { type: 'object', example: {} },
+        },
+      },
+      CycleThematicAreaAssignmentResponse: {
+        type: 'object',
+        properties: {
+          success: { type: 'boolean', example: true },
+          data: {
+            type: 'object',
+            properties: {
+              cycle_id: { type: 'integer', example: 1 },
+              thematic_area_id: { type: 'integer', example: 1 },
+              assigned: { type: 'boolean', example: true },
+              removed: { type: 'boolean', example: false },
+            },
+          },
+          meta: { type: 'object', example: {} },
         },
       },
     },
