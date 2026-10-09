@@ -43,9 +43,39 @@ const sendMessage = async ({ conversationId, userId, content, attachmentFileId }
 	return repository.createMessage({ conversationId, senderId: userId, content, attachmentFileId });
 };
 
+const ensureMessageOwner = async ({ conversationId, messageId, userId }) => {
+	await ensureParticipant(conversationId, userId);
+	const message = await repository.getMessage(conversationId, messageId);
+	if (!message) throw new AppError('Message not found.', 404, 'NOT_FOUND');
+	if (message.sender_id !== userId) {
+		throw new AppError('You can only change your own messages.', 403, 'FORBIDDEN');
+	}
+};
+
+const editMessage = async ({ conversationId, messageId, userId, content }) => {
+	await ensureMessageOwner({ conversationId, messageId, userId });
+	const message = await repository.updateMessage({ conversationId, messageId, userId, content });
+	if (!message) throw new AppError('Message not found.', 404, 'NOT_FOUND');
+	return message;
+};
+
+const deleteMessage = async ({ conversationId, messageId, userId }) => {
+	await ensureMessageOwner({ conversationId, messageId, userId });
+	const deleted = await repository.deleteMessage({ conversationId, messageId, userId });
+	if (!deleted) throw new AppError('Message not found.', 404, 'NOT_FOUND');
+};
+
 const markRead = async ({ conversationId, userId }) => {
 	await ensureParticipant(conversationId, userId);
 	return { markedRead: await repository.markConversationRead({ conversationId, userId }) };
 };
 
-module.exports = { listConversations, getConversation, createConversation, sendMessage, markRead };
+module.exports = {
+	listConversations,
+	getConversation,
+	createConversation,
+	sendMessage,
+	editMessage,
+	deleteMessage,
+	markRead,
+};

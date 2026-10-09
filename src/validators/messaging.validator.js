@@ -45,4 +45,12 @@ const parseSendMessage = (body = {}) => {
 	return { content: body.content.trim(), attachmentFileId: parsedAttachmentIds[0] ?? null };
 };
 
-module.exports = { parseId, parseCreateConversation, parseSendMessage };
+const parseEditMessage = (body = {}) => {
+	if (typeof body.content !== 'string' || !body.content.trim()) {
+		throw invalid('content is required and cannot be empty.');
+	}
+
+	return { content: body.content.trim() };
+};
+
+module.exports = { parseId, parseCreateConversation, parseSendMessage, parseEditMessage };

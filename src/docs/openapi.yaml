@@ -1,1 +1,2585 @@
-# src/docs/openapi.yaml
+openapi: 3.0.0
+info:
+  title: CBCM Backend API
+  version: 1.0.0
+  description: CBCM authentication, user management, facilities, mentorship cycles, and cycle configuration APIs.
+servers:
+  - url: http://localhost:5000
+    description: Local development server
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  schemas:
+    ErrorResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: false
+        error:
+          type: object
+          properties:
+            code:
+              type: string
+            message:
+              type: string
+    SuccessResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        data:
+          type: object
+        meta:
+          type: object
+    LoginRequest:
+      type: object
+      required:
+        - email
+        - password
+      properties:
+        email:
+          type: string
+          format: email
+          example: admin@cbcm.org
+        password:
+          type: string
+          format: password
+          example: Admin@123
+    RefreshTokenRequest:
+      type: object
+      required:
+        - refreshToken
+      properties:
+        refreshToken:
+          type: string
+          pattern: ^[a-f0-9]{64}$
+          example: 64-character opaque refresh token
+    LoginResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        data:
+          type: object
+          required:
+            - accessToken
+            - refreshToken
+            - user
+          properties:
+            accessToken:
+              type: string
+              example: eyJhbGciOiJIUzI1NiJ9...
+            accessTokenExpiresIn:
+              type: string
+              example: 15m
+            refreshToken:
+              type: string
+              pattern: ^[a-f0-9]{64}$
+              example: 64-character opaque refresh token
+            refreshTokenExpiresAt:
+              type: string
+              format: date-time
+              example: '2026-11-04T12:00:00.000Z'
+            user:
+              $ref: '#/components/schemas/UserProfile'
+        meta:
+          type: object
+          example: {}
+    MessageResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        data:
+          type: object
+          properties:
+            message:
+              type: string
+              example: If that email exists, a reset link will be sent.
+        meta:
+          type: object
+          example: {}
+    BooleanActionResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        data:
+          type: object
+          properties:
+            reset:
+              type: boolean
+              example: true
+            changed:
+              type: boolean
+              example: true
+            revoked:
+              type: boolean
+              example: true
+        meta:
+          type: object
+          example: {}
+    RefreshTokenResponse:
+      $ref: '#/components/schemas/LoginResponse'
+    ForgotPasswordRequest:
+      type: object
+      required:
+        - email
+      properties:
+        email:
+          type: string
+          format: email
+          example: user@example.com
+    ResetPasswordRequest:
+      type: object
+      required:
+        - token
+        - password
+      properties:
+        token:
+          type: string
+          pattern: ^[a-f0-9]{64}$
+          example: 64-character one-time token delivered by email
+        password:
+          type: string
+          format: password
+          minLength: 8
+          example: NewStrongPass2!
+    ChangePasswordRequest:
+      type: object
+      required:
+        - currentPassword
+        - newPassword
+      properties:
+        currentPassword:
+          type: string
+          format: password
+        newPassword:
+          type: string
+          format: password
+          minLength: 8
+          example: NewStrongPass2!
+    LogoutRequest:
+      type: object
+      properties:
+        refreshToken:
+          type: string
+          pattern: ^[a-f0-9]{64}$
+          example: 64-character opaque refresh token
+    UserProfile:
+      type: object
+      required:
+        - id
+        - email
+        - role
+        - status
+      properties:
+        id:
+          type: integer
+          example: 1
+        full_name:
+          type: string
+          example: Jane Doe
+        email:
+          type: string
+          format: email
+          example: jane@example.com
+        role:
+          type: string
+          example: mentee
+        status:
+          type: string
+          example: active
+        facility_id:
+          type: integer
+          nullable: true
+        highest_qualification:
+          type: string
+          nullable: true
+        training_status:
+          type: string
+          nullable: true
+        phone:
+          type: string
+          nullable: true
+        avatar_url:
+          type: string
+          nullable: true
+        must_change_password:
+          type: boolean
+          example: false
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+    UserProfileResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        data:
+          $ref: '#/components/schemas/UserProfile'
+        meta:
+          type: object
+          example: {}
+    SessionResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        data:
+          type: object
+          properties:
+            user:
+              $ref: '#/components/schemas/UserProfile'
+        meta:
+          type: object
+          example: {}
+    UpdateProfileRequest:
+      type: object
+      minProperties: 1
+      properties:
+        full_name:
+          type: string
+          minLength: 2
+          example: Jane Doe
+        phone:
+          type: string
+          minLength: 7
+          example: '+251911234567'
+        highest_qualification:
+          type: string
+          example: BSc Midwifery
+        training_status:
+          type: string
+          example: in_training
+        avatar_url:
+          type: string
+          format: uri
+          example: https://example.com/avatar.jpg
+      additionalProperties: false
+    UserPreferences:
+      type: object
+      properties:
+        id:
+          type: integer
+          example: 1
+        user_id:
+          type: integer
+          example: 10
+        language:
+          type: string
+          maxLength: 20
+          nullable: true
+          example: en
+        theme:
+          type: string
+          enum:
+            - light
+            - dark
+            - system
+          nullable: true
+          example: system
+        notifications_enabled:
+          type: boolean
+          nullable: true
+          example: true
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+    UpdateUserPreferencesRequest:
+      type: object
+      minProperties: 1
+      properties:
+        language:
+          type: string
+          maxLength: 20
+          example: en
+        theme:
+          type: string
+          enum:
+            - light
+            - dark
+            - system
+        notifications_enabled:
+          type: boolean
+          example: true
+      additionalProperties: false
+    PreferencesResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        data:
+          allOf:
+            - $ref: '#/components/schemas/UserPreferences'
+          nullable: true
+        meta:
+          type: object
+          example: {}
+    CreateUserRequest:
+      type: object
+      required:
+        - full_name
+        - email
+        - password
+        - role
+      properties:
+        full_name:
+          type: string
+          minLength: 1
+          example: Jane Doe
+        email:
+          type: string
+          format: email
+          example: jane@example.com
+        password:
+          type: string
+          format: password
+          minLength: 8
+          example: TemporaryPass1!
+        role:
+          type: string
+          enum:
+            - admin
+            - facility_admin
+            - mentor
+            - mentee
+          example: mentee
+        facility_id:
+          type: integer
+          minimum: 1
+          nullable: true
+          example: 2
+        phone:
+          type: string
+          example: '+251911234567'
+        highest_qualification:
+          type: string
+          example: BSc Midwifery
+        training_status:
+          type: string
+          example: in_training
+        must_change_password:
+          type: boolean
+          default: true
+          example: true
+      additionalProperties: false
+    UpdateUserStatusRequest:
+      type: object
+      required:
+        - status
+      properties:
+        status:
+          type: string
+          enum:
+            - active
+            - inactive
+            - suspended
+          example: inactive
+    UserListResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/UserProfile'
+        meta:
+          type: object
+          properties:
+            page:
+              type: integer
+              example: 1
+            limit:
+              type: integer
+              example: 20
+            total:
+              type: integer
+              example: 42
+            totalPages:
+              type: integer
+              example: 3
+    Facility:
+      type: object
+      required:
+        - id
+        - name
+        - type
+      properties:
+        id:
+          type: integer
+          example: 1
+        name:
+          type: string
+          example: Central Health Center
+        type:
+          type: string
+          example: health_center
+        level:
+          type: string
+          nullable: true
+          example: primary
+        region:
+          type: string
+          nullable: true
+          example: Oromia
+        zone:
+          type: string
+          nullable: true
+          example: West Shewa
+        woreda:
+          type: string
+          nullable: true
+          example: Ambo
+        kebele:
+          type: string
+          nullable: true
+          example: '01'
+        street_address:
+          type: string
+          nullable: true
+        contact_info:
+          type: string
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+    FacilityResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        data:
+          $ref: '#/components/schemas/Facility'
+        meta:
+          type: object
+          example: {}
+    FacilityListResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/Facility'
+        meta:
+          type: object
+          properties:
+            page:
+              type: integer
+              example: 1
+            limit:
+              type: integer
+              example: 20
+            total:
+              type: integer
+              example: 12
+            totalPages:
+              type: integer
+              example: 1
+    CreateFacilityRequest:
+      type: object
+      required:
+        - name
+        - type
+      properties:
+        name:
+          type: string
+          minLength: 1
+          example: Central Health Center
+        type:
+          type: string
+          minLength: 1
+          example: health_center
+        level:
+          type: string
+          nullable: true
+          example: primary
+        region:
+          type: string
+          nullable: true
+          example: Oromia
+        zone:
+          type: string
+          nullable: true
+          example: West Shewa
+        woreda:
+          type: string
+          nullable: true
+          example: Ambo
+        kebele:
+          type: string
+          nullable: true
+          example: '01'
+        street_address:
+          type: string
+          nullable: true
+        contact_info:
+          type: string
+          nullable: true
+      additionalProperties: false
+    UpdateFacilityRequest:
+      type: object
+      minProperties: 1
+      properties:
+        name:
+          type: string
+          minLength: 1
+        type:
+          type: string
+          minLength: 1
+        level:
+          type: string
+          nullable: true
+        region:
+          type: string
+          nullable: true
+        zone:
+          type: string
+          nullable: true
+        woreda:
+          type: string
+          nullable: true
+        kebele:
+          type: string
+          nullable: true
+        street_address:
+          type: string
+          nullable: true
+        contact_info:
+          type: string
+          nullable: true
+      additionalProperties: false
+    MentorshipCycle:
+      type: object
+      required:
+        - id
+        - name
+        - status
+      properties:
+        id:
+          type: integer
+          example: 1
+        name:
+          type: string
+          example: 2026 Mentorship Cycle 1
+        status:
+          type: string
+          enum:
+            - draft
+            - planned
+            - active
+            - completed
+            - cancelled
+          example: draft
+        start_date:
+          type: string
+          format: date
+          nullable: true
+          example: '2026-11-01'
+        end_date:
+          type: string
+          format: date
+          nullable: true
+          example: '2027-04-30'
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+    CycleResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        data:
+          $ref: '#/components/schemas/MentorshipCycle'
+        meta:
+          type: object
+          example: {}
+    CycleListResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/MentorshipCycle'
+        meta:
+          type: object
+          properties:
+            page:
+              type: integer
+              example: 1
+            limit:
+              type: integer
+              example: 20
+            total:
+              type: integer
+              example: 8
+            totalPages:
+              type: integer
+              example: 1
+    CreateCycleRequest:
+      type: object
+      required:
+        - name
+      properties:
+        name:
+          type: string
+          minLength: 1
+          example: 2026 Mentorship Cycle 1
+        start_date:
+          type: string
+          format: date
+          nullable: true
+          example: '2026-11-01'
+        end_date:
+          type: string
+          format: date
+          nullable: true
+          example: '2027-04-30'
+      additionalProperties: false
+    UpdateCycleRequest:
+      type: object
+      minProperties: 1
+      properties:
+        name:
+          type: string
+          minLength: 1
+        start_date:
+          type: string
+          format: date
+          nullable: true
+        end_date:
+          type: string
+          format: date
+          nullable: true
+      additionalProperties: false
+    UpdateCycleStatusRequest:
+      type: object
+      required:
+        - status
+      properties:
+        status:
+          type: string
+          enum:
+            - draft
+            - planned
+            - active
+            - completed
+            - cancelled
+          description: 'Transitions: draft to planned/cancelled; planned to active/cancelled; active to completed/cancelled. Completed and cancelled are terminal.'
+      additionalProperties: false
+    CycleFacilityListResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/Facility'
+        meta:
+          type: object
+          example: {}
+    CycleThematicAreaListResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        data:
+          type: array
+          items:
+            type: object
+            required:
+              - id
+              - code
+              - name
+            properties:
+              id:
+                type: integer
+                example: 1
+              code:
+                type: string
+                example: ANC
+              name:
+                type: string
+                example: Antenatal care
+        meta:
+          type: object
+          example: {}
+    AssignCycleFacilityRequest:
+      type: object
+      required:
+        - facility_id
+      properties:
+        facility_id:
+          type: integer
+          minimum: 1
+          example: 2
+      additionalProperties: false
+    AssignCycleThematicAreaRequest:
+      type: object
+      required:
+        - thematic_area_id
+      properties:
+        thematic_area_id:
+          type: integer
+          minimum: 1
+          example: 1
+      additionalProperties: false
+    CycleFacilityAssignmentResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        data:
+          type: object
+          properties:
+            cycle_id:
+              type: integer
+              example: 1
+            facility_id:
+              type: integer
+              example: 2
+            assigned:
+              type: boolean
+              example: true
+            removed:
+              type: boolean
+              example: false
+        meta:
+          type: object
+          example: {}
+    CycleThematicAreaAssignmentResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        data:
+          type: object
+          properties:
+            cycle_id:
+              type: integer
+              example: 1
+            thematic_area_id:
+              type: integer
+              example: 1
+            assigned:
+              type: boolean
+              example: true
+            removed:
+              type: boolean
+              example: false
+        meta:
+          type: object
+          example: {}
+    CreateConversationRequest:
+      type: object
+      required:
+        - participantIds
+      properties:
+        participantIds:
+          type: array
+          minItems: 1
+          uniqueItems: true
+          items:
+            type: integer
+            minimum: 1
+          description: Other participants' IDs; the authenticated user is added automatically.
+        type:
+          type: string
+          enum:
+            - direct
+            - group
+          default: direct
+    SendMessageRequest:
+      type: object
+      required:
+        - content
+      properties:
+        content:
+          type: string
+          minLength: 1
+        attachmentFileIds:
+          type: array
+          maxItems: 1
+          uniqueItems: true
+          items:
+            type: integer
+            minimum: 1
+          description: Optional array containing zero or one uploaded-file ID owned by the sender.
+    EditMessageRequest:
+      type: object
+      required:
+        - content
+      properties:
+        content:
+          type: string
+          minLength: 1
+    Participant:
+      type: object
+      properties:
+        id:
+          type: integer
+        fullName:
+          type: string
+          nullable: true
+        role:
+          type: string
+          nullable: true
+        avatarUrl:
+          type: string
+          nullable: true
+    MessageRead:
+      type: object
+      properties:
+        userId:
+          type: integer
+        readAt:
+          type: string
+          format: date-time
+    Attachment:
+      type: object
+      nullable: true
+      properties:
+        id:
+          type: integer
+        storageKey:
+          type: string
+        mimeType:
+          type: string
+          nullable: true
+        sizeBytes:
+          type: integer
+          nullable: true
+    Message:
+      type: object
+      properties:
+        id:
+          type: integer
+        conversationId:
+          type: integer
+        senderId:
+          type: integer
+        content:
+          type: string
+        sentAt:
+          type: string
+          format: date-time
+        sender:
+          allOf:
+            - $ref: '#/components/schemas/Participant'
+          nullable: true
+        attachment:
+          $ref: '#/components/schemas/Attachment'
+        reads:
+          type: array
+          items:
+            $ref: '#/components/schemas/MessageRead'
+    Conversation:
+      type: object
+      properties:
+        id:
+          type: integer
+        type:
+          type: string
+          enum:
+            - direct
+            - group
+        participants:
+          type: array
+          items:
+            $ref: '#/components/schemas/Participant'
+        lastMessage:
+          allOf:
+            - $ref: '#/components/schemas/Message'
+          nullable: true
+        lastMessageAt:
+          type: string
+          format: date-time
+          nullable: true
+        unreadCount:
+          type: integer
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+    ConversationDetail:
+      allOf:
+        - $ref: '#/components/schemas/Conversation'
+        - type: object
+          properties:
+            messages:
+              type: array
+              items:
+                $ref: '#/components/schemas/Message'
+  parameters:
+    ConversationId:
+      name: id
+      in: path
+      required: true
+      description: Positive integer conversation ID.
+      schema:
+        type: integer
+        minimum: 1
+    MessageId:
+      name: messageId
+      in: path
+      required: true
+      description: Positive integer message ID.
+      schema:
+        type: integer
+        minimum: 1
+  responses:
+    BadRequest:
+      description: Invalid request data.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    Unauthorized:
+      description: Missing or invalid bearer token.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    Forbidden:
+      description: Authenticated user is not a conversation participant or cannot use the attachment.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    NotFound:
+      description: Conversation or attachment not found.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    ServerError:
+      description: Unexpected server error.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+paths:
+  /api/v1/users/me:
+    get:
+      summary: Get current user's profile
+      description: Returns the authenticated user's safe profile fields only.
+      tags:
+        - Users
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Safe profile returned
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserProfileResponse'
+        '401':
+          description: Missing or invalid access token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+    patch:
+      summary: Update current user's editable profile fields
+      description: Only full_name, phone, highest_qualification, training_status, and avatar_url are editable. Role, status, facility, and credential fields cannot be changed here.
+      tags:
+        - Users
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateProfileRequest'
+      responses:
+        '200':
+          description: Updated safe profile
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserProfileResponse'
+        '400':
+          description: Profile validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Missing or invalid access token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: User not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /api/v1/users/me/preferences:
+    get:
+      summary: Get current user's preferences
+      description: Reads preferences for the authenticated user only and returns null when none have been saved.
+      tags:
+        - Users
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Preferences returned
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PreferencesResponse'
+        '401':
+          description: Missing or invalid access token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+    patch:
+      summary: Update current user's preferences
+      description: Updates or creates preferences for the authenticated user only.
+      tags:
+        - Users
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateUserPreferencesRequest'
+      responses:
+        '200':
+          description: Preferences updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PreferencesResponse'
+        '400':
+          description: Preference validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Missing or invalid access token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /api/v1/users:
+    get:
+      summary: List users (administrator only)
+      description: Returns safe profile fields with pagination. Only administrators may list users.
+      tags:
+        - Users
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: query
+          name: page
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - in: query
+          name: limit
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+        - in: query
+          name: role
+          schema:
+            type: string
+            enum:
+              - admin
+              - facility_admin
+              - mentor
+              - mentee
+        - in: query
+          name: status
+          schema:
+            type: string
+            enum:
+              - active
+              - inactive
+              - suspended
+      responses:
+        '200':
+          description: Paginated safe user list
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserListResponse'
+        '400':
+          description: Invalid pagination or filter
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Missing or invalid access token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Administrator role required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+    post:
+      summary: Provision a user (administrator only)
+      description: Public self-registration is not supported. An administrator provisions a user with an allowed role and temporary password; password change is required by default.
+      tags:
+        - Users
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateUserRequest'
+      responses:
+        '201':
+          description: User provisioned; password hash is never returned
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserProfileResponse'
+        '400':
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Missing or invalid access token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Administrator role required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Facility not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: Email already exists
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /api/v1/users/{id}:
+    get:
+      summary: Get a user by ID (administrator only)
+      description: Returns a safe user profile; password and credential secrets are never included.
+      tags:
+        - Users
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+            minimum: 1
+      responses:
+        '200':
+          description: Safe user profile
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserProfileResponse'
+        '400':
+          description: Invalid user ID
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Missing or invalid access token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Administrator role required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: User not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /api/v1/users/{id}/status:
+    patch:
+      summary: Change a user's status (administrator only)
+      description: Deactivating or suspending a user revokes their refresh tokens and invalidates existing access tokens.
+      tags:
+        - Users
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+            minimum: 1
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateUserStatusRequest'
+      responses:
+        '200':
+          description: Status updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserProfileResponse'
+        '400':
+          description: Invalid ID or status
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Missing or invalid access token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Administrator role required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: User not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: Administrator cannot disable their own account
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /api/v1/facilities:
+    get:
+      summary: List facilities
+      description: Lists facilities with optional geography/type filters and pagination. Any authenticated user may view facilities.
+      tags:
+        - Facilities
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: query
+          name: page
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - in: query
+          name: limit
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+        - in: query
+          name: type
+          schema:
+            type: string
+        - in: query
+          name: level
+          schema:
+            type: string
+        - in: query
+          name: region
+          schema:
+            type: string
+        - in: query
+          name: zone
+          schema:
+            type: string
+        - in: query
+          name: woreda
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Paginated facilities
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FacilityListResponse'
+        '400':
+          description: Invalid pagination or filter
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Authentication required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+    post:
+      summary: Create a facility
+      description: Administrator only. Facility fields match the existing facilities table; name and type are required by the API.
+      tags:
+        - Facilities
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateFacilityRequest'
+      responses:
+        '201':
+          description: Facility created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FacilityResponse'
+        '400':
+          description: Invalid facility fields
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Authentication required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Administrator role required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /api/v1/facilities/{id}:
+    get:
+      summary: Get a facility
+      tags:
+        - Facilities
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+            minimum: 1
+      responses:
+        '200':
+          description: Facility details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FacilityResponse'
+        '400':
+          description: Invalid facility ID
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Authentication required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Facility not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+    patch:
+      summary: Update a facility
+      description: Administrator only. Status updates are not available because the existing facility schema has no status field.
+      tags:
+        - Facilities
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+            minimum: 1
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateFacilityRequest'
+      responses:
+        '200':
+          description: Facility updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FacilityResponse'
+        '400':
+          description: Invalid facility ID or fields
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Authentication required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Administrator role required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Facility not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /api/v1/mentorship-cycles:
+    get:
+      summary: List mentorship cycles
+      tags:
+        - Mentorship Cycles
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: query
+          name: page
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - in: query
+          name: limit
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+        - in: query
+          name: status
+          schema:
+            type: string
+            enum:
+              - draft
+              - planned
+              - active
+              - completed
+              - cancelled
+      responses:
+        '200':
+          description: Paginated cycle list
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CycleListResponse'
+        '400':
+          description: Invalid pagination or status filter
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Authentication required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+    post:
+      summary: Create a mentorship cycle
+      description: Administrator only. New cycles begin in draft status.
+      tags:
+        - Mentorship Cycles
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateCycleRequest'
+      responses:
+        '201':
+          description: Cycle created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CycleResponse'
+        '400':
+          description: Invalid cycle fields or date range
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Authentication required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Administrator role required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /api/v1/mentorship-cycles/{id}:
+    get:
+      summary: Get a mentorship cycle
+      tags:
+        - Mentorship Cycles
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+            minimum: 1
+      responses:
+        '200':
+          description: Cycle details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CycleResponse'
+        '400':
+          description: Invalid cycle ID
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Authentication required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Cycle not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+    patch:
+      summary: Update a mentorship cycle
+      tags:
+        - Mentorship Cycles
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+            minimum: 1
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateCycleRequest'
+      responses:
+        '200':
+          description: Cycle updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CycleResponse'
+        '400':
+          description: Invalid cycle ID, fields, or date range
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Authentication required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Administrator role required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Cycle not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /api/v1/mentorship-cycles/{id}/status:
+    patch:
+      summary: Transition a mentorship cycle status
+      description: Allowed transitions are draft to planned or cancelled, planned to active or cancelled, and active to completed or cancelled. Completed and cancelled are terminal. Activation requires start_date and end_date.
+      tags:
+        - Mentorship Cycles
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+            minimum: 1
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateCycleStatusRequest'
+      responses:
+        '200':
+          description: Cycle status transitioned
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CycleResponse'
+        '400':
+          description: Unsupported status, invalid transition, or missing activation dates
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Authentication required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Administrator role required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Cycle not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: Concurrent cycle status change
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /api/v1/mentorship-cycles/{cycleId}/facilities:
+    get:
+      summary: List facilities assigned to a cycle
+      tags:
+        - Cycle Configuration
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: cycleId
+          required: true
+          schema:
+            type: integer
+            minimum: 1
+      responses:
+        '200':
+          description: Cycle facilities
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CycleFacilityListResponse'
+        '400':
+          description: Invalid cycle ID
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Authentication required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Cycle not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+    post:
+      summary: Assign a facility to a cycle
+      tags:
+        - Cycle Configuration
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: cycleId
+          required: true
+          schema:
+            type: integer
+            minimum: 1
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AssignCycleFacilityRequest'
+      responses:
+        '201':
+          description: Facility assigned
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CycleFacilityAssignmentResponse'
+        '400':
+          description: Invalid identifiers
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Authentication required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Administrator role required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Cycle or facility not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: Facility already assigned
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /api/v1/mentorship-cycles/{cycleId}/facilities/{facilityId}:
+    delete:
+      summary: Remove a facility from a cycle
+      tags:
+        - Cycle Configuration
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: cycleId
+          required: true
+          schema:
+            type: integer
+            minimum: 1
+        - in: path
+          name: facilityId
+          required: true
+          schema:
+            type: integer
+            minimum: 1
+      responses:
+        '200':
+          description: Facility removed from cycle
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CycleFacilityAssignmentResponse'
+        '400':
+          description: Invalid identifiers
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Authentication required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Administrator role required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Cycle or assignment not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /api/v1/mentorship-cycles/{cycleId}/thematic-areas:
+    get:
+      summary: List thematic areas assigned to a cycle
+      tags:
+        - Cycle Configuration
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: cycleId
+          required: true
+          schema:
+            type: integer
+            minimum: 1
+      responses:
+        '200':
+          description: Cycle thematic areas
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CycleThematicAreaListResponse'
+        '400':
+          description: Invalid cycle ID
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Authentication required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Cycle not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+    post:
+      summary: Assign a thematic area to a cycle
+      tags:
+        - Cycle Configuration
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: cycleId
+          required: true
+          schema:
+            type: integer
+            minimum: 1
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AssignCycleThematicAreaRequest'
+      responses:
+        '201':
+          description: Thematic area assigned
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CycleThematicAreaAssignmentResponse'
+        '400':
+          description: Invalid identifiers
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Authentication required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Administrator role required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Cycle or thematic area not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: Thematic area already assigned
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /api/v1/mentorship-cycles/{cycleId}/thematic-areas/{thematicAreaId}:
+    delete:
+      summary: Remove a thematic area from a cycle
+      tags:
+        - Cycle Configuration
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: cycleId
+          required: true
+          schema:
+            type: integer
+            minimum: 1
+        - in: path
+          name: thematicAreaId
+          required: true
+          schema:
+            type: integer
+            minimum: 1
+      responses:
+        '200':
+          description: Thematic area removed from cycle
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CycleThematicAreaAssignmentResponse'
+        '400':
+          description: Invalid identifiers
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Authentication required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Administrator role required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Cycle or assignment not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /api/v1/auth/login:
+    post:
+      summary: Log in a user
+      tags:
+        - Auth
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+      description: Authenticates an active, provisioned user. Public self-registration is not enabled; users are provisioned by an administrator.
+      responses:
+        '200':
+          description: Login successful
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LoginResponse'
+        '400':
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Invalid credentials or inactive account
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Unexpected server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /api/v1/auth/refresh-token:
+    post:
+      summary: Refresh an access token
+      tags:
+        - Auth
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RefreshTokenRequest'
+      description: Rotates a valid opaque refresh token. The presented token is revoked and cannot be reused.
+      responses:
+        '200':
+          description: Token rotation successful
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RefreshTokenResponse'
+        '400':
+          description: Refresh token is missing or malformed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Token is invalid, expired, revoked, replayed, or belongs to an inactive user
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Unexpected server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /api/v1/auth/logout:
+    post:
+      summary: Log out and revoke refresh token(s)
+      description: Requires an access token. Revokes the supplied refresh token for this user, or all of the user's active refresh tokens when omitted.
+      tags:
+        - Auth
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LogoutRequest'
+      responses:
+        '200':
+          description: Logout completed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BooleanActionResponse'
+        '400':
+          description: Invalid refresh token input
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Missing or invalid access token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Unexpected server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /api/v1/auth/forgot-password:
+    post:
+      summary: Request a password-reset link
+      description: Always returns the same message whether or not the email belongs to an active account. Delivery requires SMTP configuration.
+      tags:
+        - Auth
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ForgotPasswordRequest'
+      responses:
+        '200':
+          description: Generic response that does not disclose account existence
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MessageResponse'
+        '400':
+          description: Email validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Unexpected server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /api/v1/auth/reset-password:
+    post:
+      summary: Reset a password with a one-time token
+      description: The reset token is delivered by email, expires according to PASSWORD_RESET_EXPIRES_IN, and is usable once.
+      tags:
+        - Auth
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ResetPasswordRequest'
+      responses:
+        '200':
+          description: Password reset; existing refresh sessions are revoked
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BooleanActionResponse'
+        '400':
+          description: Validation error or unchanged password
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Invalid, expired, or previously used reset token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Unexpected server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /api/v1/auth/change-password:
+    post:
+      summary: Change the authenticated user's password
+      description: Requires the current password, clears must_change_password, and revokes refresh sessions. Existing access tokens are invalidated.
+      tags:
+        - Auth
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ChangePasswordRequest'
+      responses:
+        '200':
+          description: Password changed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BooleanActionResponse'
+        '400':
+          description: Validation error or unchanged password
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Missing authentication or incorrect current password
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Unexpected server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /api/v1/auth/session:
+    get:
+      summary: Validate the current access-token session
+      description: Verifies the bearer JWT and returns the current safe user profile when the account remains active.
+      tags:
+        - Auth
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Current session is valid
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SessionResponse'
+        '401':
+          description: Missing, invalid, expired, stale, or inactive session
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Unexpected server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /messages/conversations:
+    get:
+      tags:
+        - Messaging
+      summary: List the authenticated user's conversations
+      responses:
+        '200':
+          description: Conversations returned.
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - success
+                  - data
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Conversation'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/ServerError'
+      security:
+        - bearerAuth: []
+    post:
+      tags:
+        - Messaging
+      summary: Create or retrieve a conversation
+      description: The authenticated user is added as a participant automatically. Direct conversations must have exactly two participants, including the current user.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateConversationRequest'
+            examples:
+              direct:
+                value:
+                  participantIds:
+                    - 42
+                  type: direct
+              group:
+                value:
+                  participantIds:
+                    - 42
+                    - 43
+                  type: group
+      responses:
+        '201':
+          description: Conversation created or existing direct conversation returned.
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - success
+                  - data
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    $ref: '#/components/schemas/ConversationDetail'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/ServerError'
+      security:
+        - bearerAuth: []
+    servers:
+      - url: http://localhost:5000/api/v1
+        description: Local development server
+  /messages/conversations/{id}:
+    parameters:
+      - $ref: '#/components/parameters/ConversationId'
+    get:
+      tags:
+        - Messaging
+      summary: Load a conversation and its messages
+      description: Returns all messages in ascending send-time order. Access is limited to conversation participants.
+      responses:
+        '200':
+          description: Conversation detail returned.
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - success
+                  - data
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    $ref: '#/components/schemas/ConversationDetail'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/ServerError'
+      security:
+        - bearerAuth: []
+    servers:
+      - url: http://localhost:5000/api/v1
+        description: Local development server
+  /messages/conversations/{id}/messages:
+    parameters:
+      - $ref: '#/components/parameters/ConversationId'
+    post:
+      tags:
+        - Messaging
+      summary: Send a message to a conversation
+      description: An optional owned uploaded-file ID may be attached. At most one attachment is supported.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SendMessageRequest'
+            example:
+              content: Hello!
+              attachmentFileIds:
+                - 123
+      responses:
+        '201':
+          description: Message sent.
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - success
+                  - data
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    $ref: '#/components/schemas/Message'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/ServerError'
+      security:
+        - bearerAuth: []
+    servers:
+      - url: http://localhost:5000/api/v1
+        description: Local development server
+  /messages/conversations/{id}/messages/{messageId}:
+    parameters:
+      - $ref: '#/components/parameters/ConversationId'
+      - $ref: '#/components/parameters/MessageId'
+    patch:
+      tags:
+        - Messaging
+      summary: Edit a message sent by the authenticated user
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EditMessageRequest'
+            example:
+              content: Corrected message text
+      responses:
+        '200':
+          description: Message updated.
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - success
+                  - data
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    $ref: '#/components/schemas/Message'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/ServerError'
+      security:
+        - bearerAuth: []
+    delete:
+      tags:
+        - Messaging
+      summary: Permanently delete a message sent by the authenticated user
+      responses:
+        '200':
+          description: Message deleted.
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - success
+                  - data
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: object
+                    required:
+                      - deleted
+                    properties:
+                      deleted:
+                        type: boolean
+                        example: true
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/ServerError'
+      security:
+        - bearerAuth: []
+    servers:
+      - url: http://localhost:5000/api/v1
+        description: Local development server
+  /messages/conversations/{id}/read:
+    parameters:
+      - $ref: '#/components/parameters/ConversationId'
+    patch:
+      tags:
+        - Messaging
+      summary: Mark messages in a conversation as read
+      responses:
+        '200':
+          description: Read status updated.
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - success
+                  - data
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: object
+                    required:
+                      - markedRead
+                    properties:
+                      markedRead:
+                        type: integer
+                        description: Number of messages marked as read.
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/ServerError'
+      security:
+        - bearerAuth: []
+    servers:
+      - url: http://localhost:5000/api/v1
+        description: Local development server
+tags: []

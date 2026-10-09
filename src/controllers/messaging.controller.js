@@ -30,6 +30,23 @@ module.exports = {
 		});
 		return res.status(201).json({ success: true, data: messageDto.toMessage(message) });
 	}),
+	editMessage: asyncHandler(async (req, res) => {
+		const message = await service.editMessage({
+			...req.messagingInput,
+			conversationId: req.params.id,
+			messageId: req.params.messageId,
+			userId: req.user.id,
+		});
+		return res.json({ success: true, data: messageDto.toMessage(message) });
+	}),
+	deleteMessage: asyncHandler(async (req, res) => {
+		await service.deleteMessage({
+			conversationId: req.params.id,
+			messageId: req.params.messageId,
+			userId: req.user.id,
+		});
+		return res.json({ success: true, data: { deleted: true } });
+	}),
 	markRead: asyncHandler(async (req, res) => {
 		const result = await service.markRead({ conversationId: req.params.id, userId: req.user.id });
 		return res.json({ success: true, data: result });

@@ -50,6 +50,8 @@ test('conversation and message inputs reject duplicates and empty content', () =
     content: 'Hello',
     attachmentFileId: null,
   });
+  assert.deepEqual(validator.parseEditMessage({ content: ' Corrected ' }), { content: 'Corrected' });
+  assert.throws(() => validator.parseEditMessage({ content: '  ' }), { statusCode: 400 });
 });
 
 test('authenticated requests use route validation before database access', async () => {
@@ -58,6 +60,49 @@ test('authenticated requests use route validation before database access', async
     headers: { authorization: `Bearer ${token}` },
   });
   assert.equal(response.status, 400);
+});
+
+test('malformed JSON request bodies return a client error', async () => {
+  const response = await request('/api/v1/messages/conversations/1/messages', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: '{"content":"Hello2!",}',
+  });
+  assert.equal(response.status, 400);
+  assert.deepEqual((await response.json()).error, {
+    code: 'INVALID_JSON',
+    message: 'Request body contains invalid JSON.',
+    details: [],
+  });
+});
+
+test('edit and delete message routes pass authenticated route IDs to the service', async () => {
+  const token = jwt.sign({ sub: '7' }, process.env.JWT_SECRET);
+  let edited;
+  let deleted;
+  replace(service, 'editMessage', async (input) => {
+    edited = input;
+    return { id: input.messageId, conversation_id: input.conversationId, sender_id: input.userId, content: input.content };
+  });
+  replace(service, 'deleteMessage', async (input) => { deleted = input; });
+
+  const headers = { authorization: `Bearer ${token}`, 'content-type': 'application/json' };
+  const editResponse = await request('/messages/conversations/23/messages/91', {
+    method: 'PATCH',
+    headers,
+    body: JSON.stringify({ content: 'Corrected' }),
+  });
+  assert.equal(editResponse.status, 200);
+  assert.equal((await editResponse.json()).data.content, 'Corrected');
+  assert.deepEqual(edited, { conversationId: 23, messageId: 91, userId: 7, content: 'Corrected' });
+
+  const deleteResponse = await request('/messages/conversations/23/messages/91', {
+    method: 'DELETE',
+    headers,
+  });
+  assert.equal(deleteResponse.status, 200);
+  assert.deepEqual((await deleteResponse.json()).data, { deleted: true });
+  assert.deepEqual(deleted, { conversationId: 23, messageId: 91, userId: 7 });
 });
 
 test('conversation reads are forbidden to non-participants', async () => {
@@ -147,6 +192,88 @@ test('message sender comes from auth and conversation id comes from the route', 
   assert.equal(sent.conversationId, 23);
   assert.equal(response.data.senderId, 7);
   assert.equal(response.data.conversationId, 23);
+});
+
+test('message edit uses the authenticated user and route message ID', async () => {
+  let edited;
+  replace(service, 'editMessage', async (input) => {
+    edited = input;
+    return { id: input.messageId, conversation_id: input.conversationId, sender_id: input.userId, content: input.content };
+  });
+  const response = await new Promise((resolve, reject) => {
+    controller.editMessage({
+      params: { id: 23, messageId: 91 },
+      user: { id: 7 },
+      messagingInput: { content: 'Corrected' },
+    }, {
+      json(value) { resolve(value); },
+    }, reject);
+  });
+  assert.deepEqual(edited, { conversationId: 23, messageId: 91, userId: 7, content: 'Corrected' });
+  assert.equal(response.data.content, 'Corrected');
+});
+
+test('only the message sender can edit or permanently delete a message', async () => {
+  replace(repository, 'getConversation', async () => ({ participants: [{ id: 7 }] }));
+  replace(repository, 'getMessage', async () => ({ sender_id: 8 }));
+  await assert.rejects(service.editMessage({
+    conversationId: 23,
+    messageId: 91,
+    userId: 7,
+    content: 'Changed',
+  }), { statusCode: 403 });
+  await assert.rejects(service.deleteMessage({
+    conversationId: 23,
+    messageId: 91,
+    userId: 7,
+  }), { statusCode: 403 });
+});
+
+test('editing a missing message returns not found', async () => {
+  replace(repository, 'getConversation', async () => ({ participants: [{ id: 7 }] }));
+  replace(repository, 'getMessage', async () => null);
+  await assert.rejects(service.editMessage({
+    conversationId: 23,
+    messageId: 91,
+    userId: 7,
+    content: 'Changed',
+  }), { statusCode: 404 });
+});
+
+test('message updates are scoped to conversation and sender', async () => {
+  let update;
+  const message = { id: 91, content: 'Corrected' };
+  replace(models.Message, 'update', async (...args) => { update = args; return [1]; });
+  replace(models.Message, 'findOne', async () => message);
+
+  assert.equal(await repository.updateMessage({
+    conversationId: 23,
+    messageId: 91,
+    userId: 7,
+    content: 'Corrected',
+  }), message);
+  assert.deepEqual(update[1].where, { id: 91, conversation_id: 23, sender_id: 7 });
+});
+
+test('permanent message deletion removes read records and refreshes conversation metadata', async () => {
+  let readDeletion;
+  let messageDeletion;
+  let conversationUpdate;
+  let messageLookup = 0;
+  replace(models.sequelize, 'transaction', async (callback) => callback({ LOCK: { UPDATE: 'UPDATE' } }));
+  replace(models.Message, 'findOne', async () => {
+    messageLookup += 1;
+    return messageLookup === 1 ? { id: 91 } : { id: 90, sent_at: new Date('2026-10-05T10:00:00Z') };
+  });
+  replace(models.MessageRead, 'destroy', async (options) => { readDeletion = options; return 1; });
+  replace(models.Message, 'destroy', async (options) => { messageDeletion = options; return 1; });
+  replace(models.Conversation, 'update', async (...args) => { conversationUpdate = args; });
+
+  assert.equal(await repository.deleteMessage({ conversationId: 23, messageId: 91, userId: 7 }), true);
+  assert.deepEqual(readDeletion.where, { message_id: 91 });
+  assert.deepEqual(messageDeletion.where, { id: 91, conversation_id: 23, sender_id: 7 });
+  assert.equal(conversationUpdate[0].last_message_id, 90);
+  assert.ok(conversationUpdate[0].last_message_at instanceof Date);
 });
 
 test('sending a message updates conversation last-message metadata', async () => {

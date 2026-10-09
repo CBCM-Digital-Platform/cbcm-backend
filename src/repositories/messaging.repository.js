@@ -161,6 +161,53 @@ const createMessage = async ({ conversationId, senderId, content, attachmentFile
 	return models.Message.findByPk(messageId, { include: messageIncludes });
 };
 
+const getMessage = (conversationId, messageId) => models.Message.findOne({
+	where: { id: messageId, conversation_id: conversationId },
+});
+
+const updateMessage = async ({ conversationId, messageId, userId, content }) => {
+	const [updatedCount] = await models.Message.update(
+		{ content },
+		{ where: { id: messageId, conversation_id: conversationId, sender_id: userId } },
+	);
+	if (updatedCount === 0) return null;
+
+	return models.Message.findOne({
+		where: { id: messageId, conversation_id: conversationId },
+		include: messageIncludes,
+	});
+};
+
+const deleteMessage = async ({ conversationId, messageId, userId }) => models.sequelize.transaction(async (transaction) => {
+	const message = await models.Message.findOne({
+		where: { id: messageId, conversation_id: conversationId, sender_id: userId },
+		transaction,
+		lock: transaction.LOCK.UPDATE,
+	});
+	if (!message) return false;
+
+	await models.MessageRead.destroy({ where: { message_id: messageId }, transaction });
+	const deletedCount = await models.Message.destroy({
+		where: { id: messageId, conversation_id: conversationId, sender_id: userId },
+		transaction,
+	});
+	if (deletedCount === 0) return false;
+
+	const latestMessage = await models.Message.findOne({
+		where: { conversation_id: conversationId },
+		attributes: ['id', 'sent_at'],
+		order: [['sent_at', 'DESC'], ['id', 'DESC']],
+		transaction,
+	});
+	await models.Conversation.update({
+		last_message_id: latestMessage?.id ?? null,
+		last_message_at: latestMessage?.sent_at ?? null,
+		updated_at: new Date(),
+	}, { where: { id: conversationId }, transaction });
+
+	return true;
+});
+
 const markConversationRead = async ({ conversationId, userId }) => {
 	const messages = await models.Message.findAll({
 		where: { conversation_id: conversationId, sender_id: { [Op.ne]: userId } },
@@ -192,5 +239,8 @@ module.exports = {
 	createConversation,
 	getUploadedFile,
 	createMessage,
+	getMessage,
+	updateMessage,
+	deleteMessage,
 	markConversationRead,
 };

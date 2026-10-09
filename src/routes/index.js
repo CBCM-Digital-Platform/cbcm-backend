@@ -2,7 +2,6 @@
 const express = require('express');
 const messagingRoutes = require('./messaging.routes');
 const learningRoutes = require('./learning.routes');
-const express = require('express');
 const authRoutes = require('./auth.routes');
 const usersRoutes = require('./users.routes');
 const facilitiesRoutes = require('./facilities.routes');
