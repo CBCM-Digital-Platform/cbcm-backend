@@ -1,9 +1,9 @@
 // src/repositories/auth.repository.js
-const { Op } = require('sequelize');
+const { Op, fn, col, where } = require('sequelize');
 const { User, RefreshToken, PasswordResetToken, UserPreference } = require('../models');
 
 async function findUserByEmail(email) {
-  return User.findOne({ where: { email: String(email).trim().toLowerCase() } });
+  return User.findOne({ where: where(fn('lower', col('email')), String(email).trim().toLowerCase()) });
 }
 
 async function findUserById(id) {
@@ -21,33 +21,32 @@ async function createRefreshTokenEntry({ userId, tokenHash, deviceInfo, expiresA
   });
 }
 
-async function findValidRefreshToken(tokenHash) {
+async function findRefreshTokenByHash(tokenHash) {
   return RefreshToken.findOne({
-    where: {
-      token_hash: tokenHash,
-      revoked_at: null,
-      expires_at: { [Op.gt]: new Date() },
-    },
+    where: { token_hash: tokenHash },
     include: [{ model: User, as: 'user' }],
   });
 }
 
-async function revokeRefreshTokenById(id, transaction) {
-  return RefreshToken.update({ revoked_at: new Date() }, { where: { id }, transaction });
+async function consumeRefreshToken(id, transaction) {
+  return RefreshToken.update(
+    { revoked_at: new Date() },
+    { where: { id, revoked_at: null, expires_at: { [Op.gt]: new Date() } }, transaction }
+  );
 }
 
 async function revokeAllUserRefreshTokens(userId, transaction) {
   return RefreshToken.update({ revoked_at: new Date() }, { where: { user_id: userId, revoked_at: null }, transaction });
 }
 
-async function createPasswordResetTokenEntry({ userId, tokenHash, expiresAt }) {
+async function createPasswordResetTokenEntry({ userId, tokenHash, expiresAt, transaction }) {
   return PasswordResetToken.create({
     user_id: userId,
     token_hash: tokenHash,
     requested_at: new Date(),
     expires_at: expiresAt,
     used_at: null,
-  });
+  }, { transaction });
 }
 
 async function findActivePasswordResetToken(tokenHash) {
@@ -61,8 +60,25 @@ async function findActivePasswordResetToken(tokenHash) {
   });
 }
 
+async function findPasswordResetTokenByHash(tokenHash) {
+  return PasswordResetToken.findOne({
+    where: { token_hash: tokenHash },
+    include: [{ model: User, as: 'user' }],
+  });
+}
+
+async function invalidatePasswordResetTokens(userId, transaction) {
+  return PasswordResetToken.update(
+    { used_at: new Date() },
+    { where: { user_id: userId, used_at: null }, transaction }
+  );
+}
+
 async function markPasswordResetTokenUsed(id, transaction) {
-  return PasswordResetToken.update({ used_at: new Date() }, { where: { id }, transaction });
+  return PasswordResetToken.update(
+    { used_at: new Date() },
+    { where: { id, used_at: null, expires_at: { [Op.gt]: new Date() } }, transaction }
+  );
 }
 
 async function findUserPreferencesByUserId(userId) {
@@ -73,11 +89,13 @@ module.exports = {
   findUserByEmail,
   findUserById,
   createRefreshTokenEntry,
-  findValidRefreshToken,
-  revokeRefreshTokenById,
+  findRefreshTokenByHash,
+  consumeRefreshToken,
   revokeAllUserRefreshTokens,
   createPasswordResetTokenEntry,
   findActivePasswordResetToken,
+  findPasswordResetTokenByHash,
+  invalidatePasswordResetTokens,
   markPasswordResetTokenUsed,
   findUserPreferencesByUserId,
 };

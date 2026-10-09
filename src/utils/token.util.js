@@ -6,6 +6,8 @@ const env = require('../config/env');
 function generateAccessToken(user) {
   return jwt.sign(
     {
+      token_use: 'access',
+      password_version: user.password_changed_at ? new Date(user.password_changed_at).getTime() : 0,
       sub: user.id,
       email: user.email,
       role: user.role,
@@ -25,13 +27,23 @@ function generateRefreshTokenValue() {
   return crypto.randomBytes(32).toString('hex');
 }
 
-function getRefreshTokenExpiry() {
-  const match = /^([0-9]+)([smhd])$/i.exec(String(env.JWT_REFRESH_EXPIRES_IN || '30d'));
-  if (!match) return new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+function getDurationMilliseconds(duration, fallbackMilliseconds) {
+  const match = /^([0-9]+)([smhd])$/i.exec(String(duration || ''));
+  if (!match) return fallbackMilliseconds;
   const value = Number(match[1]);
   const unit = match[2].toLowerCase();
   const multiplier = { s: 1000, m: 60 * 1000, h: 60 * 60 * 1000, d: 24 * 60 * 60 * 1000 }[unit] || 24 * 60 * 60 * 1000;
-  return new Date(Date.now() + value * multiplier);
+  return value * multiplier;
+}
+
+function getRefreshTokenExpiry() {
+  const duration = getDurationMilliseconds(env.JWT_REFRESH_EXPIRES_IN, 30 * 24 * 60 * 60 * 1000);
+  return new Date(Date.now() + duration);
+}
+
+function getPasswordResetTokenExpiry() {
+  const duration = getDurationMilliseconds(env.PASSWORD_RESET_EXPIRES_IN, 60 * 60 * 1000);
+  return new Date(Date.now() + duration);
 }
 
 module.exports = {
@@ -39,4 +51,5 @@ module.exports = {
   verifyAccessToken,
   generateRefreshTokenValue,
   getRefreshTokenExpiry,
+  getPasswordResetTokenExpiry,
 };

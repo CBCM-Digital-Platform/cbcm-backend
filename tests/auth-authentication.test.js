@@ -2,6 +2,8 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const request = require('supertest');
 const bcrypt = require('bcryptjs');
+const jwt = require('jsonwebtoken');
+const { hashToken } = require('../src/utils/hash.util');
 
 process.env.NODE_ENV = 'test';
 process.env.JWT_ACCESS_SECRET = 'test-access-secret';
@@ -12,6 +14,7 @@ process.env.DATABASE_URL = 'sqlite::memory:';
 process.env.PASSWORD_RESET_EXPIRES_IN = '1h';
 
 const models = require('../src/models');
+const emailUtil = require('../src/utils/email.util');
 const { createApp } = require('../src/app');
 
 async function createUser(overrides = {}) {
@@ -29,8 +32,16 @@ async function createUser(overrides = {}) {
   });
 }
 
+test.before(async () => {
+  await models.sequelize.sync();
+});
+
 test.beforeEach(async () => {
-  await models.sequelize.sync({ force: true });
+  await models.PasswordResetToken.destroy({ where: {} });
+  await models.RefreshToken.destroy({ where: {} });
+  await models.UserPreference.destroy({ where: {} });
+  await models.ActivityLog.destroy({ where: {} });
+  await models.User.destroy({ where: {} });
 });
 
 test('login succeeds for active user and returns safe profile', async () => {
@@ -101,32 +112,41 @@ test('refresh token rotates and rejects reuse after rotation', async () => {
 test('forgot password request handles unknown email safely and reset token can be used', async () => {
   await createUser({ email: 'known@example.com' });
   const app = createApp();
+  const originalEmailSender = emailUtil.sendPasswordResetEmail;
+  let resetUrl;
+  emailUtil.sendPasswordResetEmail = async ({ resetUrl: url }) => {
+    resetUrl = url;
+  };
 
-  const forgot = await request(app)
-    .post('/api/v1/auth/forgot-password')
-    .send({ email: 'known@example.com' });
+  try {
+    const forgot = await request(app)
+      .post('/api/v1/auth/forgot-password')
+      .send({ email: 'known@example.com' });
 
-  assert.equal(forgot.status, 200);
-  assert.equal(forgot.body.success, true);
-  assert.ok(forgot.body.data.resetToken);
+    assert.equal(forgot.status, 200);
+    assert.equal(forgot.body.success, true);
+    assert.equal(forgot.body.data.resetToken, undefined);
 
-  const unknown = await request(app)
-    .post('/api/v1/auth/forgot-password')
-    .send({ email: 'missing@example.com' });
+    const unknown = await request(app)
+      .post('/api/v1/auth/forgot-password')
+      .send({ email: 'missing@example.com' });
 
-  assert.equal(unknown.status, 200);
-  assert.equal(unknown.body.success, true);
+    assert.equal(unknown.status, 200);
+    assert.deepEqual(unknown.body, forgot.body);
 
-  const resetToken = forgot.body.data.resetToken;
-  const reset = await request(app)
-    .post('/api/v1/auth/reset-password')
-    .send({ token: resetToken, password: 'NewStrongPass2!' });
+    const resetToken = new URL(resetUrl).searchParams.get('token');
+    const reset = await request(app)
+      .post('/api/v1/auth/reset-password')
+      .send({ token: resetToken, password: 'NewStrongPass2!' });
 
-  assert.equal(reset.status, 200);
-  assert.equal(reset.body.success, true);
+    assert.equal(reset.status, 200);
+    assert.equal(reset.body.success, true);
 
-  const updatedUser = await models.User.findByPk(1, { raw: true });
-  assert.notEqual(updatedUser.password_hash, 'NewStrongPass2!');
+    const updatedUser = await models.User.findOne({ where: { email: 'known@example.com' }, raw: true });
+    assert.notEqual(updatedUser.password_hash, 'NewStrongPass2!');
+  } finally {
+    emailUtil.sendPasswordResetEmail = originalEmailSender;
+  }
 });
 
 test('user listing is forbidden for non-admins', async () => {
@@ -151,4 +171,279 @@ test('user listing is forbidden for non-admins', async () => {
     .set('Authorization', `Bearer ${login.body.data.accessToken}`);
 
   assert.equal(userResponse.status, 403);
+});
+
+test('login rejects wrong and nonexistent credentials with the same safe response', async () => {
+  await createUser({ email: 'credential-check@example.com' });
+  const app = createApp();
+
+  const wrongPassword = await request(app)
+    .post('/api/v1/auth/login')
+    .send({ email: 'credential-check@example.com', password: 'WrongPass1!' });
+  const unknownEmail = await request(app)
+    .post('/api/v1/auth/login')
+    .send({ email: 'unknown@example.com', password: 'WrongPass1!' });
+
+  assert.equal(wrongPassword.status, 401);
+  assert.deepEqual(unknownEmail.body, wrongPassword.body);
+  assert.equal(wrongPassword.body.error.code, 'INVALID_CREDENTIALS');
+});
+
+test('session accepts valid access token and rejects missing, invalid, and expired tokens', async () => {
+  const user = await createUser({ email: 'session@example.com' });
+  const app = createApp();
+  const login = await request(app)
+    .post('/api/v1/auth/login')
+    .send({ email: 'session@example.com', password: 'StrongPass1!' });
+
+  const valid = await request(app)
+    .get('/api/v1/auth/session')
+    .set('Authorization', `Bearer ${login.body.data.accessToken}`);
+  const refreshAsAccessToken = await request(app)
+    .get('/api/v1/auth/session')
+    .set('Authorization', `Bearer ${login.body.data.refreshToken}`);
+  const missing = await request(app).get('/api/v1/auth/session');
+  const invalid = await request(app)
+    .get('/api/v1/auth/session')
+    .set('Authorization', 'Bearer not-a-jwt');
+  const expiredToken = jwt.sign(
+    { sub: user.id, token_use: 'access', password_version: 0 },
+    process.env.JWT_ACCESS_SECRET,
+    { expiresIn: -1 }
+  );
+  const expired = await request(app)
+    .get('/api/v1/auth/session')
+    .set('Authorization', `Bearer ${expiredToken}`);
+
+  assert.equal(valid.status, 200);
+  assert.equal(valid.body.data.user.id, user.id);
+  assert.equal(login.body.data.accessTokenExpiresIn, '15m');
+  assert.ok(login.body.data.refreshTokenExpiresAt);
+  assert.equal(missing.status, 401);
+  assert.equal(refreshAsAccessToken.status, 401);
+  assert.equal(refreshAsAccessToken.body.error.code, 'INVALID_TOKEN');
+  assert.equal(invalid.status, 401);
+  assert.equal(expired.status, 401);
+  assert.equal(expired.body.error.code, 'TOKEN_EXPIRED');
+});
+
+test('logout revokes a refresh token and the token cannot be refreshed afterward', async () => {
+  await createUser({ email: 'logout@example.com' });
+  const app = createApp();
+  const login = await request(app)
+    .post('/api/v1/auth/login')
+    .send({ email: 'logout@example.com', password: 'StrongPass1!' });
+  const accessToken = login.body.data.accessToken;
+  const refreshToken = login.body.data.refreshToken;
+
+  const logout = await request(app)
+    .post('/api/v1/auth/logout')
+    .set('Authorization', `Bearer ${accessToken}`)
+    .send({ refreshToken });
+  const refresh = await request(app)
+    .post('/api/v1/auth/refresh-token')
+    .send({ refreshToken });
+
+  assert.equal(logout.status, 200);
+  assert.equal(logout.body.data.revoked, true);
+  assert.equal(refresh.status, 401);
+});
+
+test('password change verifies current password, updates hash, and revokes old sessions', async () => {
+  await createUser({ email: 'change-password@example.com' });
+  const app = createApp();
+  const login = await request(app)
+    .post('/api/v1/auth/login')
+    .send({ email: 'change-password@example.com', password: 'StrongPass1!' });
+  const accessToken = login.body.data.accessToken;
+
+  const wrongCurrent = await request(app)
+    .post('/api/v1/auth/change-password')
+    .set('Authorization', `Bearer ${accessToken}`)
+    .send({ currentPassword: 'WrongPass1!', newPassword: 'NewStrongPass2!' });
+  assert.equal(wrongCurrent.status, 401);
+  assert.equal(wrongCurrent.body.error.code, 'INVALID_CURRENT_PASSWORD');
+
+  const changed = await request(app)
+    .post('/api/v1/auth/change-password')
+    .set('Authorization', `Bearer ${accessToken}`)
+    .send({ currentPassword: 'StrongPass1!', newPassword: 'NewStrongPass2!' });
+  const staleSession = await request(app)
+    .get('/api/v1/auth/session')
+    .set('Authorization', `Bearer ${accessToken}`);
+  const oldLogin = await request(app)
+    .post('/api/v1/auth/login')
+    .send({ email: 'change-password@example.com', password: 'StrongPass1!' });
+  const newLogin = await request(app)
+    .post('/api/v1/auth/login')
+    .send({ email: 'change-password@example.com', password: 'NewStrongPass2!' });
+
+  assert.equal(changed.status, 200);
+  assert.equal(changed.body.data.changed, true);
+  assert.equal(staleSession.status, 401);
+  assert.equal(oldLogin.status, 401);
+  assert.equal(newLogin.status, 200);
+});
+
+test('password reset tokens expire and are single-use', async () => {
+  const user = await createUser({ email: 'expired-reset@example.com' });
+  const expiredValue = 'a'.repeat(64);
+  await models.PasswordResetToken.create({
+    user_id: user.id,
+    token_hash: hashToken(expiredValue),
+    requested_at: new Date(Date.now() - 3600000),
+    expires_at: new Date(Date.now() - 1000),
+    used_at: null,
+  });
+  const app = createApp();
+
+  const expired = await request(app)
+    .post('/api/v1/auth/reset-password')
+    .send({ token: expiredValue, password: 'NewStrongPass2!' });
+  assert.equal(expired.status, 401);
+  assert.equal(expired.body.error.code, 'RESET_TOKEN_EXPIRED');
+
+  const tokenValue = 'b'.repeat(64);
+  await models.PasswordResetToken.create({
+    user_id: user.id,
+    token_hash: hashToken(tokenValue),
+    requested_at: new Date(),
+    expires_at: new Date(Date.now() + 3600000),
+    used_at: null,
+  });
+  const reset = await request(app)
+    .post('/api/v1/auth/reset-password')
+    .send({ token: tokenValue, password: 'NewStrongPass2!' });
+  const reused = await request(app)
+    .post('/api/v1/auth/reset-password')
+    .send({ token: tokenValue, password: 'AnotherStrong3!' });
+
+  assert.equal(reset.status, 200);
+  assert.equal(reused.status, 401);
+  assert.equal(reused.body.error.code, 'RESET_TOKEN_USED');
+});
+
+test('users can read and update only editable profile and preference fields', async () => {
+  const user = await createUser({ email: 'profile@example.com' });
+  const app = createApp();
+  const login = await request(app)
+    .post('/api/v1/auth/login')
+    .send({ email: 'profile@example.com', password: 'StrongPass1!' });
+  const accessToken = login.body.data.accessToken;
+
+  const profile = await request(app)
+    .get('/api/v1/users/me')
+    .set('Authorization', `Bearer ${accessToken}`);
+  const profileUpdate = await request(app)
+    .patch('/api/v1/users/me')
+    .set('Authorization', `Bearer ${accessToken}`)
+    .send({ full_name: 'Updated Name' });
+  const forbiddenUpdate = await request(app)
+    .patch('/api/v1/users/me')
+    .set('Authorization', `Bearer ${accessToken}`)
+    .send({ role: 'admin', status: 'active' });
+  const preferenceUpdate = await request(app)
+    .patch('/api/v1/users/me/preferences')
+    .set('Authorization', `Bearer ${accessToken}`)
+    .send({ language: 'en', theme: 'dark', notifications_enabled: false });
+  const preferences = await request(app)
+    .get('/api/v1/users/me/preferences')
+    .set('Authorization', `Bearer ${accessToken}`);
+  const otherUserPreferences = await request(app)
+    .patch('/api/v1/users/me/preferences')
+    .set('Authorization', `Bearer ${accessToken}`)
+    .send({ user_id: user.id + 1, language: 'fr' });
+  const storedUser = await models.User.findByPk(user.id);
+
+  assert.equal(profile.status, 200);
+  assert.equal(profile.body.data.password_hash, undefined);
+  assert.equal(profileUpdate.status, 200);
+  assert.equal(profileUpdate.body.data.full_name, 'Updated Name');
+  assert.equal(forbiddenUpdate.status, 400);
+  assert.equal(storedUser.role, 'mentee');
+  assert.equal(preferenceUpdate.status, 200);
+  assert.equal(preferences.body.data.language, 'en');
+  assert.equal(otherUserPreferences.status, 400);
+  assert.equal(await models.UserPreference.count({ where: { user_id: user.id + 1 } }), 0);
+});
+
+test('administrator can provision safe user accounts and manage status', async () => {
+  await createUser({ email: 'admin@example.com', role: 'admin' });
+  const app = createApp();
+  const adminLogin = await request(app)
+    .post('/api/v1/auth/login')
+    .send({ email: 'admin@example.com', password: 'StrongPass1!' });
+  const adminToken = adminLogin.body.data.accessToken;
+  const headers = { Authorization: `Bearer ${adminToken}` };
+  const created = await request(app)
+    .post('/api/v1/users')
+    .set(headers)
+    .send({
+      full_name: 'Provisioned User',
+      email: 'provisioned@example.com',
+      password: 'TemporaryPass1!',
+      role: 'mentee',
+    });
+
+  assert.equal(created.status, 201);
+  assert.equal(created.body.data.password_hash, undefined);
+  assert.equal(created.body.data.must_change_password, true);
+  assert.equal(created.body.data.status, 'active');
+
+  const duplicate = await request(app)
+    .post('/api/v1/users')
+    .set(headers)
+    .send({
+      full_name: 'Duplicate User',
+      email: 'provisioned@example.com',
+      password: 'TemporaryPass1!',
+      role: 'mentee',
+    });
+  const list = await request(app).get('/api/v1/users').set(headers);
+  const detail = await request(app).get(`/api/v1/users/${created.body.data.id}`).set(headers);
+  const provisionedLogin = await request(app)
+    .post('/api/v1/auth/login')
+    .send({ email: 'provisioned@example.com', password: 'TemporaryPass1!' });
+  const forcedProfile = await request(app)
+    .get('/api/v1/users/me')
+    .set('Authorization', `Bearer ${provisionedLogin.body.data.accessToken}`);
+  const statusChange = await request(app)
+    .patch(`/api/v1/users/${created.body.data.id}/status`)
+    .set(headers)
+    .send({ status: 'inactive' });
+  const invalidatedSession = await request(app)
+    .get('/api/v1/auth/session')
+    .set('Authorization', `Bearer ${provisionedLogin.body.data.accessToken}`);
+
+  assert.equal(duplicate.status, 409);
+  assert.equal(list.status, 200);
+  assert.equal(list.body.data.every((entry) => entry.password_hash === undefined), true);
+  assert.equal(detail.status, 200);
+  assert.equal(statusChange.status, 200);
+  assert.equal(invalidatedSession.status, 401);
+  assert.equal(invalidatedSession.body.error.code, 'ACCOUNT_INACTIVE');
+  assert.equal(forcedProfile.status, 403);
+  assert.equal(forcedProfile.body.error.code, 'PASSWORD_CHANGE_REQUIRED');
+});
+
+test('non-admin cannot provision users and public registration is unavailable', async () => {
+  const user = await createUser({ email: 'ordinary@example.com' });
+  const app = createApp();
+  const login = await request(app)
+    .post('/api/v1/auth/login')
+    .send({ email: 'ordinary@example.com', password: 'StrongPass1!' });
+  const headers = { Authorization: `Bearer ${login.body.data.accessToken}` };
+  const forbidden = await request(app)
+    .post('/api/v1/users')
+    .set(headers)
+    .send({ full_name: 'Escalation', email: 'escalation@example.com', password: 'TemporaryPass1!', role: 'admin' });
+  const publicRegistration = await request(app)
+    .post('/api/v1/auth/register')
+    .send({ full_name: 'Public', email: 'public@example.com', password: 'StrongPass1!' });
+
+  assert.equal(forbidden.status, 403);
+  assert.equal(publicRegistration.status, 404);
+  assert.equal(await models.User.count({ where: { email: 'escalation@example.com' } }), 0);
+  assert.equal(await models.User.count({ where: { email: 'public@example.com' } }), 0);
+  assert.equal(user.role, 'mentee');
 });

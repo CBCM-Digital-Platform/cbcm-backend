@@ -1,7 +1,8 @@
 // src/controllers/auth.controller.js
 const { matchedData } = require('express-validator');
 const authService = require('../services/auth.service');
-const { errorResponse, successResponse } = require('../utils/response.util');
+const { successResponse } = require('../utils/response.util');
+const controllerError = require('../utils/controller-error.util');
 
 async function login(req, res) {
   try {
@@ -13,11 +14,13 @@ async function login(req, res) {
     });
     return successResponse(res, 200, {
       accessToken: result.accessToken,
+      accessTokenExpiresIn: result.accessTokenExpiresIn,
       refreshToken: result.refreshToken,
+      refreshTokenExpiresAt: result.refreshTokenExpiresAt,
       user: result.user,
     });
   } catch (error) {
-    return errorResponse(res, error.statusCode || 500, error.code || 'AUTH_ERROR', error.message || 'Authentication failed.');
+    return controllerError(res, error, 'Authentication failed.');
   }
 }
 
@@ -27,11 +30,13 @@ async function refreshToken(req, res) {
     const result = await authService.refreshToken({ refreshToken: payload.refreshToken });
     return successResponse(res, 200, {
       accessToken: result.accessToken,
+      accessTokenExpiresIn: result.accessTokenExpiresIn,
       refreshToken: result.refreshToken,
+      refreshTokenExpiresAt: result.refreshTokenExpiresAt,
       user: result.user,
     });
   } catch (error) {
-    return errorResponse(res, error.statusCode || 500, error.code || 'AUTH_ERROR', error.message || 'Token refresh failed.');
+    return controllerError(res, error, 'Token refresh failed.');
   }
 }
 
@@ -43,7 +48,7 @@ async function logout(req, res) {
     });
     return successResponse(res, 200, result);
   } catch (error) {
-    return errorResponse(res, error.statusCode || 500, error.code || 'AUTH_ERROR', error.message || 'Logout failed.');
+    return controllerError(res, error, 'Logout failed.');
   }
 }
 
@@ -53,7 +58,7 @@ async function forgotPassword(req, res) {
     const result = await authService.forgotPassword({ email: payload.email });
     return successResponse(res, 200, result);
   } catch (error) {
-    return errorResponse(res, error.statusCode || 500, error.code || 'AUTH_ERROR', error.message || 'Password reset request failed.');
+    return controllerError(res, error, 'Password reset request failed.');
   }
 }
 
@@ -63,7 +68,7 @@ async function resetPassword(req, res) {
     const result = await authService.resetPassword({ token: payload.token, password: payload.password });
     return successResponse(res, 200, result);
   } catch (error) {
-    return errorResponse(res, error.statusCode || 500, error.code || 'AUTH_ERROR', error.message || 'Password reset failed.');
+    return controllerError(res, error, 'Password reset failed.');
   }
 }
 
@@ -77,7 +82,7 @@ async function changePassword(req, res) {
     });
     return successResponse(res, 200, result);
   } catch (error) {
-    return errorResponse(res, error.statusCode || 500, error.code || 'AUTH_ERROR', error.message || 'Password change failed.');
+    return controllerError(res, error, 'Password change failed.');
   }
 }
 
@@ -86,7 +91,7 @@ async function getSession(req, res) {
     const result = await authService.getSession(req.user.id);
     return successResponse(res, 200, { user: result });
   } catch (error) {
-    return errorResponse(res, error.statusCode || 500, error.code || 'AUTH_ERROR', error.message || 'Session lookup failed.');
+    return controllerError(res, error, 'Session lookup failed.');
   }
 }
 
