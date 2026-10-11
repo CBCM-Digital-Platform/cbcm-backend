@@ -11,6 +11,19 @@ const app = express();
 app.use(cors({ origin: env.CORS_ORIGIN === '*' ? true : env.CORS_ORIGIN }));
 
 app.use(express.json({ limit: '1mb' }));
+app.use((err, req, res, next) => {
+  if (err instanceof SyntaxError && err.status === 400 && 'body' in err) {
+    return res.status(400).json({
+      success: false,
+      error: {
+        code: 'INVALID_JSON',
+        message: 'Request body contains invalid JSON.',
+        details: [],
+      },
+    });
+  }
+  next(err);
+});
 app.use(express.urlencoded({ extended: true }));
 
 // Health check / welcome endpoint

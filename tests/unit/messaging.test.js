@@ -1,4 +1,5 @@
-process.env.JWT_SECRET = 'messaging-test-secret';
+process.env.JWT_ACCESS_SECRET = 'messaging-test-secret';
+process.env.JWT_SECRET = 'messaging-test-secret'; // Fallback for tests
 process.env.DATABASE_URL = 'postgresql://test:test@127.0.0.1:5432/cbcm_test';
 
 const assert = require('node:assert/strict');
@@ -37,7 +38,7 @@ const request = async (path, options = {}) => {
 };
 
 test('messaging endpoints reject unauthenticated requests', async () => {
-  const response = await request('/messages/conversations');
+  const response = await request('/api/v1/messages/conversations');
   assert.equal(response.status, 401);
   assert.equal((await response.json()).success, false);
 });
@@ -55,8 +56,9 @@ test('conversation and message inputs reject duplicates and empty content', () =
 });
 
 test('authenticated requests use route validation before database access', async () => {
-  const token = jwt.sign({ sub: '1' }, process.env.JWT_SECRET);
-  const response = await request('/messages/conversations/not-an-id', {
+  const token = jwt.sign({ sub: '1', token_use: 'access', password_version: 0 }, process.env.JWT_SECRET);
+  replace(models.User, 'findByPk', async () => ({ id: 1, status: 'active', password_changed_at: null, must_change_password: false }));
+  const response = await request('/api/v1/messages/conversations/not-an-id', {
     headers: { authorization: `Bearer ${token}` },
   });
   assert.equal(response.status, 400);
@@ -77,7 +79,8 @@ test('malformed JSON request bodies return a client error', async () => {
 });
 
 test('edit and delete message routes pass authenticated route IDs to the service', async () => {
-  const token = jwt.sign({ sub: '7' }, process.env.JWT_SECRET);
+  const token = jwt.sign({ sub: '7', token_use: 'access', password_version: 0 }, process.env.JWT_SECRET);
+  replace(models.User, 'findByPk', async () => ({ id: 7, status: 'active', password_changed_at: null, must_change_password: false }));
   let edited;
   let deleted;
   replace(service, 'editMessage', async (input) => {
@@ -87,7 +90,7 @@ test('edit and delete message routes pass authenticated route IDs to the service
   replace(service, 'deleteMessage', async (input) => { deleted = input; });
 
   const headers = { authorization: `Bearer ${token}`, 'content-type': 'application/json' };
-  const editResponse = await request('/messages/conversations/23/messages/91', {
+  const editResponse = await request('/api/v1/messages/conversations/23/messages/91', {
     method: 'PATCH',
     headers,
     body: JSON.stringify({ content: 'Corrected' }),
@@ -96,7 +99,7 @@ test('edit and delete message routes pass authenticated route IDs to the service
   assert.equal((await editResponse.json()).data.content, 'Corrected');
   assert.deepEqual(edited, { conversationId: 23, messageId: 91, userId: 7, content: 'Corrected' });
 
-  const deleteResponse = await request('/messages/conversations/23/messages/91', {
+  const deleteResponse = await request('/api/v1/messages/conversations/23/messages/91', {
     method: 'DELETE',
     headers,
   });

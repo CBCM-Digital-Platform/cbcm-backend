@@ -26,6 +26,11 @@ components:
               type: string
             message:
               type: string
+            details:
+              type: array
+              items:
+                type: string
+              example: []
     SuccessResponse:
       type: object
       properties:
@@ -2292,7 +2297,7 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
-  /messages/conversations:
+  /api/v1/messages/conversations:
     get:
       tags:
         - Messaging
@@ -2368,10 +2373,7 @@ paths:
           $ref: '#/components/responses/ServerError'
       security:
         - bearerAuth: []
-    servers:
-      - url: http://localhost:5000/api/v1
-        description: Local development server
-  /messages/conversations/{id}:
+  /api/v1/messages/conversations/{id}:
     parameters:
       - $ref: '#/components/parameters/ConversationId'
     get:
@@ -2405,10 +2407,7 @@ paths:
           $ref: '#/components/responses/ServerError'
       security:
         - bearerAuth: []
-    servers:
-      - url: http://localhost:5000/api/v1
-        description: Local development server
-  /messages/conversations/{id}/messages:
+  /api/v1/messages/conversations/{id}/messages:
     parameters:
       - $ref: '#/components/parameters/ConversationId'
     post:
@@ -2454,10 +2453,7 @@ paths:
           $ref: '#/components/responses/ServerError'
       security:
         - bearerAuth: []
-    servers:
-      - url: http://localhost:5000/api/v1
-        description: Local development server
-  /messages/conversations/{id}/messages/{messageId}:
+  /api/v1/messages/conversations/{id}/messages/{messageId}:
     parameters:
       - $ref: '#/components/parameters/ConversationId'
       - $ref: '#/components/parameters/MessageId'
@@ -2537,10 +2533,7 @@ paths:
           $ref: '#/components/responses/ServerError'
       security:
         - bearerAuth: []
-    servers:
-      - url: http://localhost:5000/api/v1
-        description: Local development server
-  /messages/conversations/{id}/read:
+  /api/v1/messages/conversations/{id}/read:
     parameters:
       - $ref: '#/components/parameters/ConversationId'
     patch:
@@ -2579,7 +2572,16 @@ paths:
           $ref: '#/components/responses/ServerError'
       security:
         - bearerAuth: []
-    servers:
-      - url: http://localhost:5000/api/v1
-        description: Local development server
-tags: []
+tags:
+  - name: Auth
+    description: Authentication and session management
+  - name: Users
+    description: User management and profiles
+  - name: Facilities
+    description: Facility management
+  - name: Mentorship Cycles
+    description: Mentorship cycle management
+  - name: Cycle Configuration
+    description: Cycle facility and thematic area configuration
+  - name: Messaging
+    description: Messaging and conversations
