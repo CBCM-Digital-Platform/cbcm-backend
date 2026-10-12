@@ -16,9 +16,11 @@ async function startServer() {
     await sequelize.authenticate();
     console.log('✓ Database connection established successfully');
 
+    const baseUrl = env.PUBLIC_BASE_URL || `http://localhost:${PORT}`;
+
     app.listen(PORT, () => {
       console.log(`✓ Server running on port ${PORT}`);
-      console.log(`✓ API Documentation: http://localhost:${PORT}/api/docs`);
+      console.log(`✓ API Documentation: ${baseUrl}/api/docs`);
     });
   } catch (error) {
     console.error('✗ Failed to start server:', error.message);
