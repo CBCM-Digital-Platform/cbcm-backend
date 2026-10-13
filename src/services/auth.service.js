@@ -6,7 +6,7 @@ const { hashPassword, comparePassword, hashToken, randomToken } = require('../ut
 const { generateAccessToken, generateRefreshTokenValue, getRefreshTokenExpiry, getPasswordResetTokenExpiry } = require('../utils/token.util');
 const emailUtil = require('../utils/email.util');
 const env = require('../config/env');
-const { USER_ROLES } = require('../constants/roles.constants');
+const { USER_ROLES, canAssignRole, canAccessUser } = require('../constants/roles.constants');
 
 const USER_SYSTEM_ROLES = new Set(USER_ROLES);
 const RESET_MESSAGE = 'If that email exists, a reset link will be sent.';
@@ -291,11 +291,21 @@ async function getUserPreferences(userId) {
   return preferences ? preferences.toJSON() : null;
 }
 
-async function listUsers({ page = 1, limit = 20, role, status, facilityId }) {
+async function listUsers({ page = 1, limit = 20, role, status, facilityId }, actor) {
   const filter = {};
   if (role) filter.role = role;
   if (status) filter.status = status;
-  if (facilityId) filter.facility_id = facilityId;
+
+  // Enforce facility scope for Facility Admin
+  if (actor && actor.role === 'facility_admin') {
+    if (!actor.facility_id) {
+      throw new AppError('Facility administrator must be assigned to a facility.', 403, 'FORBIDDEN');
+    }
+    filter.facility_id = actor.facility_id;
+  } else if (facilityId) {
+    // System Admin can filter by facility if specified
+    filter.facility_id = facilityId;
+  }
 
   const { count, rows } = await User.findAndCountAll({
     where: filter,
@@ -314,9 +324,15 @@ async function listUsers({ page = 1, limit = 20, role, status, facilityId }) {
   };
 }
 
-async function getUserByIdForAdmin(userId) {
+async function getUserByIdForAdmin(userId, actor) {
   const user = await authRepository.findUserById(userId);
   if (!user) throw new AppError('User not found.', 404, 'USER_NOT_FOUND');
+
+  // Enforce facility scope for Facility Admin
+  if (actor && actor.role === 'facility_admin' && !canAccessUser(actor, user)) {
+    throw new AppError('You do not have permission to access this user.', 403, 'FORBIDDEN');
+  }
+
   return sanitizeUser(user);
 }
 
@@ -324,6 +340,21 @@ async function createUserByAdmin(payload) {
   const cleanedRole = String(payload.role || '').trim().toLowerCase();
   if (!USER_SYSTEM_ROLES.has(cleanedRole)) {
     throw new AppError('Unsupported role selected for account creation.', 422, 'INVALID_ROLE');
+  }
+
+  const actor = payload.created_by ? await authRepository.findUserById(payload.created_by) : null;
+  if (actor && !canAssignRole(actor.role, cleanedRole)) {
+    throw new AppError('You do not have permission to create or assign this role.', 403, 'FORBIDDEN');
+  }
+
+  if (actor && actor.role === 'facility_admin') {
+    const facilityId = payload.facility_id != null ? Number(payload.facility_id) : null;
+    if (!facilityId || Number(actor.facility_id) !== facilityId) {
+      throw new AppError('Facility administrators can only assign users to their own facility.', 403, 'FORBIDDEN');
+    }
+    if (cleanedRole === 'facility_admin' || cleanedRole === 'admin') {
+      throw new AppError('Facility administrators cannot create or promote another administrator.', 403, 'FORBIDDEN');
+    }
   }
 
   const email = String(payload.email || '').trim().toLowerCase();
@@ -376,6 +407,12 @@ async function updateUserStatus(userId, status, updatedBy) {
   if (!['active', 'inactive', 'suspended'].includes(String(status))) {
     throw new AppError('Unsupported account status.', 422, 'INVALID_STATUS');
   }
+
+  const actor = await authRepository.findUserById(updatedBy);
+  if (actor && actor.role === 'facility_admin' && Number(actor.facility_id) !== Number(user.facility_id)) {
+    throw new AppError('Facility administrators can only manage users within their own facility.', 403, 'FORBIDDEN');
+  }
+
   if (Number(updatedBy) === Number(userId) && status !== 'active') {
     throw new AppError('Administrators cannot disable their own account.', 409, 'SELF_DEACTIVATION_FORBIDDEN');
   }

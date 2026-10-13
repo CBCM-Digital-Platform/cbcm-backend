@@ -4,7 +4,7 @@ const authenticate = require('../middlewares/auth/authenticate.middleware');
 const requireRole = require('../middlewares/auth/require-role.middleware');
 const { validationResult } = require('express-validator');
 const { registerValidation, updateProfileValidation, preferencesValidation, listUsersValidation, userIdValidation, updateUserStatusValidation } = require('../validators/auth.validator');
-const { ADMIN_ROLES } = require('../constants/roles.constants');
+const { FACILITY_MANAGEMENT_ROLES } = require('../constants/roles.constants');
 
 const router = express.Router();
 
@@ -233,7 +233,7 @@ router.patch(
  *             schema:
  *               $ref: '#/components/schemas/ErrorResponse'
  */
-router.get('/', requireRole(ADMIN_ROLES), listUsersValidation, validateRequest, usersController.listUsers);
+router.get('/', requireRole(FACILITY_MANAGEMENT_ROLES), listUsersValidation, validateRequest, usersController.listUsers);
 
 /**
  * @openapi
@@ -281,7 +281,7 @@ router.get('/', requireRole(ADMIN_ROLES), listUsersValidation, validateRequest, 
  *             schema:
  *               $ref: '#/components/schemas/ErrorResponse'
  */
-router.get('/:id', requireRole(ADMIN_ROLES), userIdValidation, validateRequest, usersController.getUserById);
+router.get('/:id', requireRole(FACILITY_MANAGEMENT_ROLES), userIdValidation, validateRequest, usersController.getUserById);
 
 /**
  * @openapi
@@ -338,7 +338,7 @@ router.get('/:id', requireRole(ADMIN_ROLES), userIdValidation, validateRequest, 
  */
 router.post(
   '/',
-  requireRole(ADMIN_ROLES),
+  requireRole(FACILITY_MANAGEMENT_ROLES),
   rejectUnexpectedFields(['full_name', 'email', 'password', 'role', 'facility_id', 'phone', 'highest_qualification', 'training_status', 'must_change_password']),
   registerValidation,
   validateRequest,
@@ -403,6 +403,6 @@ router.post(
  *             schema:
  *               $ref: '#/components/schemas/ErrorResponse'
  */
-router.patch('/:id/status', requireRole(ADMIN_ROLES), updateUserStatusValidation, validateRequest, usersController.updateUserStatus);
+router.patch('/:id/status', requireRole(FACILITY_MANAGEMENT_ROLES), updateUserStatusValidation, validateRequest, usersController.updateUserStatus);
 
 module.exports = router;

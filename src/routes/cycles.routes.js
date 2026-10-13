@@ -4,7 +4,8 @@ const { validationResult } = require('express-validator');
 const controller = require('../controllers/cycles.controller');
 const authenticate = require('../middlewares/auth/authenticate.middleware');
 const requireRole = require('../middlewares/auth/require-role.middleware');
-const { ADMIN_ROLES } = require('../constants/roles.constants');
+const requireFacilityScope = require('../middlewares/auth/require-facility-scope.middleware');
+const { ADMIN_ROLES, FACILITY_MANAGEMENT_ROLES } = require('../constants/roles.constants');
 const {
 	cycleFields,
 	createCycleValidation,
@@ -178,7 +179,7 @@ router.get('/:id', cycleIdValidation, validateRequest, controller.getById);
  *             schema:
  *               $ref: '#/components/schemas/ErrorResponse'
  */
-router.post('/', requireRole(ADMIN_ROLES), rejectUnexpectedFields(cycleFields), createCycleValidation, validateRequest, controller.create);
+router.post('/', requireRole(FACILITY_MANAGEMENT_ROLES), rejectUnexpectedFields(cycleFields), createCycleValidation, validateRequest, controller.create);
 
 /**
  * @openapi
@@ -231,7 +232,7 @@ router.post('/', requireRole(ADMIN_ROLES), rejectUnexpectedFields(cycleFields), 
  *             schema:
  *               $ref: '#/components/schemas/ErrorResponse'
  */
-router.patch('/:id', requireRole(ADMIN_ROLES), cycleIdValidation, rejectUnexpectedFields(cycleFields), updateCycleValidation, validateRequest, controller.update);
+router.patch('/:id', requireRole(FACILITY_MANAGEMENT_ROLES), cycleIdValidation, rejectUnexpectedFields(cycleFields), updateCycleValidation, validateRequest, controller.update);
 
 /**
  * @openapi
@@ -291,7 +292,7 @@ router.patch('/:id', requireRole(ADMIN_ROLES), cycleIdValidation, rejectUnexpect
  *             schema:
  *               $ref: '#/components/schemas/ErrorResponse'
  */
-router.patch('/:id/status', requireRole(ADMIN_ROLES), updateCycleStatusValidation, validateRequest, controller.updateStatus);
+router.patch('/:id/status', requireRole(FACILITY_MANAGEMENT_ROLES), updateCycleStatusValidation, validateRequest, controller.updateStatus);
 
 /**
  * @openapi
@@ -386,7 +387,7 @@ router.patch('/:id/status', requireRole(ADMIN_ROLES), updateCycleStatusValidatio
  *               $ref: '#/components/schemas/ErrorResponse'
  */
 router.get('/:cycleId/facilities', cycleConfigIdValidation, validateRequest, controller.listFacilities);
-router.post('/:cycleId/facilities', requireRole(ADMIN_ROLES), rejectUnexpectedFields(['facility_id']), facilityConfigValidation, validateRequest, controller.assignFacility);
+router.post('/:cycleId/facilities', requireRole(FACILITY_MANAGEMENT_ROLES), requireFacilityScope, rejectUnexpectedFields(['facility_id']), facilityConfigValidation, validateRequest, controller.assignFacility);
 
 /**
  * @openapi
@@ -437,7 +438,7 @@ router.post('/:cycleId/facilities', requireRole(ADMIN_ROLES), rejectUnexpectedFi
  *             schema:
  *               $ref: '#/components/schemas/ErrorResponse'
  */
-router.delete('/:cycleId/facilities/:facilityId', requireRole(ADMIN_ROLES), facilityConfigIdsValidation, validateRequest, controller.removeFacility);
+router.delete('/:cycleId/facilities/:facilityId', requireRole(FACILITY_MANAGEMENT_ROLES), facilityConfigIdsValidation, validateRequest, controller.removeFacility);
 
 /**
  * @openapi
@@ -532,7 +533,7 @@ router.delete('/:cycleId/facilities/:facilityId', requireRole(ADMIN_ROLES), faci
  *               $ref: '#/components/schemas/ErrorResponse'
  */
 router.get('/:cycleId/thematic-areas', cycleConfigIdValidation, validateRequest, controller.listThematicAreas);
-router.post('/:cycleId/thematic-areas', requireRole(ADMIN_ROLES), rejectUnexpectedFields(['thematic_area_id']), thematicAreaConfigValidation, validateRequest, controller.assignThematicArea);
+router.post('/:cycleId/thematic-areas', requireRole(FACILITY_MANAGEMENT_ROLES), rejectUnexpectedFields(['thematic_area_id']), thematicAreaConfigValidation, validateRequest, controller.assignThematicArea);
 
 /**
  * @openapi
@@ -583,6 +584,6 @@ router.post('/:cycleId/thematic-areas', requireRole(ADMIN_ROLES), rejectUnexpect
  *             schema:
  *               $ref: '#/components/schemas/ErrorResponse'
  */
-router.delete('/:cycleId/thematic-areas/:thematicAreaId', requireRole(ADMIN_ROLES), thematicAreaConfigIdsValidation, validateRequest, controller.removeThematicArea);
+router.delete('/:cycleId/thematic-areas/:thematicAreaId', requireRole(FACILITY_MANAGEMENT_ROLES), thematicAreaConfigIdsValidation, validateRequest, controller.removeThematicArea);
 
 module.exports = router;

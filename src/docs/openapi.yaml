@@ -1120,8 +1120,8 @@ paths:
                 $ref: '#/components/schemas/ErrorResponse'
   /api/v1/users:
     get:
-      summary: List users (administrator only)
-      description: Returns safe profile fields with pagination. Only administrators may list users.
+      summary: List users (administrators only)
+      description: Returns safe profile fields with pagination. System Admins can list organization-wide users; Facility Admins can only list users within their own facility.
       tags:
         - Users
       security:
@@ -1183,8 +1183,8 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
     post:
-      summary: Provision a user (administrator only)
-      description: Public self-registration is not supported. An administrator provisions a user with an allowed role and temporary password; password change is required by default.
+      summary: Provision a user (administrators only)
+      description: Public self-registration is not supported. System Admins can create any role; Facility Admins can create mentors and mentees within their facility but cannot create Facility Admin or System Admin accounts. Password change is required by default.
       tags:
         - Users
       security:
@@ -1215,7 +1215,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
         '403':
-          description: Administrator role required
+          description: Administrator role required, or attempting to create unauthorized role (Facility Admin cannot create Facility Admin or System Admin), or assigning user to unauthorized facility
           content:
             application/json:
               schema:
@@ -1234,8 +1234,8 @@ paths:
                 $ref: '#/components/schemas/ErrorResponse'
   /api/v1/users/{id}:
     get:
-      summary: Get a user by ID (administrator only)
-      description: Returns a safe user profile; password and credential secrets are never included.
+      summary: Get a user by ID (administrators only)
+      description: Returns a safe user profile; password and credential secrets are never included. System Admins can access any user; Facility Admins can only access users within their own facility.
       tags:
         - Users
       security:
@@ -1267,7 +1267,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
         '403':
-          description: Administrator role required
+          description: Administrator role required, or attempting to access user outside facility scope (Facility Admin only)
           content:
             application/json:
               schema:
@@ -1280,8 +1280,8 @@ paths:
                 $ref: '#/components/schemas/ErrorResponse'
   /api/v1/users/{id}/status:
     patch:
-      summary: Change a user's status (administrator only)
-      description: Deactivating or suspending a user revokes their refresh tokens and invalidates existing access tokens.
+      summary: Change a user's status (administrators only)
+      description: Deactivating or suspending a user revokes their refresh tokens and invalidates existing access tokens. System Admins can manage any user; Facility Admins can only manage users within their own facility.
       tags:
         - Users
       security:
@@ -1399,7 +1399,7 @@ paths:
                 $ref: '#/components/schemas/ErrorResponse'
     post:
       summary: Create a facility
-      description: Administrator only. Facility fields match the existing facilities table; name and type are required by the API.
+      description: System Admin only. Facilities are organization-wide reference data; Facility Admin cannot create new facilities. Facility fields match the existing facilities table; name and type are required by the API.
       tags:
         - Facilities
       security:
@@ -1476,7 +1476,7 @@ paths:
                 $ref: '#/components/schemas/ErrorResponse'
     patch:
       summary: Update a facility
-      description: Administrator only. Status updates are not available because the existing facility schema has no status field.
+      description: System Admin only. Facilities are organization-wide reference data; Facility Admin cannot update facilities. Status updates are not available because the existing facility schema has no status field.
       tags:
         - Facilities
       security:
@@ -1514,7 +1514,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
         '403':
-          description: Administrator role required
+          description: System Admin role required (Facility Admin cannot update facilities)
           content:
             application/json:
               schema:
@@ -1577,7 +1577,7 @@ paths:
                 $ref: '#/components/schemas/ErrorResponse'
     post:
       summary: Create a mentorship cycle
-      description: Administrator only. New cycles begin in draft status.
+      description: Administrators only (System Admin and Facility Admin). New cycles begin in draft status.
       tags:
         - Mentorship Cycles
       security:
@@ -1654,6 +1654,7 @@ paths:
                 $ref: '#/components/schemas/ErrorResponse'
     patch:
       summary: Update a mentorship cycle
+      description: Administrators only (System Admin and Facility Admin).
       tags:
         - Mentorship Cycles
       security:
@@ -1691,7 +1692,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
         '403':
-          description: Administrator role required
+          description: Administrator role required (System Admin or Facility Admin)
           content:
             application/json:
               schema:
@@ -1705,7 +1706,7 @@ paths:
   /api/v1/mentorship-cycles/{id}/status:
     patch:
       summary: Transition a mentorship cycle status
-      description: Allowed transitions are draft to planned or cancelled, planned to active or cancelled, and active to completed or cancelled. Completed and cancelled are terminal. Activation requires start_date and end_date.
+      description: Administrators only (System Admin and Facility Admin). Allowed transitions are draft to planned or cancelled, planned to active or cancelled, and active to completed or cancelled. Completed and cancelled are terminal. Activation requires start_date and end_date.
       tags:
         - Mentorship Cycles
       security:
@@ -1743,7 +1744,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
         '403':
-          description: Administrator role required
+          description: Administrator role required (System Admin or Facility Admin)
           content:
             application/json:
               schema:
@@ -1801,6 +1802,7 @@ paths:
                 $ref: '#/components/schemas/ErrorResponse'
     post:
       summary: Assign a facility to a cycle
+      description: Administrators only (System Admin and Facility Admin). Facility Admin can only assign facilities within their authorized scope.
       tags:
         - Cycle Configuration
       security:
@@ -1838,7 +1840,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
         '403':
-          description: Administrator role required
+          description: Administrator role required, or attempting to assign unauthorized facility (Facility Admin only)
           content:
             application/json:
               schema:
@@ -1858,6 +1860,7 @@ paths:
   /api/v1/mentorship-cycles/{cycleId}/facilities/{facilityId}:
     delete:
       summary: Remove a facility from a cycle
+      description: Administrators only (System Admin and Facility Admin). Facility Admin can only remove facilities within their authorized scope.
       tags:
         - Cycle Configuration
       security:
@@ -1895,7 +1898,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
         '403':
-          description: Administrator role required
+          description: Administrator role required, or attempting to remove unauthorized facility (Facility Admin only)
           content:
             application/json:
               schema:
@@ -1947,6 +1950,7 @@ paths:
                 $ref: '#/components/schemas/ErrorResponse'
     post:
       summary: Assign a thematic area to a cycle
+      description: Administrators only (System Admin and Facility Admin). Thematic areas are organization-wide reference data.
       tags:
         - Cycle Configuration
       security:
@@ -1984,7 +1988,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
         '403':
-          description: Administrator role required
+          description: Administrator role required (System Admin or Facility Admin)
           content:
             application/json:
               schema:
@@ -2004,6 +2008,7 @@ paths:
   /api/v1/mentorship-cycles/{cycleId}/thematic-areas/{thematicAreaId}:
     delete:
       summary: Remove a thematic area from a cycle
+      description: Administrators only (System Admin and Facility Admin). Thematic areas are organization-wide reference data.
       tags:
         - Cycle Configuration
       security:
@@ -2041,7 +2046,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
         '403':
-          description: Administrator role required
+          description: Administrator role required (System Admin or Facility Admin)
           content:
             application/json:
               schema:

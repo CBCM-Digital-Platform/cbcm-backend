@@ -4,7 +4,7 @@ const { validationResult } = require('express-validator');
 const controller = require('../controllers/facilities.controller');
 const authenticate = require('../middlewares/auth/authenticate.middleware');
 const requireRole = require('../middlewares/auth/require-role.middleware');
-const { ADMIN_ROLES } = require('../constants/roles.constants');
+const { ADMIN_ROLES, FACILITY_MANAGEMENT_ROLES } = require('../constants/roles.constants');
 const {
 	facilityFields,
 	createFacilityValidation,
