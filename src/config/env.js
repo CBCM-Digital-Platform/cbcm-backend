@@ -8,6 +8,7 @@ const env = {
   JWT_ACCESS_EXPIRES_IN: process.env.JWT_ACCESS_EXPIRES_IN || '15m',
   JWT_REFRESH_EXPIRES_IN: process.env.JWT_REFRESH_EXPIRES_IN || '30d',
   PASSWORD_RESET_EXPIRES_IN: process.env.PASSWORD_RESET_EXPIRES_IN || '1h',
+  OTP_EXPIRES_IN: process.env.OTP_EXPIRES_IN || '10m',
   FRONTEND_URL: process.env.FRONTEND_URL || 'http://localhost:3000',
   PUBLIC_BASE_URL: (process.env.PUBLIC_BASE_URL || process.env.APP_URL || process.env.RENDER_EXTERNAL_URL || '').replace(/\/$/, ''),
   SMTP_HOST: process.env.SMTP_HOST || '',

@@ -62,13 +62,43 @@ async function forgotPassword(req, res) {
   }
 }
 
+async function forgotOtp(req, res) {
+  try {
+    const payload = matchedData(req, { locations: ['body'] });
+    const result = await authService.forgotOtp({ email: payload.email });
+    return successResponse(res, 200, result);
+  } catch (error) {
+    return controllerError(res, error, 'OTP request failed.');
+  }
+}
+
 async function resetPassword(req, res) {
   try {
     const payload = matchedData(req, { locations: ['body'] });
-    const result = await authService.resetPassword({ token: payload.token, password: payload.password });
+    const result = await authService.resetPassword({
+      token: payload.token,
+      password: payload.new_password ?? payload.password,
+      newPassword: payload.new_password,
+      confirmPassword: payload.confirm_password ?? payload.password,
+    });
     return successResponse(res, 200, result);
   } catch (error) {
     return controllerError(res, error, 'Password reset failed.');
+  }
+}
+
+async function resetOtp(req, res) {
+  try {
+    const payload = matchedData(req, { locations: ['body'] });
+    const result = await authService.resetOtp({
+      email: payload.email,
+      otp: payload.otp,
+      newPassword: payload.new_password,
+      confirmPassword: payload.confirm_password,
+    });
+    return successResponse(res, 200, result);
+  } catch (error) {
+    return controllerError(res, error, 'OTP reset failed.');
   }
 }
 
@@ -100,7 +130,9 @@ module.exports = {
   refreshToken,
   logout,
   forgotPassword,
+  forgotOtp,
   resetPassword,
+  resetOtp,
   changePassword,
   getSession,
 };

@@ -46,10 +46,16 @@ function getPasswordResetTokenExpiry() {
   return new Date(Date.now() + duration);
 }
 
+function getOtpExpiry() {
+  const duration = getDurationMilliseconds(env.OTP_EXPIRES_IN, 10 * 60 * 1000);
+  return new Date(Date.now() + duration);
+}
+
 module.exports = {
   generateAccessToken,
   verifyAccessToken,
   generateRefreshTokenValue,
   getRefreshTokenExpiry,
   getPasswordResetTokenExpiry,
+  getOtpExpiry,
 };

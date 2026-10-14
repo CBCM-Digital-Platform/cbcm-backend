@@ -149,6 +149,81 @@ test('forgot password request handles unknown email safely and reset token can b
   }
 });
 
+test('OTP recovery flow issues a six-digit code, resets password, and rejects reuse', async () => {
+  await createUser({ email: 'otp-user@example.com' });
+  const app = createApp();
+  const originalOtpSender = emailUtil.sendOtpEmail;
+  let sentOtp;
+  emailUtil.sendOtpEmail = async ({ otp }) => {
+    sentOtp = otp;
+  };
+
+  try {
+    const requestOtp = await request(app)
+      .post('/api/v1/auth/forgot-otp')
+      .send({ email: 'otp-user@example.com' });
+
+    assert.equal(requestOtp.status, 200);
+    assert.equal(requestOtp.body.success, true);
+    assert.equal(/^[0-9]{6}$/.test(sentOtp), true);
+
+    const resetOtp = await request(app)
+      .post('/api/v1/auth/reset-otp')
+      .send({ email: 'otp-user@example.com', otp: sentOtp, new_password: 'NewStrongPass3!', confirm_password: 'NewStrongPass3!' });
+
+    assert.equal(resetOtp.status, 200);
+    assert.equal(resetOtp.body.success, true);
+
+    const secondAttempt = await request(app)
+      .post('/api/v1/auth/reset-otp')
+      .send({ email: 'otp-user@example.com', otp: sentOtp, new_password: 'AnotherStrong4!', confirm_password: 'AnotherStrong4!' });
+
+    assert.equal(secondAttempt.status, 401);
+    assert.equal(secondAttempt.body.error.code, 'OTP_USED');
+
+    const loginAfterReset = await request(app)
+      .post('/api/v1/auth/login')
+      .send({ email: 'otp-user@example.com', password: 'NewStrongPass3!' });
+
+    assert.equal(loginAfterReset.status, 200);
+    assert.equal(loginAfterReset.body.success, true);
+  } finally {
+    emailUtil.sendOtpEmail = originalOtpSender;
+  }
+});
+
+test('password reset link flow accepts the new field names and preserves existing auth path', async () => {
+  await createUser({ email: 'reset-link@example.com' });
+  const app = createApp();
+  const originalEmailSender = emailUtil.sendPasswordResetEmail;
+  let resetUrl;
+  emailUtil.sendPasswordResetEmail = async ({ resetUrl: url }) => {
+    resetUrl = url;
+  };
+
+  try {
+    const forgot = await request(app)
+      .post('/api/v1/auth/forgot-password')
+      .send({ email: 'reset-link@example.com' });
+    assert.equal(forgot.status, 200);
+
+    const token = new URL(resetUrl).searchParams.get('token');
+    const reset = await request(app)
+      .post('/api/v1/auth/reset-password')
+      .send({ token, new_password: 'NewStrongPass4!', confirm_password: 'NewStrongPass4!' });
+
+    assert.equal(reset.status, 200);
+    assert.equal(reset.body.success, true);
+
+    const login = await request(app)
+      .post('/api/v1/auth/login')
+      .send({ email: 'reset-link@example.com', password: 'NewStrongPass4!' });
+    assert.equal(login.status, 200);
+  } finally {
+    emailUtil.sendPasswordResetEmail = originalEmailSender;
+  }
+});
+
 test('user listing is forbidden for non-admins', async () => {
   const user = await createUser({ email: 'member@example.com', role: 'mentee' });
   const app = createApp();

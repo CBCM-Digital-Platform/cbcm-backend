@@ -1,6 +1,6 @@
 const express = require('express');
 const authController = require('../controllers/auth.controller');
-const { loginValidation, refreshTokenValidation, logoutValidation, forgotPasswordValidation, resetPasswordValidation, changePasswordValidation } = require('../validators/auth.validator');
+const { loginValidation, refreshTokenValidation, logoutValidation, forgotPasswordValidation, forgotOtpValidation, resetPasswordValidation, resetOtpValidation, changePasswordValidation } = require('../validators/auth.validator');
 const authenticate = require('../middlewares/auth/authenticate.middleware');
 const { validationResult } = require('express-validator');
 
@@ -148,10 +148,92 @@ router.post('/logout', authenticate, logoutValidation, validateRequest, authCont
 
 /**
  * @openapi
+ * /api/v1/auth/forgot-otp:
+ *   post:
+ *     summary: Request a one-time password code
+ *     description: Public endpoint that sends a six-digit OTP to the registered email address if the account exists. The response is intentionally generic.
+ *     tags: [Auth]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             $ref: '#/components/schemas/ForgotOtpRequest'
+ *     responses:
+ *       200:
+ *         description: Generic success response without account-existence leakage
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/MessageResponse'
+ *       400:
+ *         description: Email validation error
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ *       429:
+ *         description: Too many OTP requests for this user within a short time window
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ *       500:
+ *         description: Unexpected server error
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ */
+router.post('/forgot-otp', forgotOtpValidation, validateRequest, authController.forgotOtp);
+
+/**
+ * @openapi
+ * /api/v1/auth/reset-otp:
+ *   post:
+ *     summary: Reset a password with a single-use OTP
+ *     description: Verifies a six-digit OTP, checks expiry and reuse, and resets the user's password while revoking active refresh sessions.
+ *     tags: [Auth]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             $ref: '#/components/schemas/ResetOtpRequest'
+ *     responses:
+ *       200:
+ *         description: Password reset complete; existing refresh sessions are revoked
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/BooleanActionResponse'
+ *       400:
+ *         description: Validation error, mismatched confirmation, or unchanged password
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ *       401:
+ *         description: Invalid, expired, locked, or previously used OTP
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ *       500:
+ *         description: Unexpected server error
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ */
+router.post('/reset-otp', resetOtpValidation, validateRequest, authController.resetOtp);
+
+/**
+ * @openapi
  * /api/v1/auth/forgot-password:
  *   post:
  *     summary: Request a password-reset link
- *     description: Always returns the same message whether or not the email belongs to an active account. Delivery requires SMTP configuration.
+ *     description: Public endpoint that sends a password-reset email to the registered account if it exists. The response is intentionally generic and does not confirm whether the user exists.
  *     tags: [Auth]
  *     requestBody:
  *       required: true
@@ -172,6 +254,12 @@ router.post('/logout', authenticate, logoutValidation, validateRequest, authCont
  *           application/json:
  *             schema:
  *               $ref: '#/components/schemas/ErrorResponse'
+ *       429:
+ *         description: Too many reset-link requests for a user within a short time window
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
  *       500:
  *         description: Unexpected server error
  *         content:
@@ -185,8 +273,8 @@ router.post('/forgot-password', forgotPasswordValidation, validateRequest, authC
  * @openapi
  * /api/v1/auth/reset-password:
  *   post:
- *     summary: Reset a password with a one-time token
- *     description: The reset token is delivered by email, expires according to PASSWORD_RESET_EXPIRES_IN, and is usable once.
+ *     summary: Reset a password with a one-time email token
+ *     description: Validates the reset token, enforces expiry and single-use rules, and revokes active refresh sessions when the new password is accepted.
  *     tags: [Auth]
  *     requestBody:
  *       required: true

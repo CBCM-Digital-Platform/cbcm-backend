@@ -20,9 +20,39 @@ const forgotPasswordValidation = [
   body('email').isEmail().withMessage('A valid email is required.'),
 ];
 
+const forgotOtpValidation = [
+  body('email').isEmail().withMessage('A valid email is required.'),
+];
+
+const resetOtpValidation = [
+  body('email').isEmail().withMessage('A valid email is required.'),
+  body('otp').matches(/^\d{6}$/).withMessage('OTP must be a 6-digit numeric code.'),
+  body('new_password').isLength({ min: 8 }).withMessage('Password must be at least 8 characters.'),
+  body('confirm_password').custom((value, { req }) => {
+    if (value !== req.body.new_password) {
+      throw new Error('Password confirmation does not match.');
+    }
+    return true;
+  }),
+];
+
 const resetPasswordValidation = [
-  body('token').isHexadecimal().isLength({ min: 64, max: 64 }).withMessage('Reset token must be a 64-character hexadecimal value.'),
-  body('password').isLength({ min: 8 }).withMessage('Password must be at least 8 characters.'),
+  body('token').optional().isHexadecimal().isLength({ min: 64, max: 64 }).withMessage('Reset token must be a 64-character hexadecimal value.'),
+  body('password').optional().isLength({ min: 8 }).withMessage('Password must be at least 8 characters.'),
+  body('new_password').optional().isLength({ min: 8 }).withMessage('Password must be at least 8 characters.'),
+  body('confirm_password').optional().isLength({ min: 8 }).withMessage('Password confirmation must be at least 8 characters.'),
+  body().custom((value, { req }) => {
+    const token = req.body.token;
+    const password = req.body.new_password ?? req.body.password;
+    const confirmPassword = req.body.confirm_password ?? req.body.password;
+    if (!token || !password) {
+      throw new Error('Reset token and new password are required.');
+    }
+    if (confirmPassword && password !== confirmPassword) {
+      throw new Error('Password confirmation does not match.');
+    }
+    return true;
+  }),
 ];
 
 const changePasswordValidation = [
@@ -74,6 +104,8 @@ module.exports = {
   refreshTokenValidation,
   logoutValidation,
   forgotPasswordValidation,
+  forgotOtpValidation,
+  resetOtpValidation,
   resetPasswordValidation,
   changePasswordValidation,
   registerValidation,
