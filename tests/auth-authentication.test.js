@@ -149,6 +149,37 @@ test('forgot password request handles unknown email safely and reset token can b
   }
 });
 
+test('password recovery endpoints respond when email delivery stalls', async () => {
+  await createUser({ email: 'stalled-link@example.com' });
+  await createUser({ email: 'stalled-otp@example.com' });
+  const app = createApp();
+  const originalEmailSender = emailUtil.sendPasswordResetEmail;
+  const originalOtpSender = emailUtil.sendOtpEmail;
+  let deliveryAttempts = 0;
+  const stalledSender = () => {
+    deliveryAttempts += 1;
+    return new Promise(() => {});
+  };
+  emailUtil.sendPasswordResetEmail = stalledSender;
+  emailUtil.sendOtpEmail = stalledSender;
+
+  try {
+    const forgotPassword = await request(app)
+      .post('/api/v1/auth/forgot-password')
+      .send({ email: 'stalled-link@example.com' });
+    const forgotOtp = await request(app)
+      .post('/api/v1/auth/forgot-otp')
+      .send({ email: 'stalled-otp@example.com' });
+
+    assert.equal(forgotPassword.status, 200);
+    assert.equal(forgotOtp.status, 200);
+    assert.equal(deliveryAttempts, 2);
+  } finally {
+    emailUtil.sendPasswordResetEmail = originalEmailSender;
+    emailUtil.sendOtpEmail = originalOtpSender;
+  }
+});
+
 test('OTP recovery flow issues a six-digit code, resets password, and rejects reuse', async () => {
   await createUser({ email: 'otp-user@example.com' });
   const app = createApp();

@@ -18,6 +18,16 @@ function generateOtpCode() {
   return String(Math.floor(100000 + Math.random() * 900000));
 }
 
+function sendRecoveryEmailInBackground(sendEmail, payload, emailType) {
+  try {
+    sendEmail(payload).catch((error) => {
+      console.error(`${emailType} email delivery failed:`, error.message);
+    });
+  } catch (error) {
+    console.error(`${emailType} email delivery failed:`, error.message);
+  }
+}
+
 async function ensureRecoveryRateLimit(userId) {
   const latest = await authRepository.findLatestPasswordResetTokenForUser(userId);
   if (!latest || !latest.requested_at) return;
@@ -176,11 +186,7 @@ async function forgotPassword({ email }) {
   });
 
   const resetUrl = `${env.FRONTEND_URL}/reset-password?token=${encodeURIComponent(resetToken)}`;
-  try {
-    await emailUtil.sendPasswordResetEmail({ to: user.email, resetUrl });
-  } catch {
-    // The response remains generic so delivery errors cannot confirm account existence.
-  }
+  sendRecoveryEmailInBackground(emailUtil.sendPasswordResetEmail, { to: user.email, resetUrl }, 'Password reset');
   return { message: RESET_MESSAGE };
 }
 
@@ -204,11 +210,7 @@ async function forgotOtp({ email }) {
     await authRepository.createPasswordResetTokenEntry({ userId: user.id, tokenHash: otpHash, expiresAt, transaction });
   });
 
-  try {
-    await emailUtil.sendOtpEmail({ to: user.email, otp });
-  } catch {
-    // Generic response remains consistent even if delivery fails.
-  }
+  sendRecoveryEmailInBackground(emailUtil.sendOtpEmail, { to: user.email, otp }, 'OTP');
   return { message: OTP_MESSAGE };
 }
 

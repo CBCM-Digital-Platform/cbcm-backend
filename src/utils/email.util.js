@@ -1,16 +1,22 @@
 const nodemailer = require('nodemailer');
 const env = require('../config/env');
 
-async function sendPasswordResetEmail({ to, resetUrl }) {
-  if (!env.SMTP_HOST) return false;
-
-  const transporter = nodemailer.createTransport({
+function createTransporter() {
+  return nodemailer.createTransport({
     host: env.SMTP_HOST,
     port: env.SMTP_PORT,
     secure: env.SMTP_PORT === 465,
+    connectionTimeout: 10000,
+    greetingTimeout: 10000,
+    socketTimeout: 20000,
     ...(env.SMTP_USER ? { auth: { user: env.SMTP_USER, pass: env.SMTP_PASS } } : {}),
   });
+}
 
+async function sendPasswordResetEmail({ to, resetUrl }) {
+  if (!env.SMTP_HOST) return false;
+
+  const transporter = createTransporter();
   await transporter.sendMail({
     from: env.SMTP_FROM,
     to,
@@ -23,13 +29,7 @@ async function sendPasswordResetEmail({ to, resetUrl }) {
 async function sendOtpEmail({ to, otp }) {
   if (!env.SMTP_HOST) return false;
 
-  const transporter = nodemailer.createTransport({
-    host: env.SMTP_HOST,
-    port: env.SMTP_PORT,
-    secure: env.SMTP_PORT === 465,
-    ...(env.SMTP_USER ? { auth: { user: env.SMTP_USER, pass: env.SMTP_PASS } } : {}),
-  });
-
+  const transporter = createTransporter();
   await transporter.sendMail({
     from: env.SMTP_FROM,
     to,
