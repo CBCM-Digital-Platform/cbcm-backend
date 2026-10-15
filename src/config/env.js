@@ -16,6 +16,8 @@ const env = {
   SMTP_USER: process.env.SMTP_USER || '',
   SMTP_PASS: process.env.SMTP_PASS || '',
   SMTP_FROM: process.env.SMTP_FROM || 'no-reply@localhost',
+  RESEND_API_KEY: process.env.RESEND_API_KEY || '',
+  EMAIL_FROM: process.env.EMAIL_FROM || process.env.SMTP_FROM || 'no-reply@localhost',
   CORS_ORIGIN: process.env.CORS_ORIGIN || '*',
 };
 

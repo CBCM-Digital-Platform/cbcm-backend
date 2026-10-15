@@ -13,30 +13,45 @@ function createTransporter() {
   });
 }
 
-async function sendPasswordResetEmail({ to, resetUrl }) {
+async function sendEmail({ to, subject, text }) {
+  if (env.RESEND_API_KEY) {
+    const response = await fetch('https://api.resend.com/emails', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${env.RESEND_API_KEY}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ from: env.EMAIL_FROM, to: [to], subject, text }),
+      signal: AbortSignal.timeout(10000),
+    });
+
+    if (!response.ok) {
+      throw new Error(`Resend API returned HTTP ${response.status}.`);
+    }
+    return true;
+  }
+
   if (!env.SMTP_HOST) return false;
 
   const transporter = createTransporter();
-  await transporter.sendMail({
-    from: env.SMTP_FROM,
+  await transporter.sendMail({ from: env.SMTP_FROM, to, subject, text });
+  return true;
+}
+
+async function sendPasswordResetEmail({ to, resetUrl }) {
+  return sendEmail({
     to,
     subject: 'Reset your CBCM password',
     text: `Use this link to reset your password: ${resetUrl}`,
   });
-  return true;
 }
 
 async function sendOtpEmail({ to, otp }) {
-  if (!env.SMTP_HOST) return false;
-
-  const transporter = createTransporter();
-  await transporter.sendMail({
-    from: env.SMTP_FROM,
+  return sendEmail({
     to,
     subject: 'Your CBCM password reset code',
     text: `Your CBCM password reset code is ${otp}. It is valid for a short time and can only be used once.`,
   });
-  return true;
 }
 
 module.exports = { sendPasswordResetEmail, sendOtpEmail };
