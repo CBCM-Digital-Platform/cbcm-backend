@@ -19,13 +19,16 @@ function generateOtpCode() {
 }
 
 function sendRecoveryEmailInBackground(sendEmail, payload, emailType) {
-  try {
-    sendEmail(payload).catch((error) => {
+  Promise.resolve()
+    .then(() => sendEmail(payload))
+    .then((sent) => {
+      if (sent === false) {
+        console.error(`${emailType} email delivery skipped: SMTP_HOST is not configured.`);
+      }
+    })
+    .catch((error) => {
       console.error(`${emailType} email delivery failed:`, error.message);
     });
-  } catch (error) {
-    console.error(`${emailType} email delivery failed:`, error.message);
-  }
 }
 
 async function ensureRecoveryRateLimit(userId) {
