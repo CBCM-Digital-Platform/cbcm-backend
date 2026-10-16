@@ -8,7 +8,7 @@ const facilitiesRoutes = require('./facilities.routes');
 const cyclesRoutes = require('./cycles.routes');
 const thematicAreasRoutes = require('./thematic-areas.routes');
 const assignmentsRoutes = require('./assignments.routes');
-// const progressRoutes = require('./progress.routes'); // TODO: Add when progress module is implemented
+const progressRoutes = require('./progress.routes');
 
 const router = express.Router();
 router.use('/auth', authRoutes);
@@ -19,6 +19,6 @@ router.use('/facilities', facilitiesRoutes);
 router.use('/mentorship-cycles', cyclesRoutes);
 router.use('/thematic-areas', thematicAreasRoutes);
 router.use('/assignments', assignmentsRoutes);
-// router.use('/progress', progressRoutes); // TODO: Add when progress module is implemented
+router.use('/progress', progressRoutes);
 
 module.exports = router;

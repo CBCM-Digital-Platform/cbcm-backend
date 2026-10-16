@@ -2,6 +2,7 @@
 const express = require('express');
 const { validationResult } = require('express-validator');
 const controller = require('../controllers/assignments.controller');
+const matchingController = require('../controllers/matching.controller');
 const authenticate = require('../middlewares/auth/authenticate.middleware');
 const requireRole = require('../middlewares/auth/require-role.middleware');
 const { FACILITY_MANAGEMENT_ROLES } = require('../constants/roles.constants');
@@ -13,6 +14,7 @@ const {
 	listAssignmentsValidation,
 	userIdValidation,
 } = require('../validators/assignments.validator');
+const { findMatchesValidation } = require('../validators/matching.validator');
 
 const router = express.Router();
 
@@ -450,5 +452,48 @@ router.get('/mentees/:menteeId/assignments', userIdValidation, validateRequest, 
  *               $ref: '#/components/schemas/ErrorResponse'
  */
 router.get('/mentors/:mentorId/assignments', userIdValidation, validateRequest, controller.getMentorAssignments);
+
+/**
+ * @openapi
+ * /api/v1/assignments/matching:
+ *   post:
+ *     summary: Find mentor matches
+ *     description: Suggests available mentors for a mentee based on facility, cycle, and optional thematic area. System Admin can match across the organization; Facility Admin can only match within their facility.
+ *     tags: [Assignments]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             $ref: '#/components/schemas/FindMatchesRequest'
+ *     responses:
+ *       200:
+ *         description: Match suggestions
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/FindMatchesResponse'
+ *       400:
+ *         description: Invalid criteria
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ *       401:
+ *         description: Authentication required
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ *       403:
+ *         description: Administrator role required or facility scope violation
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ */
+router.post('/matching', requireRole(FACILITY_MANAGEMENT_ROLES), findMatchesValidation, validateRequest, matchingController.findMatches);
 
 module.exports = router;

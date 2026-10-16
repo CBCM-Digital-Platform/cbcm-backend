@@ -1194,6 +1194,202 @@ components:
             - cancelled
             - unassigned
           example: 'completed'
+    SnapshotResponse:
+      type: object
+      properties:
+        id:
+          type: integer
+          example: 1
+        mentee_id:
+          type: integer
+          example: 25
+        facility_id:
+          type: integer
+          example: 3
+        cycle_id:
+          type: integer
+          example: 2
+        thematic_area_id:
+          type: integer
+          nullable: true
+          example: 1
+        score:
+          type: number
+          example: 85.5
+        competency_level:
+          type: string
+          nullable: true
+          example: 'proficient'
+        triggered_by:
+          type: integer
+          example: 5
+        recorded_at:
+          type: string
+          format: date-time
+          example: '2026-10-15T10:30:00.000Z'
+    SnapshotListResponse:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/SnapshotResponse'
+        total:
+          type: integer
+          example: 50
+        page:
+          type: integer
+          example: 1
+        limit:
+          type: integer
+          example: 20
+        totalPages:
+          type: integer
+          example: 3
+    CreateSnapshotRequest:
+      type: object
+      required:
+        - mentee_id
+        - facility_id
+        - cycle_id
+        - score
+      properties:
+        mentee_id:
+          type: integer
+          minimum: 1
+          example: 25
+        facility_id:
+          type: integer
+          minimum: 1
+          example: 3
+        cycle_id:
+          type: integer
+          minimum: 1
+          example: 2
+        thematic_area_id:
+          type: integer
+          minimum: 1
+          example: 1
+        score:
+          type: number
+          minimum: 0
+          maximum: 100
+          example: 85.5
+        competency_level:
+          type: string
+          maxLength: 50
+          example: 'proficient'
+    ProgressSummaryResponse:
+      type: object
+      properties:
+        total_snapshots:
+          type: integer
+          example: 150
+        average_score:
+          type: number
+          example: 78.5
+        competency_distribution:
+          type: object
+          additionalProperties:
+            type: integer
+          example:
+            beginner: 20
+            intermediate: 60
+            proficient: 40
+            advanced: 30
+    MenteeCompetencyBreakdownResponse:
+      type: object
+      properties:
+        mentee_id:
+          type: integer
+          example: 25
+        latest_competencies:
+          type: array
+          items:
+            type: object
+            properties:
+              thematic_area_id:
+                type: integer
+                nullable: true
+                example: 1
+              score:
+                type: number
+                example: 85.5
+              competency_level:
+                type: string
+                nullable: true
+                example: 'proficient'
+              recorded_at:
+                type: string
+                format: date-time
+                example: '2026-10-15T10:30:00.000Z'
+    FindMatchesRequest:
+      type: object
+      required:
+        - cycle_id
+        - facility_id
+      properties:
+        cycle_id:
+          type: integer
+          minimum: 1
+          example: 2
+        facility_id:
+          type: integer
+          minimum: 1
+          example: 3
+        mentee_id:
+          type: integer
+          minimum: 1
+          example: 25
+        thematic_area_id:
+          type: integer
+          minimum: 1
+          example: 1
+    FindMatchesResponse:
+      type: object
+      properties:
+        criteria:
+          type: object
+          properties:
+            cycle_id:
+              type: integer
+            facility_id:
+              type: integer
+            mentee_id:
+              type: integer
+            thematic_area_id:
+              type: integer
+        total_matches:
+          type: integer
+          example: 5
+        matches:
+          type: array
+          items:
+            type: object
+            properties:
+              mentor_id:
+                type: integer
+                example: 10
+              mentor_name:
+                type: string
+                example: 'John Mentor'
+              facility_id:
+                type: integer
+                example: 3
+              cycle_id:
+                type: integer
+                example: 2
+              thematic_area_id:
+                type: integer
+                nullable: true
+                example: 1
+              compatibility_score:
+                type: number
+                nullable: true
+                example: 75.5
+              reason:
+                type: string
+                example: 'Available mentor in facility'
   parameters:
     ConversationId:
       name: id
@@ -3532,6 +3728,338 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
+  /api/v1/assignments/matching:
+    post:
+      summary: Find mentor matches
+      description: Suggests available mentors for a mentee based on facility, cycle, and optional thematic area. System Admin can match across the organization; Facility Admin can only match within their facility.
+      tags:
+        - Assignments
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FindMatchesRequest'
+      responses:
+        '200':
+          description: Match suggestions
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FindMatchesResponse'
+        '400':
+          description: Invalid criteria
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Authentication required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Administrator role required or facility scope violation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /api/v1/progress/knowledge-snapshots:
+    get:
+      summary: List knowledge-score snapshots
+      description: Lists snapshots with authorized filters and pagination. System Admin sees organization-wide snapshots; Facility Admin sees only their facility's snapshots.
+      tags:
+        - Progress
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+        - name: mentee_id
+          in: query
+          schema:
+            type: integer
+        - name: facility_id
+          in: query
+          schema:
+            type: integer
+        - name: cycle_id
+          in: query
+          schema:
+            type: integer
+        - name: thematic_area_id
+          in: query
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Paginated snapshots
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SnapshotListResponse'
+        '400':
+          description: Invalid filters
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Authentication required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Facility scope violation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+    post:
+      summary: Create a knowledge-score snapshot
+      description: Records a new knowledge-score snapshot for a mentee. System Admin can create organization-wide; Facility Admin can only create within their facility.
+      tags:
+        - Progress
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateSnapshotRequest'
+      responses:
+        '201':
+          description: Snapshot created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SnapshotResponse'
+        '400':
+          description: Validation error or business rule violation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Authentication required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Administrator role required or facility scope violation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Mentee, facility, cycle, or thematic area not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /api/v1/progress/knowledge-snapshots/{id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: integer
+          minimum: 1
+    get:
+      summary: Get a knowledge-score snapshot
+      description: Retrieves a specific snapshot by ID.
+      tags:
+        - Progress
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Snapshot details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SnapshotResponse'
+        '400':
+          description: Invalid snapshot ID
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Authentication required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Facility scope violation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Snapshot not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /api/v1/progress/summary:
+    get:
+      summary: Get progress summary
+      description: Returns aggregated progress metrics including average score and competency distribution. System Admin sees organization-wide summary; Facility Admin sees only their facility's summary.
+      tags:
+        - Progress
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: facility_id
+          in: query
+          schema:
+            type: integer
+        - name: cycle_id
+          in: query
+          schema:
+            type: integer
+        - name: thematic_area_id
+          in: query
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Progress summary
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProgressSummaryResponse'
+        '400':
+          description: Invalid filters
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Authentication required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Facility scope violation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /api/v1/mentees/{menteeId}/knowledge-snapshots:
+    parameters:
+      - name: menteeId
+        in: path
+        required: true
+        schema:
+          type: integer
+          minimum: 1
+    get:
+      summary: Get a mentee's knowledge-score snapshots
+      description: Retrieves all snapshots for a specific mentee in chronological order. Mentees can view their own snapshots; Facility Admins can view snapshots within their facility.
+      tags:
+        - Progress
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Mentee's snapshots
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/SnapshotResponse'
+        '400':
+          description: Invalid mentee ID
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Authentication required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Scope violation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Mentee not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /api/v1/mentees/{menteeId}/competencies:
+    parameters:
+      - name: menteeId
+        in: path
+        required: true
+        schema:
+          type: integer
+          minimum: 1
+    get:
+      summary: Get a mentee's competency breakdown
+      description: Returns the latest competency scores by thematic area for a specific mentee. Mentees can view their own breakdown; Facility Admins can view breakdown within their facility.
+      tags:
+        - Progress
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Mentee's competency breakdown
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MenteeCompetencyBreakdownResponse'
+        '400':
+          description: Invalid mentee ID
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Authentication required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Scope violation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Mentee not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
 tags:
   - name: Auth
     description: Authentication and session management
@@ -3549,3 +4077,5 @@ tags:
     description: Global thematic area management (System Admin only)
   - name: Assignments
     description: Mentor-mentee assignment management
+  - name: Progress
+    description: Knowledge-score snapshots and progress tracking
