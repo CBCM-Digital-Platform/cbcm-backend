@@ -997,12 +997,203 @@ components:
     ConversationDetail:
       allOf:
         - $ref: '#/components/schemas/Conversation'
-        - type: object
-          properties:
-            messages:
-              type: array
-              items:
-                $ref: '#/components/schemas/Message'
+    ThematicArea:
+      type: object
+      properties:
+        id:
+          type: integer
+          example: 1
+        code:
+          type: string
+          example: 'LEADERSHIP'
+        name:
+          type: string
+          example: 'Leadership Development'
+    ThematicAreaListResponse:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/ThematicArea'
+        total:
+          type: integer
+          example: 10
+        page:
+          type: integer
+          example: 1
+        limit:
+          type: integer
+          example: 20
+        totalPages:
+          type: integer
+          example: 1
+    CreateThematicAreaRequest:
+      type: object
+      required:
+        - code
+        - name
+      properties:
+        code:
+          type: string
+          minLength: 1
+          maxLength: 50
+          example: 'LEADERSHIP'
+        name:
+          type: string
+          minLength: 1
+          maxLength: 255
+          example: 'Leadership Development'
+    UpdateThematicAreaRequest:
+      type: object
+      properties:
+        code:
+          type: string
+          minLength: 1
+          maxLength: 50
+          example: 'LEADERSHIP'
+        name:
+          type: string
+          minLength: 1
+          maxLength: 255
+          example: 'Leadership Development'
+    Assignment:
+      type: object
+      properties:
+        id:
+          type: integer
+          example: 1
+        mentor_id:
+          type: integer
+          example: 10
+        mentee_id:
+          type: integer
+          example: 25
+        facility_id:
+          type: integer
+          example: 3
+        cycle_id:
+          type: integer
+          example: 2
+        thematic_area_id:
+          type: integer
+          nullable: true
+          example: 1
+        status:
+          type: string
+          enum:
+            - pending_match
+            - assigned
+            - completed
+            - cancelled
+            - unassigned
+          example: 'assigned'
+        priority_score:
+          type: number
+          nullable: true
+          example: 85.5
+        matching_reason:
+          type: string
+          nullable: true
+          example: 'High compatibility based on competency assessment'
+        assigned_by:
+          type: integer
+          example: 5
+        assigned_at:
+          type: string
+          format: date-time
+          example: '2026-10-15T10:30:00.000Z'
+        unassigned_at:
+          type: string
+          format: date-time
+          nullable: true
+          example: '2026-11-01T15:00:00.000Z'
+    AssignmentListResponse:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/Assignment'
+        total:
+          type: integer
+          example: 25
+        page:
+          type: integer
+          example: 1
+        limit:
+          type: integer
+          example: 20
+        totalPages:
+          type: integer
+          example: 2
+    CreateAssignmentRequest:
+      type: object
+      required:
+        - mentor_id
+        - mentee_id
+        - facility_id
+        - cycle_id
+      properties:
+        mentor_id:
+          type: integer
+          minimum: 1
+          example: 10
+        mentee_id:
+          type: integer
+          minimum: 1
+          example: 25
+        facility_id:
+          type: integer
+          minimum: 1
+          example: 3
+        cycle_id:
+          type: integer
+          minimum: 1
+          example: 2
+        thematic_area_id:
+          type: integer
+          minimum: 1
+          example: 1
+        priority_score:
+          type: number
+          minimum: 0
+          maximum: 100
+          example: 85.5
+        matching_reason:
+          type: string
+          maxLength: 1000
+          example: 'High compatibility based on competency assessment'
+    UpdateAssignmentRequest:
+      type: object
+      properties:
+        thematic_area_id:
+          type: integer
+          minimum: 1
+          example: 1
+        priority_score:
+          type: number
+          minimum: 0
+          maximum: 100
+          example: 85.5
+        matching_reason:
+          type: string
+          maxLength: 1000
+          example: 'Updated matching reason'
+    UpdateAssignmentStatusRequest:
+      type: object
+      required:
+        - status
+      properties:
+        status:
+          type: string
+          enum:
+            - pending_match
+            - assigned
+            - completed
+            - cancelled
+            - unassigned
+          example: 'completed'
   parameters:
     ConversationId:
       name: id
@@ -2705,6 +2896,642 @@ paths:
           $ref: '#/components/responses/ServerError'
       security:
         - bearerAuth: []
+  /api/v1/thematic-areas:
+    get:
+      summary: List thematic areas
+      description: Lists all thematic areas with pagination. All authenticated users can view thematic areas.
+      tags:
+        - Thematic Areas
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+      responses:
+        '200':
+          description: Paginated thematic areas
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ThematicAreaListResponse'
+        '400':
+          description: Invalid pagination
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Authentication required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+    post:
+      summary: Create a thematic area
+      description: System Admin only. Creates a new global thematic area with a unique code.
+      tags:
+        - Thematic Areas
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateThematicAreaRequest'
+      responses:
+        '201':
+          description: Thematic area created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ThematicArea'
+        '400':
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Authentication required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: System Admin role required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: Thematic area code already exists
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /api/v1/thematic-areas/{id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: integer
+          minimum: 1
+    get:
+      summary: Get a thematic area
+      description: Retrieves a specific thematic area by ID. All authenticated users can view thematic areas.
+      tags:
+        - Thematic Areas
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Thematic area details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ThematicArea'
+        '400':
+          description: Invalid thematic area ID
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Authentication required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Thematic area not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+    patch:
+      summary: Update a thematic area
+      description: System Admin only. Updates an existing thematic area.
+      tags:
+        - Thematic Areas
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateThematicAreaRequest'
+      responses:
+        '200':
+          description: Thematic area updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ThematicArea'
+        '400':
+          description: Invalid ID or fields
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Authentication required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: System Admin role required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Thematic area not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: Thematic area code already exists
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+    delete:
+      summary: Delete a thematic area
+      description: System Admin only. Deletes a thematic area if it is not referenced by cycles or assignments.
+      tags:
+        - Thematic Areas
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Thematic area deleted
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: object
+                    properties:
+                      deleted:
+                        type: boolean
+                        example: true
+        '400':
+          description: Invalid thematic area ID
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Authentication required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: System Admin role required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Thematic area not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: Thematic area is in use by cycles or assignments
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /api/v1/assignments:
+    get:
+      summary: List mentor-mentee assignments
+      description: Lists assignments with authorized filters and pagination. System Admin sees organization-wide assignments; Facility Admin sees only their facility's assignments.
+      tags:
+        - Assignments
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+        - name: mentor_id
+          in: query
+          schema:
+            type: integer
+        - name: mentee_id
+          in: query
+          schema:
+            type: integer
+        - name: facility_id
+          in: query
+          schema:
+            type: integer
+        - name: cycle_id
+          in: query
+          schema:
+            type: integer
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum:
+              - pending_match
+              - assigned
+              - completed
+              - cancelled
+              - unassigned
+      responses:
+        '200':
+          description: Paginated assignments
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AssignmentListResponse'
+        '400':
+          description: Invalid filters
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Authentication required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Facility scope violation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+    post:
+      summary: Create a mentor-mentee assignment
+      description: Manually assigns a mentor to a mentee within a cycle and facility. System Admin can assign across the organization; Facility Admin can only assign within their facility.
+      tags:
+        - Assignments
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateAssignmentRequest'
+      responses:
+        '201':
+          description: Assignment created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Assignment'
+        '400':
+          description: Validation error or business rule violation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Authentication required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Administrator role required or facility scope violation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: User, facility, cycle, or thematic area not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: Assignment already exists or reference conflict
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /api/v1/assignments/{id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: integer
+          minimum: 1
+    get:
+      summary: Get an assignment
+      description: Retrieves a specific assignment by ID with full details.
+      tags:
+        - Assignments
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Assignment details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Assignment'
+        '400':
+          description: Invalid assignment ID
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Authentication required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Facility scope violation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Assignment not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+    patch:
+      summary: Update an assignment
+      description: Updates editable assignment fields such as priority score, matching reason, or thematic area.
+      tags:
+        - Assignments
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateAssignmentRequest'
+      responses:
+        '200':
+          description: Assignment updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Assignment'
+        '400':
+          description: Invalid ID, fields, or reference conflict
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Authentication required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Facility scope violation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Assignment or thematic area not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /api/v1/assignments/{id}/status:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: integer
+          minimum: 1
+    patch:
+      summary: Update assignment status
+      description: Transitions an assignment status. Valid transitions are pending_match to assigned, and assigned to completed or cancelled.
+      tags:
+        - Assignments
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateAssignmentStatusRequest'
+      responses:
+        '200':
+          description: Status updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Assignment'
+        '400':
+          description: Invalid status or transition
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Authentication required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Facility scope violation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Assignment not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /api/v1/assignments/{id}/unassign:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: integer
+          minimum: 1
+    post:
+      summary: Unassign a mentor-mentee pair
+      description: Cancels an active assignment. System Admin can unassign any assignment; Facility Admin can only unassign within their facility.
+      tags:
+        - Assignments
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Assignment unassigned
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Assignment'
+        '400':
+          description: Assignment already unassigned or cancelled
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Authentication required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Facility scope violation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Assignment not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /api/v1/mentees/{menteeId}/assignments:
+    parameters:
+      - name: menteeId
+        in: path
+        required: true
+        schema:
+          type: integer
+          minimum: 1
+    get:
+      summary: Get a mentee's assignments
+      description: Retrieves all assignments for a specific mentee. Mentees can view their own assignments; mentors can view their mentees' assignments; Facility Admins can view assignments within their facility.
+      tags:
+        - Assignments
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Mentee's assignments
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Assignment'
+        '400':
+          description: Invalid mentee ID
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Authentication required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Scope violation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Mentee not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /api/v1/mentors/{mentorId}/assignments:
+    parameters:
+      - name: mentorId
+        in: path
+        required: true
+        schema:
+          type: integer
+          minimum: 1
+    get:
+      summary: Get a mentor's assignments
+      description: Retrieves all assignments for a specific mentor. Mentors can view their own assignments; Facility Admins can view assignments within their facility.
+      tags:
+        - Assignments
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Mentor's assignments
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Assignment'
+        '400':
+          description: Invalid mentor ID
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Authentication required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Scope violation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Mentor not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
 tags:
   - name: Auth
     description: Authentication and session management
@@ -2718,3 +3545,7 @@ tags:
     description: Cycle facility and thematic area configuration
   - name: Messaging
     description: Messaging and conversations
+  - name: Thematic Areas
+    description: Global thematic area management (System Admin only)
+  - name: Assignments
+    description: Mentor-mentee assignment management
