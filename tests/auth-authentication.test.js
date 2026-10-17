@@ -12,9 +12,18 @@ process.env.JWT_ACCESS_EXPIRES_IN = '15m';
 process.env.JWT_REFRESH_EXPIRES_IN = '30d';
 process.env.DATABASE_URL = 'sqlite::memory:';
 process.env.PASSWORD_RESET_EXPIRES_IN = '1h';
+process.env.BREVO_API_KEY = '';
+process.env.BREVO_SENDER_EMAIL = '';
+process.env.BREVO_SENDER_NAME = '';
+process.env.RESEND_API_KEY = '';
 
 const models = require('../src/models');
 const emailUtil = require('../src/utils/email.util');
+const env = require('../src/config/env');
+env.BREVO_API_KEY = '';
+env.BREVO_SENDER_EMAIL = '';
+env.BREVO_SENDER_NAME = '';
+env.RESEND_API_KEY = '';
 const { createApp } = require('../src/app');
 
 async function createUser(overrides = {}) {
@@ -42,6 +51,82 @@ test.beforeEach(async () => {
   await models.UserPreference.destroy({ where: {} });
   await models.ActivityLog.destroy({ where: {} });
   await models.User.destroy({ where: {} });
+});
+
+test('email utility sends through Brevo transactional API when configured', async () => {
+  const originalBrevoKey = env.BREVO_API_KEY;
+  const originalBrevoSenderEmail = env.BREVO_SENDER_EMAIL;
+  const originalBrevoSenderName = env.BREVO_SENDER_NAME;
+  const originalFetch = global.fetch;
+  let requestOptions;
+
+  env.BREVO_API_KEY = 'test-brevo-key';
+  env.BREVO_SENDER_EMAIL = 'verify@cbcm.org';
+  env.BREVO_SENDER_NAME = 'CBCM Health';
+  global.fetch = async (url, options) => {
+    requestOptions = { url, options };
+    return { ok: true, status: 201, json: async () => ({ messageId: '<test-brevo-id>' }) };
+  };
+
+  try {
+    const sent = await emailUtil.sendOtpEmail({ to: 'recipient@example.com', otp: '123456' });
+
+    assert.equal(sent, true);
+    assert.equal(requestOptions.url, 'https://api.brevo.com/v3/smtp/email');
+    assert.equal(requestOptions.options.method, 'POST');
+    assert.equal(requestOptions.options.headers['api-key'], 'test-brevo-key');
+    assert.equal(requestOptions.options.headers['Content-Type'], 'application/json');
+    assert.equal(requestOptions.options.headers.accept, 'application/json');
+    assert.deepEqual(JSON.parse(requestOptions.options.body), {
+      sender: {
+        email: 'verify@cbcm.org',
+        name: 'CBCM Health',
+      },
+      to: [{ email: 'recipient@example.com' }],
+      subject: 'Your CBCM password reset code',
+      textContent: 'Your CBCM password reset code is 123456. It is valid for a short time and can only be used once.',
+    });
+  } finally {
+    env.BREVO_API_KEY = originalBrevoKey;
+    env.BREVO_SENDER_EMAIL = originalBrevoSenderEmail;
+    env.BREVO_SENDER_NAME = originalBrevoSenderName;
+    global.fetch = originalFetch;
+  }
+});
+
+test('email utility sends through Resend HTTPS API when configured', async () => {
+  const originalBrevoKey = env.BREVO_API_KEY;
+  const originalApiKey = env.RESEND_API_KEY;
+  const originalFrom = env.EMAIL_FROM;
+  const originalFetch = global.fetch;
+  let requestOptions;
+  env.BREVO_API_KEY = '';
+  env.RESEND_API_KEY = 'test-resend-key';
+  env.EMAIL_FROM = 'CBCM <verified@example.com>';
+  global.fetch = async (url, options) => {
+    requestOptions = { url, options };
+    return { ok: true, status: 200 };
+  };
+
+  try {
+    const sent = await emailUtil.sendOtpEmail({ to: 'recipient@example.com', otp: '123456' });
+
+    assert.equal(sent, true);
+    assert.equal(requestOptions.url, 'https://api.resend.com/emails');
+    assert.equal(requestOptions.options.method, 'POST');
+    assert.equal(requestOptions.options.headers.Authorization, 'Bearer test-resend-key');
+    assert.deepEqual(JSON.parse(requestOptions.options.body), {
+      from: 'CBCM <verified@example.com>',
+      to: ['recipient@example.com'],
+      subject: 'Your CBCM password reset code',
+      text: 'Your CBCM password reset code is 123456. It is valid for a short time and can only be used once.',
+    });
+  } finally {
+    env.BREVO_API_KEY = originalBrevoKey;
+    env.RESEND_API_KEY = originalApiKey;
+    env.EMAIL_FROM = originalFrom;
+    global.fetch = originalFetch;
+  }
 });
 
 test('login succeeds for active user and returns safe profile', async () => {
@@ -144,6 +229,112 @@ test('forgot password request handles unknown email safely and reset token can b
 
     const updatedUser = await models.User.findOne({ where: { email: 'known@example.com' }, raw: true });
     assert.notEqual(updatedUser.password_hash, 'NewStrongPass2!');
+  } finally {
+    emailUtil.sendPasswordResetEmail = originalEmailSender;
+  }
+});
+
+test('password recovery endpoints respond when email delivery stalls', async () => {
+  await createUser({ email: 'stalled-link@example.com' });
+  await createUser({ email: 'stalled-otp@example.com' });
+  const app = createApp();
+  const originalEmailSender = emailUtil.sendPasswordResetEmail;
+  const originalOtpSender = emailUtil.sendOtpEmail;
+  let deliveryAttempts = 0;
+  const stalledSender = () => {
+    deliveryAttempts += 1;
+    return new Promise(() => {});
+  };
+  emailUtil.sendPasswordResetEmail = stalledSender;
+  emailUtil.sendOtpEmail = stalledSender;
+
+  try {
+    const forgotPassword = await request(app)
+      .post('/api/v1/auth/forgot-password')
+      .send({ email: 'stalled-link@example.com' });
+    const forgotOtp = await request(app)
+      .post('/api/v1/auth/forgot-otp')
+      .send({ email: 'stalled-otp@example.com' });
+
+    assert.equal(forgotPassword.status, 200);
+    assert.equal(forgotOtp.status, 200);
+    assert.equal(deliveryAttempts, 2);
+  } finally {
+    emailUtil.sendPasswordResetEmail = originalEmailSender;
+    emailUtil.sendOtpEmail = originalOtpSender;
+  }
+});
+
+test('OTP recovery flow issues a six-digit code, resets password, and rejects reuse', async () => {
+  await createUser({ email: 'otp-user@example.com' });
+  const app = createApp();
+  const originalOtpSender = emailUtil.sendOtpEmail;
+  let sentOtp;
+  emailUtil.sendOtpEmail = async ({ otp }) => {
+    sentOtp = otp;
+  };
+
+  try {
+    const requestOtp = await request(app)
+      .post('/api/v1/auth/forgot-otp')
+      .send({ email: 'otp-user@example.com' });
+
+    assert.equal(requestOtp.status, 200);
+    assert.equal(requestOtp.body.success, true);
+    assert.equal(/^[0-9]{6}$/.test(sentOtp), true);
+
+    const resetOtp = await request(app)
+      .post('/api/v1/auth/reset-otp')
+      .send({ email: 'otp-user@example.com', otp: sentOtp, new_password: 'NewStrongPass3!', confirm_password: 'NewStrongPass3!' });
+
+    assert.equal(resetOtp.status, 200);
+    assert.equal(resetOtp.body.success, true);
+
+    const secondAttempt = await request(app)
+      .post('/api/v1/auth/reset-otp')
+      .send({ email: 'otp-user@example.com', otp: sentOtp, new_password: 'AnotherStrong4!', confirm_password: 'AnotherStrong4!' });
+
+    assert.equal(secondAttempt.status, 401);
+    assert.equal(secondAttempt.body.error.code, 'OTP_USED');
+
+    const loginAfterReset = await request(app)
+      .post('/api/v1/auth/login')
+      .send({ email: 'otp-user@example.com', password: 'NewStrongPass3!' });
+
+    assert.equal(loginAfterReset.status, 200);
+    assert.equal(loginAfterReset.body.success, true);
+  } finally {
+    emailUtil.sendOtpEmail = originalOtpSender;
+  }
+});
+
+test('password reset link flow accepts the new field names and preserves existing auth path', async () => {
+  await createUser({ email: 'reset-link@example.com' });
+  const app = createApp();
+  const originalEmailSender = emailUtil.sendPasswordResetEmail;
+  let resetUrl;
+  emailUtil.sendPasswordResetEmail = async ({ resetUrl: url }) => {
+    resetUrl = url;
+  };
+
+  try {
+    const forgot = await request(app)
+      .post('/api/v1/auth/forgot-password')
+      .send({ email: 'reset-link@example.com' });
+    assert.equal(forgot.status, 200);
+
+    const token = new URL(resetUrl).searchParams.get('token');
+    const reset = await request(app)
+      .post('/api/v1/auth/reset-password')
+      .send({ token, new_password: 'NewStrongPass4!', confirm_password: 'NewStrongPass4!' });
+
+    assert.equal(reset.status, 200);
+    assert.equal(reset.body.success, true);
+
+    const login = await request(app)
+      .post('/api/v1/auth/login')
+      .send({ email: 'reset-link@example.com', password: 'NewStrongPass4!' });
+    assert.equal(login.status, 200);
   } finally {
     emailUtil.sendPasswordResetEmail = originalEmailSender;
   }

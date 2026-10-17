@@ -2,6 +2,7 @@
 const { Facility, ThematicArea, sequelize } = require('../models');
 const AppError = require('../errors/app-error');
 const CycleStatus = require('../enums/cycle-status.enum');
+const { canAccessFacility } = require('../constants/roles.constants');
 const repository = require('../repositories/cycles.repository');
 
 const CYCLE_FIELDS = ['name', 'start_date', 'end_date'];
@@ -121,9 +122,15 @@ async function listCycleFacilities(cycleId) {
 	}));
 }
 
-async function assignFacility(cycleId, facilityId, actorId) {
+async function assignFacility(cycleId, facilityId, actorId, actor) {
 	await requireCycle(cycleId);
 	if (!(await Facility.findByPk(facilityId))) throw new AppError('Facility was not found.', 404, 'FACILITY_NOT_FOUND');
+
+	// Enforce facility scope for Facility Admin
+	if (actor && !canAccessFacility(actor, facilityId)) {
+		throw new AppError('You do not have permission to assign this facility.', 403, 'FORBIDDEN');
+	}
+
 	if (await repository.findFacilityAssignment(cycleId, facilityId)) {
 		throw new AppError('Facility is already assigned to this cycle.', 409, 'CYCLE_FACILITY_EXISTS');
 	}
@@ -140,8 +147,14 @@ async function assignFacility(cycleId, facilityId, actorId) {
 	return { cycle_id: Number(cycleId), facility_id: Number(facilityId), assigned: true };
 }
 
-async function removeFacility(cycleId, facilityId) {
+async function removeFacility(cycleId, facilityId, actor) {
 	await requireCycle(cycleId);
+
+	// Enforce facility scope for Facility Admin
+	if (actor && !canAccessFacility(actor, facilityId)) {
+		throw new AppError('You do not have permission to remove this facility.', 403, 'FORBIDDEN');
+	}
+
 	const removed = await repository.removeFacilityAssignment(cycleId, facilityId);
 	if (!removed) throw new AppError('Facility assignment was not found for this cycle.', 404, 'CYCLE_FACILITY_NOT_FOUND');
 	return { cycle_id: Number(cycleId), facility_id: Number(facilityId), removed: true };

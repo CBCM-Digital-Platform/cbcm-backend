@@ -4,6 +4,8 @@ info:
   version: 1.0.0
   description: CBCM authentication, user management, facilities, mentorship cycles, and cycle configuration APIs.
 servers:
+  - url: https://cbcm-backend-1.onrender.com
+    description: Production server
   - url: http://localhost:5000
     description: Local development server
 components:
@@ -26,6 +28,11 @@ components:
               type: string
             message:
               type: string
+            details:
+              type: array
+              items:
+                type: string
+              example: []
     SuccessResponse:
       type: object
       properties:
@@ -138,17 +145,63 @@ components:
           type: string
           format: email
           example: user@example.com
+    ForgotOtpRequest:
+      type: object
+      required:
+        - email
+      properties:
+        email:
+          type: string
+          format: email
+          example: user@example.com
     ResetPasswordRequest:
       type: object
       required:
         - token
-        - password
+        - new_password
       properties:
         token:
           type: string
           pattern: ^[a-f0-9]{64}$
           example: 64-character one-time token delivered by email
+        new_password:
+          type: string
+          format: password
+          minLength: 8
+          example: NewStrongPass2!
+        confirm_password:
+          type: string
+          format: password
+          minLength: 8
+          example: NewStrongPass2!
         password:
+          type: string
+          format: password
+          minLength: 8
+          example: NewStrongPass2!
+          description: Backward-compatible alias for legacy clients.
+    ResetOtpRequest:
+      type: object
+      required:
+        - email
+        - otp
+        - new_password
+        - confirm_password
+      properties:
+        email:
+          type: string
+          format: email
+          example: user@example.com
+        otp:
+          type: string
+          pattern: ^\d{6}$
+          example: '123456'
+        new_password:
+          type: string
+          format: password
+          minLength: 8
+          example: NewStrongPass2!
+        confirm_password:
           type: string
           format: password
           minLength: 8
@@ -1570,6 +1623,401 @@ components:
         attemptNumber: 1
         startedAt: '2026-10-11T09:15:00.000Z'
         completedAt: '2026-10-11T09:17:30.000Z'
+
+    ThematicArea:
+      type: object
+      properties:
+        id:
+          type: integer
+          example: 1
+        code:
+          type: string
+          example: 'LEADERSHIP'
+        name:
+          type: string
+          example: 'Leadership Development'
+    ThematicAreaListResponse:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/ThematicArea'
+        total:
+          type: integer
+          example: 10
+        page:
+          type: integer
+          example: 1
+        limit:
+          type: integer
+          example: 20
+        totalPages:
+          type: integer
+          example: 1
+    CreateThematicAreaRequest:
+      type: object
+      required:
+        - code
+        - name
+      properties:
+        code:
+          type: string
+          minLength: 1
+          maxLength: 50
+          example: 'LEADERSHIP'
+        name:
+          type: string
+          minLength: 1
+          maxLength: 255
+          example: 'Leadership Development'
+    UpdateThematicAreaRequest:
+      type: object
+      properties:
+        code:
+          type: string
+          minLength: 1
+          maxLength: 50
+          example: 'LEADERSHIP'
+        name:
+          type: string
+          minLength: 1
+          maxLength: 255
+          example: 'Leadership Development'
+    Assignment:
+      type: object
+      properties:
+        id:
+          type: integer
+          example: 1
+        mentor_id:
+          type: integer
+          example: 10
+        mentee_id:
+          type: integer
+          example: 25
+        facility_id:
+          type: integer
+          example: 3
+        cycle_id:
+          type: integer
+          example: 2
+        thematic_area_id:
+          type: integer
+          nullable: true
+          example: 1
+        status:
+          type: string
+          enum:
+            - pending_match
+            - assigned
+            - completed
+            - cancelled
+            - unassigned
+          example: 'assigned'
+        priority_score:
+          type: number
+          nullable: true
+          example: 85.5
+        matching_reason:
+          type: string
+          nullable: true
+          example: 'High compatibility based on competency assessment'
+        assigned_by:
+          type: integer
+          example: 5
+        assigned_at:
+          type: string
+          format: date-time
+          example: '2026-10-15T10:30:00.000Z'
+        unassigned_at:
+          type: string
+          format: date-time
+          nullable: true
+          example: '2026-11-01T15:00:00.000Z'
+    AssignmentListResponse:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/Assignment'
+        total:
+          type: integer
+          example: 25
+        page:
+          type: integer
+          example: 1
+        limit:
+          type: integer
+          example: 20
+        totalPages:
+          type: integer
+          example: 2
+    CreateAssignmentRequest:
+      type: object
+      required:
+        - mentor_id
+        - mentee_id
+        - facility_id
+        - cycle_id
+      properties:
+        mentor_id:
+          type: integer
+          minimum: 1
+          example: 10
+        mentee_id:
+          type: integer
+          minimum: 1
+          example: 25
+        facility_id:
+          type: integer
+          minimum: 1
+          example: 3
+        cycle_id:
+          type: integer
+          minimum: 1
+          example: 2
+        thematic_area_id:
+          type: integer
+          minimum: 1
+          example: 1
+        priority_score:
+          type: number
+          minimum: 0
+          maximum: 100
+          example: 85.5
+        matching_reason:
+          type: string
+          maxLength: 1000
+          example: 'High compatibility based on competency assessment'
+    UpdateAssignmentRequest:
+      type: object
+      properties:
+        thematic_area_id:
+          type: integer
+          minimum: 1
+          example: 1
+        priority_score:
+          type: number
+          minimum: 0
+          maximum: 100
+          example: 85.5
+        matching_reason:
+          type: string
+          maxLength: 1000
+          example: 'Updated matching reason'
+    UpdateAssignmentStatusRequest:
+      type: object
+      required:
+        - status
+      properties:
+        status:
+          type: string
+          enum:
+            - pending_match
+            - assigned
+            - completed
+            - cancelled
+            - unassigned
+          example: 'completed'
+    SnapshotResponse:
+      type: object
+      properties:
+        id:
+          type: integer
+          example: 1
+        mentee_id:
+          type: integer
+          example: 25
+        facility_id:
+          type: integer
+          example: 3
+        cycle_id:
+          type: integer
+          example: 2
+        thematic_area_id:
+          type: integer
+          nullable: true
+          example: 1
+        score:
+          type: number
+          example: 85.5
+        competency_level:
+          type: string
+          nullable: true
+          example: 'proficient'
+        triggered_by:
+          type: integer
+          example: 5
+        recorded_at:
+          type: string
+          format: date-time
+          example: '2026-10-15T10:30:00.000Z'
+    SnapshotListResponse:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/SnapshotResponse'
+        total:
+          type: integer
+          example: 50
+        page:
+          type: integer
+          example: 1
+        limit:
+          type: integer
+          example: 20
+        totalPages:
+          type: integer
+          example: 3
+    CreateSnapshotRequest:
+      type: object
+      required:
+        - mentee_id
+        - facility_id
+        - cycle_id
+        - score
+      properties:
+        mentee_id:
+          type: integer
+          minimum: 1
+          example: 25
+        facility_id:
+          type: integer
+          minimum: 1
+          example: 3
+        cycle_id:
+          type: integer
+          minimum: 1
+          example: 2
+        thematic_area_id:
+          type: integer
+          minimum: 1
+          example: 1
+        score:
+          type: number
+          minimum: 0
+          maximum: 100
+          example: 85.5
+        competency_level:
+          type: string
+          maxLength: 50
+          example: 'proficient'
+    ProgressSummaryResponse:
+      type: object
+      properties:
+        total_snapshots:
+          type: integer
+          example: 150
+        average_score:
+          type: number
+          example: 78.5
+        competency_distribution:
+          type: object
+          additionalProperties:
+            type: integer
+          example:
+            beginner: 20
+            intermediate: 60
+            proficient: 40
+            advanced: 30
+    MenteeCompetencyBreakdownResponse:
+      type: object
+      properties:
+        mentee_id:
+          type: integer
+          example: 25
+        latest_competencies:
+          type: array
+          items:
+            type: object
+            properties:
+              thematic_area_id:
+                type: integer
+                nullable: true
+                example: 1
+              score:
+                type: number
+                example: 85.5
+              competency_level:
+                type: string
+                nullable: true
+                example: 'proficient'
+              recorded_at:
+                type: string
+                format: date-time
+                example: '2026-10-15T10:30:00.000Z'
+    FindMatchesRequest:
+      type: object
+      required:
+        - cycle_id
+        - facility_id
+      properties:
+        cycle_id:
+          type: integer
+          minimum: 1
+          example: 2
+        facility_id:
+          type: integer
+          minimum: 1
+          example: 3
+        mentee_id:
+          type: integer
+          minimum: 1
+          example: 25
+        thematic_area_id:
+          type: integer
+          minimum: 1
+          example: 1
+    FindMatchesResponse:
+      type: object
+      properties:
+        criteria:
+          type: object
+          properties:
+            cycle_id:
+              type: integer
+            facility_id:
+              type: integer
+            mentee_id:
+              type: integer
+            thematic_area_id:
+              type: integer
+        total_matches:
+          type: integer
+          example: 5
+        matches:
+          type: array
+          items:
+            type: object
+            properties:
+              mentor_id:
+                type: integer
+                example: 10
+              mentor_name:
+                type: string
+                example: 'John Mentor'
+              facility_id:
+                type: integer
+                example: 3
+              cycle_id:
+                type: integer
+                example: 2
+              thematic_area_id:
+                type: integer
+                nullable: true
+                example: 1
+              compatibility_score:
+                type: number
+                nullable: true
+                example: 75.5
+              reason:
+                type: string
+                example: 'Available mentor in facility'
+
   parameters:
     ConversationId:
       name: id
@@ -1733,8 +2181,8 @@ paths:
                 $ref: '#/components/schemas/ErrorResponse'
   /api/v1/users:
     get:
-      summary: List users (administrator only)
-      description: Returns safe profile fields with pagination. Only administrators may list users.
+      summary: List users (administrators only)
+      description: Returns safe profile fields with pagination. System Admins can list organization-wide users; Facility Admins can only list users within their own facility.
       tags:
         - Users
       security:
@@ -1796,8 +2244,8 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
     post:
-      summary: Provision a user (administrator only)
-      description: Public self-registration is not supported. An administrator provisions a user with an allowed role and temporary password; password change is required by default.
+      summary: Provision a user (administrators only)
+      description: Public self-registration is not supported. System Admins can create any role; Facility Admins can create mentors and mentees within their facility but cannot create Facility Admin or System Admin accounts. Password change is required by default.
       tags:
         - Users
       security:
@@ -1828,7 +2276,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
         '403':
-          description: Administrator role required
+          description: Administrator role required, or attempting to create unauthorized role (Facility Admin cannot create Facility Admin or System Admin), or assigning user to unauthorized facility
           content:
             application/json:
               schema:
@@ -1847,8 +2295,8 @@ paths:
                 $ref: '#/components/schemas/ErrorResponse'
   /api/v1/users/{id}:
     get:
-      summary: Get a user by ID (administrator only)
-      description: Returns a safe user profile; password and credential secrets are never included.
+      summary: Get a user by ID (administrators only)
+      description: Returns a safe user profile; password and credential secrets are never included. System Admins can access any user; Facility Admins can only access users within their own facility.
       tags:
         - Users
       security:
@@ -1880,7 +2328,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
         '403':
-          description: Administrator role required
+          description: Administrator role required, or attempting to access user outside facility scope (Facility Admin only)
           content:
             application/json:
               schema:
@@ -1893,8 +2341,8 @@ paths:
                 $ref: '#/components/schemas/ErrorResponse'
   /api/v1/users/{id}/status:
     patch:
-      summary: Change a user's status (administrator only)
-      description: Deactivating or suspending a user revokes their refresh tokens and invalidates existing access tokens.
+      summary: Change a user's status (administrators only)
+      description: Deactivating or suspending a user revokes their refresh tokens and invalidates existing access tokens. System Admins can manage any user; Facility Admins can only manage users within their own facility.
       tags:
         - Users
       security:
@@ -2012,7 +2460,7 @@ paths:
                 $ref: '#/components/schemas/ErrorResponse'
     post:
       summary: Create a facility
-      description: Administrator only. Facility fields match the existing facilities table; name and type are required by the API.
+      description: System Admin only. Facilities are organization-wide reference data; Facility Admin cannot create new facilities. Facility fields match the existing facilities table; name and type are required by the API.
       tags:
         - Facilities
       security:
@@ -2089,7 +2537,7 @@ paths:
                 $ref: '#/components/schemas/ErrorResponse'
     patch:
       summary: Update a facility
-      description: Administrator only. Status updates are not available because the existing facility schema has no status field.
+      description: System Admin only. Facilities are organization-wide reference data; Facility Admin cannot update facilities. Status updates are not available because the existing facility schema has no status field.
       tags:
         - Facilities
       security:
@@ -2127,7 +2575,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
         '403':
-          description: Administrator role required
+          description: System Admin role required (Facility Admin cannot update facilities)
           content:
             application/json:
               schema:
@@ -2190,7 +2638,7 @@ paths:
                 $ref: '#/components/schemas/ErrorResponse'
     post:
       summary: Create a mentorship cycle
-      description: Administrator only. New cycles begin in draft status.
+      description: Administrators only (System Admin and Facility Admin). New cycles begin in draft status.
       tags:
         - Mentorship Cycles
       security:
@@ -2267,6 +2715,7 @@ paths:
                 $ref: '#/components/schemas/ErrorResponse'
     patch:
       summary: Update a mentorship cycle
+      description: Administrators only (System Admin and Facility Admin).
       tags:
         - Mentorship Cycles
       security:
@@ -2304,7 +2753,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
         '403':
-          description: Administrator role required
+          description: Administrator role required (System Admin or Facility Admin)
           content:
             application/json:
               schema:
@@ -2318,7 +2767,7 @@ paths:
   /api/v1/mentorship-cycles/{id}/status:
     patch:
       summary: Transition a mentorship cycle status
-      description: Allowed transitions are draft to planned or cancelled, planned to active or cancelled, and active to completed or cancelled. Completed and cancelled are terminal. Activation requires start_date and end_date.
+      description: Administrators only (System Admin and Facility Admin). Allowed transitions are draft to planned or cancelled, planned to active or cancelled, and active to completed or cancelled. Completed and cancelled are terminal. Activation requires start_date and end_date.
       tags:
         - Mentorship Cycles
       security:
@@ -2356,7 +2805,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
         '403':
-          description: Administrator role required
+          description: Administrator role required (System Admin or Facility Admin)
           content:
             application/json:
               schema:
@@ -2414,6 +2863,7 @@ paths:
                 $ref: '#/components/schemas/ErrorResponse'
     post:
       summary: Assign a facility to a cycle
+      description: Administrators only (System Admin and Facility Admin). Facility Admin can only assign facilities within their authorized scope.
       tags:
         - Cycle Configuration
       security:
@@ -2451,7 +2901,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
         '403':
-          description: Administrator role required
+          description: Administrator role required, or attempting to assign unauthorized facility (Facility Admin only)
           content:
             application/json:
               schema:
@@ -2471,6 +2921,7 @@ paths:
   /api/v1/mentorship-cycles/{cycleId}/facilities/{facilityId}:
     delete:
       summary: Remove a facility from a cycle
+      description: Administrators only (System Admin and Facility Admin). Facility Admin can only remove facilities within their authorized scope.
       tags:
         - Cycle Configuration
       security:
@@ -2508,7 +2959,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
         '403':
-          description: Administrator role required
+          description: Administrator role required, or attempting to remove unauthorized facility (Facility Admin only)
           content:
             application/json:
               schema:
@@ -2560,6 +3011,7 @@ paths:
                 $ref: '#/components/schemas/ErrorResponse'
     post:
       summary: Assign a thematic area to a cycle
+      description: Administrators only (System Admin and Facility Admin). Thematic areas are organization-wide reference data.
       tags:
         - Cycle Configuration
       security:
@@ -2597,7 +3049,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
         '403':
-          description: Administrator role required
+          description: Administrator role required (System Admin or Facility Admin)
           content:
             application/json:
               schema:
@@ -2617,6 +3069,7 @@ paths:
   /api/v1/mentorship-cycles/{cycleId}/thematic-areas/{thematicAreaId}:
     delete:
       summary: Remove a thematic area from a cycle
+      description: Administrators only (System Admin and Facility Admin). Thematic areas are organization-wide reference data.
       tags:
         - Cycle Configuration
       security:
@@ -2654,7 +3107,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
         '403':
-          description: Administrator role required
+          description: Administrator role required (System Admin or Facility Admin)
           content:
             application/json:
               schema:
@@ -2778,10 +3231,84 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
+  /api/v1/auth/forgot-otp:
+    post:
+      summary: Request a one-time password code
+      description: Public endpoint that sends a six-digit OTP to the registered email address when the account exists. The response is intentionally generic and does not confirm whether a user is registered.
+      tags:
+        - Auth
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ForgotOtpRequest'
+      responses:
+        '200':
+          description: Generic success response without account-existence leakage
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MessageResponse'
+        '400':
+          description: Email validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '429':
+          description: Too many OTP requests for this user within a short time window
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Unexpected server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /api/v1/auth/reset-otp:
+    post:
+      summary: Reset a password with a one-time OTP
+      description: Verifies the provided email and six-digit OTP, enforces expiry and single-use rules, and resets the password while revoking active refresh sessions.
+      tags:
+        - Auth
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ResetOtpRequest'
+      responses:
+        '200':
+          description: Password reset complete; active refresh sessions are revoked
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BooleanActionResponse'
+        '400':
+          description: Validation error, mismatched confirmation, or unchanged password
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Invalid, expired, locked, or previously used OTP
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Unexpected server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
   /api/v1/auth/forgot-password:
     post:
       summary: Request a password-reset link
-      description: Always returns the same message whether or not the email belongs to an active account. Delivery requires SMTP configuration.
+      description: Public endpoint that sends a password-reset email to the registered account if it exists. The response is intentionally generic and does not confirm whether the user exists.
       tags:
         - Auth
       requestBody:
@@ -2803,6 +3330,12 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
+        '429':
+          description: Too many reset-link requests for this user within a short time window
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
         '500':
           description: Unexpected server error
           content:
@@ -2811,8 +3344,8 @@ paths:
                 $ref: '#/components/schemas/ErrorResponse'
   /api/v1/auth/reset-password:
     post:
-      summary: Reset a password with a one-time token
-      description: The reset token is delivered by email, expires according to PASSWORD_RESET_EXPIRES_IN, and is usable once.
+      summary: Reset a password with a one-time email token
+      description: Validates the reset token, enforces expiry and single-use rules, and revokes active refresh sessions when the new password is accepted.
       tags:
         - Auth
       requestBody:
@@ -2912,57 +3445,6 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
-  /messages/contacts:
-    get:
-      tags:
-        - Messaging
-      summary: List the authenticated user's assigned messaging contacts
-      description: Mentors receive active assigned mentees and mentees receive active assigned mentors. Search is limited to those contacts and matches name or email; email is not returned.
-      parameters:
-        - in: query
-          name: q
-          required: false
-          schema:
-            type: string
-          description: Optional case-insensitive search against contact name or email.
-      responses:
-        '200':
-          description: Assigned contacts returned. An empty array is returned when there are no matches.
-          content:
-            application/json:
-              schema:
-                type: object
-                required:
-                  - success
-                  - data
-                properties:
-                  success:
-                    type: boolean
-                    example: true
-                  data:
-                    type: array
-                    items:
-                      $ref: '#/components/schemas/MessagingContact'
-              examples:
-                contacts:
-                  value:
-                    success: true
-                    data:
-                      - id: 42
-                        full_name: Alex Mentor
-                        role: mentor
-                        avatar_url: https://example.org/avatar.png
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '500':
-          $ref: '#/components/responses/ServerError'
-      security:
-        - bearerAuth: []
-    servers:
-      - url: http://localhost:5000/api/v1
-        description: Local development server
   /messages/conversations:
     get:
       tags:
@@ -3041,10 +3523,7 @@ paths:
           $ref: '#/components/responses/ServerError'
       security:
         - bearerAuth: []
-    servers:
-      - url: http://localhost:5000/api/v1
-        description: Local development server
-  /messages/conversations/{id}:
+  /api/v1/messages/conversations/{id}:
     parameters:
       - $ref: '#/components/parameters/ConversationId'
     get:
@@ -3078,10 +3557,7 @@ paths:
           $ref: '#/components/responses/ServerError'
       security:
         - bearerAuth: []
-    servers:
-      - url: http://localhost:5000/api/v1
-        description: Local development server
-  /messages/conversations/{id}/messages:
+  /api/v1/messages/conversations/{id}/messages:
     parameters:
       - $ref: '#/components/parameters/ConversationId'
     post:
@@ -3127,10 +3603,7 @@ paths:
           $ref: '#/components/responses/ServerError'
       security:
         - bearerAuth: []
-    servers:
-      - url: http://localhost:5000/api/v1
-        description: Local development server
-  /messages/conversations/{id}/messages/{messageId}:
+  /api/v1/messages/conversations/{id}/messages/{messageId}:
     parameters:
       - $ref: '#/components/parameters/ConversationId'
       - $ref: '#/components/parameters/MessageId'
@@ -3212,10 +3685,7 @@ paths:
           $ref: '#/components/responses/ServerError'
       security:
         - bearerAuth: []
-    servers:
-      - url: http://localhost:5000/api/v1
-        description: Local development server
-  /messages/conversations/{id}/read:
+  /api/v1/messages/conversations/{id}/read:
     parameters:
       - $ref: '#/components/parameters/ConversationId'
     patch:
@@ -3258,1880 +3728,4 @@ paths:
     servers:
       - url: http://localhost:5000/api/v1
         description: Local development server
-  /notifications:
-    get:
-      tags:
-        - Notifications
-      summary: List the authenticated user's notifications
-      description: Returns notifications owned by the authenticated user, newest first. In-app notifications are generated internally after supported message and Learning actions succeed; there is no public notification-creation endpoint.
-      security:
-        - bearerAuth: []
-      responses:
-        '200':
-          description: Notifications returned. An empty array is returned when the user has no notifications.
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/NotificationListResponse'
-              example:
-                success: true
-                data:
-                  - id: 12
-                    type: message_received
-                    title: New message
-                    body: You received a new message.
-                    isRead: false
-                    referenceType: conversation
-                    referenceId: 23
-                    createdAt: '2026-10-16T18:30:00.000Z'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '500':
-          $ref: '#/components/responses/ServerError'
-    servers:
-      - url: http://localhost:5000/api/v1
-        description: Local development server
-  /notifications/unread-count:
-    get:
-      tags:
-        - Notifications
-      summary: Get the authenticated user's unread notification count
-      security:
-        - bearerAuth: []
-      responses:
-        '200':
-          description: Unread count returned.
-          content:
-            application/json:
-              schema:
-                type: object
-                required:
-                  - success
-                  - data
-                properties:
-                  success:
-                    type: boolean
-                    example: true
-                  data:
-                    type: object
-                    required:
-                      - unreadCount
-                    properties:
-                      unreadCount:
-                        type: integer
-                        minimum: 0
-                        example: 3
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '500':
-          $ref: '#/components/responses/ServerError'
-    servers:
-      - url: http://localhost:5000/api/v1
-        description: Local development server
-  /notifications/read-all:
-    patch:
-      tags:
-        - Notifications
-      summary: Mark all of the authenticated user's notifications as read
-      security:
-        - bearerAuth: []
-      responses:
-        '200':
-          description: Number of unread notifications updated.
-          content:
-            application/json:
-              schema:
-                type: object
-                required:
-                  - success
-                  - data
-                properties:
-                  success:
-                    type: boolean
-                    example: true
-                  data:
-                    type: object
-                    required:
-                      - updatedCount
-                    properties:
-                      updatedCount:
-                        type: integer
-                        minimum: 0
-                        example: 3
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '500':
-          $ref: '#/components/responses/ServerError'
-    servers:
-      - url: http://localhost:5000/api/v1
-        description: Local development server
-  /notifications/{id}/read:
-    parameters:
-      - name: id
-        in: path
-        required: true
-        description: Positive integer notification ID.
-        schema:
-          type: integer
-          minimum: 1
-    patch:
-      tags:
-        - Notifications
-      summary: Mark one of the authenticated user's notifications as read
-      security:
-        - bearerAuth: []
-      responses:
-        '200':
-          description: Notification marked as read.
-          content:
-            application/json:
-              schema:
-                type: object
-                required:
-                  - success
-                  - data
-                properties:
-                  success:
-                    type: boolean
-                    example: true
-                  data:
-                    $ref: '#/components/schemas/Notification'
-        '400':
-          $ref: '#/components/responses/BadRequest'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '404':
-          $ref: '#/components/responses/NotFound'
-        '500':
-          $ref: '#/components/responses/ServerError'
-    servers:
-      - url: http://localhost:5000/api/v1
-        description: Local development server
-  /notifications/{id}:
-    parameters:
-      - name: id
-        in: path
-        required: true
-        description: Positive integer notification ID.
-        schema:
-          type: integer
-          minimum: 1
-    delete:
-      tags:
-        - Notifications
-      summary: Delete one of the authenticated user's notifications
-      security:
-        - bearerAuth: []
-      responses:
-        '200':
-          description: Notification deleted.
-          content:
-            application/json:
-              schema:
-                type: object
-                required:
-                  - success
-                  - data
-                properties:
-                  success:
-                    type: boolean
-                    example: true
-                  data:
-                    type: object
-                    required:
-                      - deleted
-                    properties:
-                      deleted:
-                        type: boolean
-                        example: true
-        '400':
-          $ref: '#/components/responses/BadRequest'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '404':
-          $ref: '#/components/responses/NotFound'
-        '500':
-          $ref: '#/components/responses/ServerError'
-    servers:
-      - url: http://localhost:5000/api/v1
-        description: Local development server
-  /api/v1/learning/modules:
-    get:
-      summary: List learning modules
-      description: Admins can list all modules. Mentors see only published and authorized modules explicitly assigned to them by an admin. Mentees see only published and authorized modules assigned to them by their mentor.
-      tags:
-        - Learning
-      security:
-        - bearerAuth: []
-      parameters:
-        - in: query
-          name: status
-          schema:
-            type: string
-        - in: query
-          name: thematicAreaId
-          schema:
-            type: integer
-            minimum: 1
-        - in: query
-          name: createdBy
-          schema:
-            type: integer
-            minimum: 1
-        - in: query
-          name: publishedOnly
-          schema:
-            type: boolean
-        - in: query
-          name: authorizedOnly
-          schema:
-            type: boolean
-      responses:
-        '200':
-          description: Learning modules returned
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  success:
-                    type: boolean
-                    example: true
-                  data:
-                    type: array
-                    items:
-                      oneOf:
-                        - $ref: '#/components/schemas/LearningModule'
-                        - $ref: '#/components/schemas/LearningModuleProgress'
-        '401':
-          description: Authentication required
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-    post:
-      summary: Create a learning module
-      description: Administrators and facility administrators can create modules and set publication and authorization independently.
-      tags:
-        - Learning
-      security:
-        - bearerAuth: []
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              minProperties: 1
-              properties:
-                title:
-                  type: string
-                  example: Infection Prevention in ANC
-                description:
-                  type: string
-                  nullable: true
-                thematicAreaId:
-                  type: integer
-                  nullable: true
-                protocolSummary:
-                  type: string
-                  nullable: true
-                status:
-                  type: string
-                  enum:
-                    - draft
-                    - published
-                    - archived
-                orderNumber:
-                  type: integer
-                  minimum: 0
-                isPublished:
-                  type: boolean
-                isAuthorized:
-                  type: boolean
-                  description: Admin approval flag; publishing alone does not authorize a module.
-                estimatedDurationMinutes:
-                  type: integer
-                  minimum: 0
-      responses:
-        '201':
-          description: Learning module created
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  success:
-                    type: boolean
-                    example: true
-                  data:
-                    $ref: '#/components/schemas/LearningModule'
-        '400':
-          $ref: '#/components/schemas/ErrorResponse'
-        '403':
-          $ref: '#/components/schemas/ErrorResponse'
-        '404':
-          $ref: '#/components/schemas/ErrorResponse'
-  /api/v1/learning/modules/{id}:
-    get:
-      summary: Get a learning module by ID
-      description: Mentors can retrieve only published and authorized modules explicitly assigned to them by an admin. Mentees can retrieve only published and authorized modules assigned to them by their currently assigned mentor.
-      tags:
-        - Learning
-      security:
-        - bearerAuth: []
-      parameters:
-        - in: path
-          name: id
-          required: true
-          schema:
-            type: integer
-            minimum: 1
-      responses:
-        '200':
-          description: Module details
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  success:
-                    type: boolean
-                    example: true
-                  data:
-                    $ref: '#/components/schemas/LearningModule'
-        '404':
-          $ref: '#/components/schemas/ErrorResponse'
-    patch:
-      summary: Update a learning module
-      tags:
-        - Learning
-      security:
-        - bearerAuth: []
-      parameters:
-        - in: path
-          name: id
-          required: true
-          schema:
-            type: integer
-            minimum: 1
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              minProperties: 1
-              properties:
-                title:
-                  type: string
-                description:
-                  type: string
-                thematicAreaId:
-                  type: integer
-                protocolSummary:
-                  type: string
-                status:
-                  type: string
-                orderNumber:
-                  type: integer
-                isPublished:
-                  type: boolean
-                isAuthorized:
-                  type: boolean
-                estimatedDurationMinutes:
-                  type: integer
-      responses:
-        '200':
-          description: Module updated
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  success:
-                    type: boolean
-                    example: true
-                  data:
-                    $ref: '#/components/schemas/LearningModule'
-        '400':
-          $ref: '#/components/schemas/ErrorResponse'
-        '403':
-          $ref: '#/components/schemas/ErrorResponse'
-    put:
-      summary: Replace a learning module
-      tags:
-        - Learning
-      security:
-        - bearerAuth: []
-      parameters:
-        - in: path
-          name: id
-          required: true
-          schema:
-            type: integer
-            minimum: 1
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              required:
-                - title
-              properties:
-                title:
-                  type: string
-                description:
-                  type: string
-                thematicAreaId:
-                  type: integer
-                protocolSummary:
-                  type: string
-                status:
-                  type: string
-                orderNumber:
-                  type: integer
-                isPublished:
-                  type: boolean
-                isAuthorized:
-                  type: boolean
-                estimatedDurationMinutes:
-                  type: integer
-      responses:
-        '200':
-          description: Module replaced
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  success:
-                    type: boolean
-                    example: true
-                  data:
-                    $ref: '#/components/schemas/LearningModule'
-        '400':
-          $ref: '#/components/schemas/ErrorResponse'
-        '403':
-          $ref: '#/components/schemas/ErrorResponse'
-    delete:
-      summary: Delete a learning module
-      tags:
-        - Learning
-      security:
-        - bearerAuth: []
-      parameters:
-        - in: path
-          name: id
-          required: true
-          schema:
-            type: integer
-            minimum: 1
-      responses:
-        '200':
-          description: Module deleted
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  success:
-                    type: boolean
-                    example: true
-                  data:
-                    type: object
-                    properties:
-                      deleted:
-                        type: boolean
-                        example: true
-        '403':
-          $ref: '#/components/schemas/ErrorResponse'
-  /api/v1/learning/modules/{moduleId}/contents:
-    get:
-      summary: List learning module contents
-      description: Mentors must have an admin-granted module access and assigned mentees must have a mentor-granted module access; both see only content that is published and authorized. Administrators can review all content.
-      tags:
-        - Learning
-      security:
-        - bearerAuth: []
-      parameters:
-        - in: path
-          name: moduleId
-          required: true
-          schema:
-            type: integer
-            minimum: 1
-      responses:
-        '200':
-          description: Module contents returned
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  success:
-                    type: boolean
-                    example: true
-                  data:
-                    type: array
-                    items:
-                      $ref: '#/components/schemas/LearningContent'
-    post:
-      summary: Create learning content for a module
-      tags:
-        - Learning
-      security:
-        - bearerAuth: []
-      parameters:
-        - in: path
-          name: moduleId
-          required: true
-          schema:
-            type: integer
-            minimum: 1
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              required:
-                - title
-              properties:
-                title:
-                  type: string
-                type:
-                  type: string
-                  enum:
-                    - article
-                    - video
-                    - pdf
-                    - quiz
-                contentText:
-                  type: string
-                  nullable: true
-                contentUrl:
-                  type: string
-                  format: uri
-                  nullable: true
-                orderNumber:
-                  type: integer
-                isRequired:
-                  type: boolean
-                isPublished:
-                  type: boolean
-                  description: Makes the content available after it is approved and the parent module is published.
-                isAuthorized:
-                  type: boolean
-                  description: Admin approval flag, independent of publication.
-                durationMinutes:
-                  type: integer
-      responses:
-        '201':
-          description: Content created
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  success:
-                    type: boolean
-                    example: true
-                  data:
-                    $ref: '#/components/schemas/LearningContent'
-  /api/v1/learning/modules/{moduleId}/contents/{contentId}:
-    get:
-      summary: Get a content item by ID
-      description: Mentors must have an admin-granted module access; mentees must have a mentor-granted module access. Both can retrieve only published and authorized content.
-      tags:
-        - Learning
-      security:
-        - bearerAuth: []
-      parameters:
-        - in: path
-          name: moduleId
-          required: true
-          schema:
-            type: integer
-            minimum: 1
-        - in: path
-          name: contentId
-          required: true
-          schema:
-            type: integer
-            minimum: 1
-      responses:
-        '200':
-          description: Content details
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  success:
-                    type: boolean
-                    example: true
-                  data:
-                    $ref: '#/components/schemas/LearningContent'
-    patch:
-      summary: Update learning content
-      tags:
-        - Learning
-      security:
-        - bearerAuth: []
-      parameters:
-        - in: path
-          name: moduleId
-          required: true
-          schema:
-            type: integer
-            minimum: 1
-        - in: path
-          name: contentId
-          required: true
-          schema:
-            type: integer
-            minimum: 1
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              minProperties: 1
-              properties:
-                title:
-                  type: string
-                type:
-                  type: string
-                contentText:
-                  type: string
-                contentUrl:
-                  type: string
-                orderNumber:
-                  type: integer
-                isRequired:
-                  type: boolean
-                isPublished:
-                  type: boolean
-                isAuthorized:
-                  type: boolean
-                durationMinutes:
-                  type: integer
-      responses:
-        '200':
-          description: Content updated
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  success:
-                    type: boolean
-                    example: true
-                  data:
-                    $ref: '#/components/schemas/LearningContent'
-    put:
-      summary: Replace learning content
-      tags:
-        - Learning
-      security:
-        - bearerAuth: []
-      parameters:
-        - in: path
-          name: moduleId
-          required: true
-          schema:
-            type: integer
-            minimum: 1
-        - in: path
-          name: contentId
-          required: true
-          schema:
-            type: integer
-            minimum: 1
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              required:
-                - title
-              properties:
-                title:
-                  type: string
-                type:
-                  type: string
-                contentText:
-                  type: string
-                contentUrl:
-                  type: string
-                orderNumber:
-                  type: integer
-                isRequired:
-                  type: boolean
-                isPublished:
-                  type: boolean
-                isAuthorized:
-                  type: boolean
-                durationMinutes:
-                  type: integer
-      responses:
-        '200':
-          description: Content replaced
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  success:
-                    type: boolean
-                    example: true
-                  data:
-                    $ref: '#/components/schemas/LearningContent'
-    delete:
-      summary: Delete learning content
-      tags:
-        - Learning
-      security:
-        - bearerAuth: []
-      parameters:
-        - in: path
-          name: moduleId
-          required: true
-          schema:
-            type: integer
-            minimum: 1
-        - in: path
-          name: contentId
-          required: true
-          schema:
-            type: integer
-            minimum: 1
-      responses:
-        '200':
-          description: Content deleted
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  success:
-                    type: boolean
-                    example: true
-                  data:
-                    type: object
-                    properties:
-                      deleted:
-                        type: boolean
-                        example: true
-  /api/v1/learning/modules/{moduleId}/mentor-access:
-    get:
-      summary: List mentors assigned to a learning module
-      description: Admins and facility admins can list mentors granted access to the module.
-      tags:
-        - Learning
-      security:
-        - bearerAuth: []
-      parameters:
-        - in: path
-          name: moduleId
-          required: true
-          schema:
-            type: integer
-            minimum: 1
-      responses:
-        '200':
-          description: Mentor access list returned
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  success:
-                    type: boolean
-                    example: true
-                  data:
-                    type: array
-                    items:
-                      $ref: '#/components/schemas/LearningModuleMentorAccess'
-    post:
-      summary: Grant a mentor access to a learning module
-      description: Admins and facility admins can grant a published and authorized module to a mentor. A mentor must have this grant before they can view the module or assign it to their mentees.
-      tags:
-        - Learning
-      security:
-        - bearerAuth: []
-      parameters:
-        - in: path
-          name: moduleId
-          required: true
-          schema:
-            type: integer
-            minimum: 1
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              required:
-                - mentorId
-              properties:
-                mentorId:
-                  type: integer
-                  minimum: 1
-      responses:
-        '201':
-          description: Mentor access granted
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  success:
-                    type: boolean
-                    example: true
-                  data:
-                    $ref: '#/components/schemas/LearningModuleMentorAccess'
-        '403':
-          $ref: '#/components/schemas/ErrorResponse'
-        '409':
-          $ref: '#/components/schemas/ErrorResponse'
-    delete:
-      summary: Revoke a mentor's access to a learning module
-      description: Admins and facility admins can revoke a mentor's module grant. The mentor and mentees who received this module from that mentor will no longer have access.
-      tags:
-        - Learning
-      security:
-        - bearerAuth: []
-      parameters:
-        - in: path
-          name: moduleId
-          required: true
-          schema:
-            type: integer
-            minimum: 1
-        - in: path
-          name: mentorId
-          required: true
-          schema:
-            type: integer
-            minimum: 1
-      responses:
-        '200':
-          description: Mentor access revoked
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  success:
-                    type: boolean
-                    example: true
-                  data:
-                    type: object
-                    properties:
-                      revoked:
-                        type: boolean
-                        example: true
-        '403':
-          $ref: '#/components/schemas/ErrorResponse'
-  /api/v1/learning/modules/{moduleId}/access:
-    get:
-      summary: List mentees granted access to a module
-      description: Admins and facility admins can review active mentee assignments granted by a mentor.
-      tags:
-        - Learning
-      security:
-        - bearerAuth: []
-      parameters:
-        - in: path
-          name: moduleId
-          required: true
-          schema:
-            type: integer
-            minimum: 1
-      responses:
-        '200':
-          description: Access list returned
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  success:
-                    type: boolean
-                    example: true
-                  data:
-                    type: array
-                    items:
-                      $ref: '#/components/schemas/LearningModuleAccess'
-    post:
-      summary: Grant a mentee access to a module
-      description: A mentor with an admin-granted module access may assign that published and authorized module to a mentee currently assigned to them. Admins cannot grant module access directly to mentees.
-      tags:
-        - Learning
-      security:
-        - bearerAuth: []
-      parameters:
-        - in: path
-          name: moduleId
-          required: true
-          schema:
-            type: integer
-            minimum: 1
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              required:
-                - menteeId
-              properties:
-                menteeId:
-                  type: integer
-                  minimum: 1
-      responses:
-        '201':
-          description: Access granted
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  success:
-                    type: boolean
-                    example: true
-                  data:
-                    $ref: '#/components/schemas/LearningModuleAccess'
-  /api/v1/learning/modules/{moduleId}/access/{menteeId}:
-    delete:
-      summary: Revoke module access for a mentee
-      tags:
-        - Learning
-      security:
-        - bearerAuth: []
-      parameters:
-        - in: path
-          name: moduleId
-          required: true
-          schema:
-            type: integer
-            minimum: 1
-        - in: path
-          name: menteeId
-          required: true
-          schema:
-            type: integer
-            minimum: 1
-      responses:
-        '200':
-          description: Access revoked
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  success:
-                    type: boolean
-                    example: true
-                  data:
-                    type: object
-                    properties:
-                      deleted:
-                        type: boolean
-                        example: true
-  /api/v1/learning/mentees/{menteeId}/modules:
-    get:
-      summary: List modules assigned to a mentee
-      description: Mentors can view only modules they assigned to this mentee; admins can review all active mentor-granted module assignments.
-      tags:
-        - Learning
-      security:
-        - bearerAuth: []
-      parameters:
-        - in: path
-          name: menteeId
-          required: true
-          schema:
-            type: integer
-            minimum: 1
-      responses:
-        '200':
-          description: Matching modules returned
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  success:
-                    type: boolean
-                    example: true
-                  data:
-                    type: array
-                    items:
-                      $ref: '#/components/schemas/LearningModuleProgress'
-  /api/v1/learning/my/modules:
-    get:
-      summary: Get the authenticated mentee's modules
-      tags:
-        - Learning
-      security:
-        - bearerAuth: []
-      responses:
-        '200':
-          description: Mentee modules returned
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  success:
-                    type: boolean
-                    example: true
-                  data:
-                    type: array
-                    items:
-                      $ref: '#/components/schemas/LearningModuleProgress'
-  /api/v1/learning/my/modules/{moduleId}:
-    get:
-      summary: Get current mentee module progress
-      tags:
-        - Learning
-      security:
-        - bearerAuth: []
-      parameters:
-        - in: path
-          name: moduleId
-          required: true
-          schema:
-            type: integer
-            minimum: 1
-      responses:
-        '200':
-          description: Module progress returned
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  success:
-                    type: boolean
-                    example: true
-                  data:
-                    $ref: '#/components/schemas/LearningModuleProgress'
-  /api/v1/learning/my/modules/{moduleId}/progress:
-    get:
-      summary: Get the current mentee's module progress
-      tags:
-        - Learning
-      security:
-        - bearerAuth: []
-      parameters:
-        - in: path
-          name: moduleId
-          required: true
-          schema:
-            type: integer
-            minimum: 1
-      responses:
-        '200':
-          description: Module progress returned
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  success:
-                    type: boolean
-                    example: true
-                  data:
-                    $ref: '#/components/schemas/LearningModuleProgress'
-              example:
-                success: true
-                data:
-                  id: 5
-                  moduleId: 1
-                  menteeId: 42
-                  status: in_progress
-                  completionPercentage: 75
-                  assignedBy: 12
-                  assignedAt: '2026-10-08T10:00:00.000Z'
-                  startedAt: '2026-10-08T10:00:00.000Z'
-                  lastAccessedAt: '2026-10-11T08:30:00.000Z'
-                  completedAt: null
-  /api/v1/learning/my/modules/{moduleId}/contents/progress:
-    get:
-      summary: Get completed content progress for a module
-      tags:
-        - Learning
-      security:
-        - bearerAuth: []
-      parameters:
-        - in: path
-          name: moduleId
-          required: true
-          schema:
-            type: integer
-            minimum: 1
-      responses:
-        '200':
-          description: Content progress returned
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  success:
-                    type: boolean
-                    example: true
-                  data:
-                    type: array
-                    items:
-                      $ref: '#/components/schemas/LearningContentProgress'
-              example:
-                success: true
-                data:
-                  - moduleId: 1
-                    contentId: 7
-                    status: completed
-                    completedAt: '2026-10-10T14:20:00.000Z'
-                  - moduleId: 1
-                    contentId: 8
-                    status: pending
-                    completedAt: null
-  /api/v1/learning/my/modules/{moduleId}/contents/{contentId}/complete:
-    post:
-      summary: Mark a learning content item as complete
-      tags:
-        - Learning
-      security:
-        - bearerAuth: []
-      parameters:
-        - in: path
-          name: moduleId
-          required: true
-          schema:
-            type: integer
-            minimum: 1
-        - in: path
-          name: contentId
-          required: true
-          schema:
-            type: integer
-            minimum: 1
-      responses:
-        '200':
-          description: Content marked complete
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  success:
-                    type: boolean
-                    example: true
-                  data:
-                    $ref: '#/components/schemas/LearningContentProgress'
-              example:
-                success: true
-                data:
-                  moduleId: 1
-                  contentId: 7
-                  status: completed
-                  completedAt: '2026-10-10T14:20:00.000Z'
-  /api/v1/learning/my/modules/{moduleId}/confirm-completion:
-    post:
-      summary: Confirm module completion
-      tags:
-        - Learning
-      security:
-        - bearerAuth: []
-      parameters:
-        - in: path
-          name: moduleId
-          required: true
-          schema:
-            type: integer
-            minimum: 1
-      responses:
-        '200':
-          description: Module completion confirmed
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  success:
-                    type: boolean
-                    example: true
-                  data:
-                    $ref: '#/components/schemas/LearningModuleProgress'
-              example:
-                success: true
-                data:
-                  id: 5
-                  moduleId: 1
-                  menteeId: 42
-                  status: completed
-                  completionPercentage: 100
-                  assignedBy: 12
-                  assignedAt: '2026-10-08T10:00:00.000Z'
-                  startedAt: '2026-10-08T10:00:00.000Z'
-                  lastAccessedAt: '2026-10-11T09:00:00.000Z'
-                  completedAt: '2026-10-11T08:30:00.000Z'
-  /api/v1/learning/modules/{moduleId}/quiz:
-    get:
-      summary: Get the quiz for a module
-      description: Returns the quiz only after the mentee has completed all required materials, confirmed completion, and the quiz is published and authorized.
-      tags:
-        - Learning
-      security:
-        - bearerAuth: []
-      parameters:
-        - in: path
-          name: moduleId
-          required: true
-          schema:
-            type: integer
-            minimum: 1
-      responses:
-        '200':
-          description: Quiz returned
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  success:
-                    type: boolean
-                    example: true
-                  data:
-                    $ref: '#/components/schemas/Quiz'
-  /api/v1/learning/modules/{moduleId}/quizzes:
-    get:
-      summary: List quizzes for a module
-      tags:
-        - Learning
-      security:
-        - bearerAuth: []
-      parameters:
-        - in: path
-          name: moduleId
-          required: true
-          schema:
-            type: integer
-            minimum: 1
-      responses:
-        '200':
-          description: Module quizzes returned
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  success:
-                    type: boolean
-                    example: true
-                  data:
-                    type: array
-                    items:
-                      $ref: '#/components/schemas/Quiz'
-    post:
-      summary: Create a quiz for a module
-      description: Administrators and facility administrators can create a quiz, publish it, and set its independent authorization state.
-      tags:
-        - Learning
-      security:
-        - bearerAuth: []
-      parameters:
-        - in: path
-          name: moduleId
-          required: true
-          schema:
-            type: integer
-            minimum: 1
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              required:
-                - title
-              properties:
-                title:
-                  type: string
-                description:
-                  type: string
-                  nullable: true
-                passScore:
-                  type: number
-                  minimum: 0
-                timeLimitMinutes:
-                  type: integer
-                  minimum: 0
-                attemptLimit:
-                  type: integer
-                  minimum: 0
-                isPublished:
-                  type: boolean
-                isAuthorized:
-                  type: boolean
-                  description: Admin approval flag, independent of publication.
-      responses:
-        '201':
-          description: Quiz created
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  success:
-                    type: boolean
-                    example: true
-                  data:
-                    $ref: '#/components/schemas/Quiz'
-        '400':
-          $ref: '#/components/schemas/ErrorResponse'
-        '403':
-          $ref: '#/components/schemas/ErrorResponse'
-  /api/v1/learning/quizzes/{quizId}:
-    get:
-      summary: Get a quiz by ID
-      description: Mentees can access the quiz only after completing and confirming all required materials and when the quiz and module are published and authorized.
-      tags:
-        - Learning
-      security:
-        - bearerAuth: []
-      parameters:
-        - in: path
-          name: quizId
-          required: true
-          schema:
-            type: integer
-            minimum: 1
-      responses:
-        '200':
-          description: Quiz details returned
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  success:
-                    type: boolean
-                    example: true
-                  data:
-                    $ref: '#/components/schemas/Quiz'
-    patch:
-      summary: Update quiz details, publication, or authorization
-      tags:
-        - Learning
-      security:
-        - bearerAuth: []
-      parameters:
-        - in: path
-          name: quizId
-          required: true
-          schema:
-            type: integer
-            minimum: 1
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              minProperties: 1
-              properties:
-                title:
-                  type: string
-                description:
-                  type: string
-                  nullable: true
-                passScore:
-                  type: number
-                  minimum: 0
-                timeLimitMinutes:
-                  type: integer
-                  minimum: 0
-                attemptLimit:
-                  type: integer
-                  minimum: 0
-                isPublished:
-                  type: boolean
-                isAuthorized:
-                  type: boolean
-      responses:
-        '200':
-          description: Quiz updated
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  success:
-                    type: boolean
-                    example: true
-                  data:
-                    $ref: '#/components/schemas/Quiz'
-        '403':
-          $ref: '#/components/schemas/ErrorResponse'
-  /api/v1/learning/quizzes/{quizId}/start:
-    post:
-      summary: Start a quiz attempt
-      tags:
-        - Learning
-      security:
-        - bearerAuth: []
-      parameters:
-        - in: path
-          name: quizId
-          required: true
-          schema:
-            type: integer
-            minimum: 1
-      responses:
-        '201':
-          description: Quiz attempt started
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  success:
-                    type: boolean
-                    example: true
-                  data:
-                    $ref: '#/components/schemas/QuizAttempt'
-  /api/v1/learning/quizzes/{quizId}/submit:
-    post:
-      summary: Submit quiz answers
-      tags:
-        - Learning
-      security:
-        - bearerAuth: []
-      parameters:
-        - in: path
-          name: quizId
-          required: true
-          schema:
-            type: integer
-            minimum: 1
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/QuizSubmissionRequest'
-      responses:
-        '200':
-          description: Quiz scored
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  success:
-                    type: boolean
-                    example: true
-                  data:
-                    $ref: '#/components/schemas/QuizResult'
-              example:
-                success: true
-                data:
-                  id: 20
-                  quizId: 4
-                  menteeId: 42
-                  score: 80
-                  passed: true
-                  status: completed
-                  attemptNumber: 1
-                  startedAt: '2026-10-11T09:15:00.000Z'
-                  completedAt: '2026-10-11T09:17:30.000Z'
-  /api/v1/learning/quizzes/{quizId}/results:
-    get:
-      summary: Get current mentee quiz results
-      tags:
-        - Learning
-      security:
-        - bearerAuth: []
-      parameters:
-        - in: path
-          name: quizId
-          required: true
-          schema:
-            type: integer
-            minimum: 1
-      responses:
-        '200':
-          description: Quiz results returned
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  success:
-                    type: boolean
-                    example: true
-                  data:
-                    $ref: '#/components/schemas/QuizResult'
-              example:
-                success: true
-                data:
-                  id: 20
-                  quizId: 4
-                  menteeId: 42
-                  score: 80
-                  passed: true
-                  status: completed
-                  attemptNumber: 1
-                  startedAt: '2026-10-11T09:15:00.000Z'
-                  completedAt: '2026-10-11T09:17:30.000Z'
-  /api/v1/learning/quizzes/{quizId}/attempts:
-    get:
-      summary: List quiz attempts
-      tags:
-        - Learning
-      security:
-        - bearerAuth: []
-      parameters:
-        - in: path
-          name: quizId
-          required: true
-          schema:
-            type: integer
-            minimum: 1
-      responses:
-        '200':
-          description: Attempts returned
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  success:
-                    type: boolean
-                    example: true
-                  data:
-                    type: array
-                    items:
-                      $ref: '#/components/schemas/QuizAttempt'
-  /api/v1/learning/quizzes/{quizId}/questions:
-    get:
-      summary: List quiz questions
-      tags:
-        - Learning
-      security:
-        - bearerAuth: []
-      parameters:
-        - in: path
-          name: quizId
-          required: true
-          schema:
-            type: integer
-            minimum: 1
-      responses:
-        '200':
-          description: Quiz questions returned
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  success:
-                    type: boolean
-                    example: true
-                  data:
-                    type: array
-                    items:
-                      $ref: '#/components/schemas/QuizQuestion'
-    post:
-      summary: Create a quiz question
-      tags:
-        - Learning
-      security:
-        - bearerAuth: []
-      parameters:
-        - in: path
-          name: quizId
-          required: true
-          schema:
-            type: integer
-            minimum: 1
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              required:
-                - prompt
-              properties:
-                prompt:
-                  type: string
-                questionType:
-                  type: string
-                clinicalContext:
-                  type: string
-                  nullable: true
-                points:
-                  type: number
-                explanation:
-                  type: string
-                  nullable: true
-                orderNumber:
-                  type: integer
-      responses:
-        '201':
-          description: Question created
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  success:
-                    type: boolean
-                    example: true
-                  data:
-                    $ref: '#/components/schemas/QuizQuestion'
-  /api/v1/learning/quizzes/{quizId}/questions/{questionId}:
-    put:
-      summary: Update a quiz question
-      tags:
-        - Learning
-      security:
-        - bearerAuth: []
-      parameters:
-        - in: path
-          name: quizId
-          required: true
-          schema:
-            type: integer
-            minimum: 1
-        - in: path
-          name: questionId
-          required: true
-          schema:
-            type: integer
-            minimum: 1
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              required:
-                - prompt
-              properties:
-                prompt:
-                  type: string
-                questionType:
-                  type: string
-                clinicalContext:
-                  type: string
-                  nullable: true
-                points:
-                  type: number
-                explanation:
-                  type: string
-                  nullable: true
-                orderNumber:
-                  type: integer
-      responses:
-        '200':
-          description: Question updated
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  success:
-                    type: boolean
-                    example: true
-                  data:
-                    $ref: '#/components/schemas/QuizQuestion'
-    delete:
-      summary: Delete a quiz question
-      tags:
-        - Learning
-      security:
-        - bearerAuth: []
-      parameters:
-        - in: path
-          name: quizId
-          required: true
-          schema:
-            type: integer
-            minimum: 1
-        - in: path
-          name: questionId
-          required: true
-          schema:
-            type: integer
-            minimum: 1
-      responses:
-        '200':
-          description: Question deleted
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  success:
-                    type: boolean
-                    example: true
-                  data:
-                    type: object
-                    properties:
-                      deleted:
-                        type: boolean
-                        example: true
-  /api/v1/learning/questions/{questionId}/options:
-    post:
-      summary: Create an option for a quiz question
-      tags:
-        - Learning
-      security:
-        - bearerAuth: []
-      parameters:
-        - in: path
-          name: questionId
-          required: true
-          schema:
-            type: integer
-            minimum: 1
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              required:
-                - text
-              properties:
-                text:
-                  type: string
-                isCorrect:
-                  type: boolean
-                orderNumber:
-                  type: integer
-      responses:
-        '201':
-          description: Option created
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  success:
-                    type: boolean
-                    example: true
-                  data:
-                    $ref: '#/components/schemas/QuizOption'
-  /api/v1/learning/questions/{questionId}/options/{optionId}:
-    put:
-      summary: Update a quiz option
-      tags:
-        - Learning
-      security:
-        - bearerAuth: []
-      parameters:
-        - in: path
-          name: questionId
-          required: true
-          schema:
-            type: integer
-            minimum: 1
-        - in: path
-          name: optionId
-          required: true
-          schema:
-            type: integer
-            minimum: 1
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              required:
-                - text
-              properties:
-                text:
-                  type: string
-                isCorrect:
-                  type: boolean
-                orderNumber:
-                  type: integer
-      responses:
-        '200':
-          description: Option updated
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  success:
-                    type: boolean
-                    example: true
-                  data:
-                    $ref: '#/components/schemas/QuizOption'
-    delete:
-      summary: Delete a quiz option
-      tags:
-        - Learning
-      security:
-        - bearerAuth: []
-      parameters:
-        - in: path
-          name: questionId
-          required: true
-          schema:
-            type: integer
-            minimum: 1
-        - in: path
-          name: optionId
-          required: true
-          schema:
-            type: integer
-            minimum: 1
-      responses:
-        '200':
-          description: Option deleted
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  success:
-                    type: boolean
-                    example: true
-                  data:
-                    type: object
-                    properties:
-                      deleted:
-                        type: boolean
-                        example: true
-tags:
-  - name: Auth
-    description: Authentication, token rotation, password reset, and session management.
-  - name: Users
-    description: Profile management and administrator user lifecycle operations.
-  - name: Facilities
-    description: Facility catalog and facility administration.
-  - name: Mentorship Cycles
-    description: Cycle creation, status transitions, and enrollment configuration.
-  - name: Cycle Configuration
-    description: Facilities and thematic areas linked to a mentorship cycle.
-  - name: Learning
-    description: Learning modules, progress tracking, and quiz assessment flows.
-  - name: Messaging
-    description: Conversations, messages, attachments, and read state updates.
-  - name: Notifications
-    description: Authenticated in-app notification listing, read state, unread counts, and deletion.
+tags: []

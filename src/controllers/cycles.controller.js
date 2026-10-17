@@ -59,7 +59,7 @@ async function listFacilities(req, res) {
 async function assignFacility(req, res) {
 	try {
 		const { facility_id: facilityId } = matchedData(req, { locations: ['body'] });
-		return successResponse(res, 201, await service.assignFacility(Number(req.params.cycleId), Number(facilityId), req.user.id));
+		return successResponse(res, 201, await service.assignFacility(Number(req.params.cycleId), Number(facilityId), req.user.id, req.user));
 	} catch (error) {
 		return controllerError(res, error, 'Unable to assign the facility to the cycle.');
 	}
@@ -67,7 +67,7 @@ async function assignFacility(req, res) {
 
 async function removeFacility(req, res) {
 	try {
-		return successResponse(res, 200, await service.removeFacility(Number(req.params.cycleId), Number(req.params.facilityId)));
+		return successResponse(res, 200, await service.removeFacility(Number(req.params.cycleId), Number(req.params.facilityId), req.user));
 	} catch (error) {
 		return controllerError(res, error, 'Unable to remove the facility from the cycle.');
 	}

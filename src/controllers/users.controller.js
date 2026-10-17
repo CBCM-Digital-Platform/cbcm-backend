@@ -49,8 +49,8 @@ async function listUsers(req, res) {
       limit: payload.limit || 20,
       role: payload.role,
       status: payload.status,
-      facilityId: req.user.facility_id,
-    });
+      facilityId: payload.facilityId,
+    }, req.user);
     return successResponse(res, 200, data.items, { page: data.page, limit: data.limit, total: data.total, totalPages: data.totalPages });
   } catch (error) {
     return controllerError(res, error, 'Unable to list users.');
@@ -59,7 +59,7 @@ async function listUsers(req, res) {
 
 async function getUserById(req, res) {
   try {
-    const user = await authService.getUserByIdForAdmin(Number(req.params.id));
+    const user = await authService.getUserByIdForAdmin(Number(req.params.id), req.user);
     return successResponse(res, 200, user);
   } catch (error) {
     return controllerError(res, error, 'Unable to load the user.');

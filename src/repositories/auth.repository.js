@@ -46,6 +46,7 @@ async function createPasswordResetTokenEntry({ userId, tokenHash, expiresAt, tra
     requested_at: new Date(),
     expires_at: expiresAt,
     used_at: null,
+    failed_attempts: 0,
   }, { transaction });
 }
 
@@ -60,9 +61,27 @@ async function findActivePasswordResetToken(tokenHash) {
   });
 }
 
-async function findPasswordResetTokenByHash(tokenHash) {
+async function findPasswordResetTokenByHash(tokenHashes) {
+  const values = Array.isArray(tokenHashes) ? tokenHashes : [tokenHashes];
   return PasswordResetToken.findOne({
-    where: { token_hash: tokenHash },
+    where: { token_hash: { [Op.in]: values } },
+    include: [{ model: User, as: 'user' }],
+    order: [['requested_at', 'DESC']],
+  });
+}
+
+async function findLatestPasswordResetTokenForUser(userId) {
+  return PasswordResetToken.findOne({
+    where: { user_id: userId },
+    order: [['requested_at', 'DESC']],
+    include: [{ model: User, as: 'user' }],
+  });
+}
+
+async function findUserPasswordResetTokens(userId) {
+  return PasswordResetToken.findAll({
+    where: { user_id: userId },
+    order: [['requested_at', 'DESC']],
     include: [{ model: User, as: 'user' }],
   });
 }
@@ -95,6 +114,8 @@ module.exports = {
   createPasswordResetTokenEntry,
   findActivePasswordResetToken,
   findPasswordResetTokenByHash,
+  findLatestPasswordResetTokenForUser,
+  findUserPasswordResetTokens,
   invalidatePasswordResetTokens,
   markPasswordResetTokenUsed,
   findUserPreferencesByUserId,

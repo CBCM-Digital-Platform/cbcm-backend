@@ -3,13 +3,42 @@ const { User, RefreshToken, UserPreference, Facility, ActivityLog } = require('.
 const AppError = require('../errors/app-error');
 const authRepository = require('../repositories/auth.repository');
 const { hashPassword, comparePassword, hashToken, randomToken } = require('../utils/hash.util');
-const { generateAccessToken, generateRefreshTokenValue, getRefreshTokenExpiry, getPasswordResetTokenExpiry } = require('../utils/token.util');
+const { generateAccessToken, generateRefreshTokenValue, getRefreshTokenExpiry, getPasswordResetTokenExpiry, getOtpExpiry } = require('../utils/token.util');
 const emailUtil = require('../utils/email.util');
 const env = require('../config/env');
-const { USER_ROLES } = require('../constants/roles.constants');
+const { USER_ROLES, canAssignRole, canAccessUser } = require('../constants/roles.constants');
 
 const USER_SYSTEM_ROLES = new Set(USER_ROLES);
 const RESET_MESSAGE = 'If that email exists, a reset link will be sent.';
+const OTP_MESSAGE = 'If that email exists, an OTP will be sent.';
+const RECOVERY_RATE_LIMIT_MS = 60 * 1000;
+const MAX_OTP_ATTEMPTS = 5;
+
+function generateOtpCode() {
+  return String(Math.floor(100000 + Math.random() * 900000));
+}
+
+function sendRecoveryEmailInBackground(sendEmail, payload, emailType) {
+  Promise.resolve()
+    .then(() => sendEmail(payload))
+    .then((sent) => {
+      if (sent === false) {
+        console.error(`${emailType} email delivery skipped: SMTP_HOST is not configured.`);
+      }
+    })
+    .catch((error) => {
+      console.error(`${emailType} email delivery failed:`, error.message);
+    });
+}
+
+async function ensureRecoveryRateLimit(userId) {
+  const latest = await authRepository.findLatestPasswordResetTokenForUser(userId);
+  if (!latest || !latest.requested_at) return;
+  const ageMs = Date.now() - new Date(latest.requested_at).getTime();
+  if (ageMs < RECOVERY_RATE_LIMIT_MS) {
+    throw new AppError('A recovery code was already sent recently. Please wait a moment and try again.', 429, 'RATE_LIMITED');
+  }
+}
 
 function sanitizeUser(user) {
   if (!user) return null;
@@ -148,6 +177,8 @@ async function forgotPassword({ email }) {
   const user = await authRepository.findUserByEmail(normalizedEmail);
   if (!user || !isUserEligible(user)) return { message: RESET_MESSAGE };
 
+  await ensureRecoveryRateLimit(user.id);
+
   const resetToken = randomToken(32);
   const resetHash = hashToken(resetToken);
   const expiresAt = getPasswordResetTokenExpiry();
@@ -158,21 +189,48 @@ async function forgotPassword({ email }) {
   });
 
   const resetUrl = `${env.FRONTEND_URL}/reset-password?token=${encodeURIComponent(resetToken)}`;
-  try {
-    await emailUtil.sendPasswordResetEmail({ to: user.email, resetUrl });
-  } catch {
-    // The response remains generic so delivery errors cannot confirm account existence.
-  }
+  sendRecoveryEmailInBackground(emailUtil.sendPasswordResetEmail, { to: user.email, resetUrl }, 'Password reset');
   return { message: RESET_MESSAGE };
 }
 
-async function resetPassword({ token, password }) {
-  if (!token || !password) {
+async function forgotOtp({ email }) {
+  const normalizedEmail = String(email || '').trim().toLowerCase();
+  if (!normalizedEmail) {
+    throw new AppError('Email is required.', 400, 'VALIDATION_ERROR');
+  }
+
+  const user = await authRepository.findUserByEmail(normalizedEmail);
+  if (!user || !isUserEligible(user)) return { message: OTP_MESSAGE };
+
+  await ensureRecoveryRateLimit(user.id);
+
+  const otp = generateOtpCode();
+  const otpHash = hashToken(otp);
+  const expiresAt = getOtpExpiry();
+
+  await User.sequelize.transaction(async (transaction) => {
+    await authRepository.invalidatePasswordResetTokens(user.id, transaction);
+    await authRepository.createPasswordResetTokenEntry({ userId: user.id, tokenHash: otpHash, expiresAt, transaction });
+  });
+
+  sendRecoveryEmailInBackground(emailUtil.sendOtpEmail, { to: user.email, otp }, 'OTP');
+  return { message: OTP_MESSAGE };
+}
+
+async function resetPassword({ token, password, newPassword, confirmPassword }) {
+  const resolvedPassword = typeof newPassword === 'string' ? newPassword : password;
+  const resolvedConfirmPassword = typeof confirmPassword === 'string' ? confirmPassword : password;
+
+  if (!token || !resolvedPassword) {
     throw new AppError('Reset token and new password are required.', 400, 'VALIDATION_ERROR');
+  }
+  if (resolvedConfirmPassword && resolvedPassword !== resolvedConfirmPassword) {
+    throw new AppError('Passwords do not match.', 400, 'PASSWORD_MISMATCH');
   }
 
   const tokenHash = hashToken(token);
-  const resetToken = await authRepository.findPasswordResetTokenByHash(tokenHash);
+  const legacyTokenHash = hashToken(`password_reset:${token}`);
+  const resetToken = await authRepository.findPasswordResetTokenByHash([tokenHash, legacyTokenHash]);
 
   if (!resetToken || !resetToken.user) {
     throw new AppError('Reset token is invalid.', 401, 'INVALID_RESET_TOKEN');
@@ -186,14 +244,14 @@ async function resetPassword({ token, password }) {
   if (!isUserEligible(resetToken.user)) {
     throw new AppError('Account is inactive and cannot reset its password.', 401, 'ACCOUNT_INACTIVE');
   }
-  if (typeof password !== 'string' || password.length < 8) {
+  if (typeof resolvedPassword !== 'string' || resolvedPassword.length < 8) {
     throw new AppError('Password must be at least 8 characters.', 400, 'VALIDATION_ERROR');
   }
-  if (await comparePassword(password, resetToken.user.password_hash)) {
+  if (await comparePassword(resolvedPassword, resetToken.user.password_hash)) {
     throw new AppError('New password must differ from the current password.', 400, 'PASSWORD_UNCHANGED');
   }
 
-  const newPasswordHash = await hashPassword(password);
+  const newPasswordHash = await hashPassword(resolvedPassword);
 
   await User.sequelize.transaction(async (transaction) => {
     const [usedCount] = await authRepository.markPasswordResetTokenUsed(resetToken.id, transaction);
@@ -204,6 +262,71 @@ async function resetPassword({ token, password }) {
   });
 
   await logActivity({ actorId: resetToken.user_id, action: 'password_reset', entityId: resetToken.user_id });
+
+  return { reset: true };
+}
+
+async function resetOtp({ email, otp, newPassword, confirmPassword }) {
+  const normalizedEmail = String(email || '').trim().toLowerCase();
+  const normalizedOtp = String(otp || '').trim();
+  const resolvedPassword = typeof newPassword === 'string' ? newPassword : undefined;
+  const resolvedConfirmPassword = typeof confirmPassword === 'string' ? confirmPassword : undefined;
+
+  if (!normalizedEmail || !normalizedOtp || !resolvedPassword || !resolvedConfirmPassword) {
+    throw new AppError('Email, OTP, and the new password are required.', 400, 'VALIDATION_ERROR');
+  }
+  if (resolvedPassword !== resolvedConfirmPassword) {
+    throw new AppError('Passwords do not match.', 400, 'PASSWORD_MISMATCH');
+  }
+  if (!/^\d{6}$/.test(normalizedOtp)) {
+    throw new AppError('OTP must be a 6-digit numeric code.', 400, 'VALIDATION_ERROR');
+  }
+
+  const user = await authRepository.findUserByEmail(normalizedEmail);
+  if (!user || !isUserEligible(user)) {
+    throw new AppError('OTP is invalid or expired.', 401, 'INVALID_OTP');
+  }
+
+  const otpRecords = await authRepository.findUserPasswordResetTokens(user.id);
+  const otpHashes = [hashToken(normalizedOtp), hashToken(`otp:${normalizedOtp}`)];
+  const otpRecord = otpRecords.find((record) => otpHashes.includes(record.token_hash));
+  if (!otpRecord) {
+    const lastRecord = otpRecords[0];
+    if (lastRecord && lastRecord.used_at) {
+      throw new AppError('OTP has already been used.', 401, 'OTP_USED');
+    }
+    throw new AppError('OTP is invalid or expired.', 401, 'INVALID_OTP');
+  }
+  if (otpRecord.used_at) {
+    throw new AppError('OTP has already been used.', 401, 'OTP_USED');
+  }
+  if (new Date(otpRecord.expires_at) <= new Date()) {
+    throw new AppError('OTP has expired.', 401, 'OTP_EXPIRED');
+  }
+
+  if (otpRecord.failed_attempts >= MAX_OTP_ATTEMPTS) {
+    await otpRecord.update({ used_at: new Date() });
+    throw new AppError('This OTP has reached its attempt limit. Request a new one.', 401, 'OTP_LOCKED');
+  }
+
+  if (typeof resolvedPassword !== 'string' || resolvedPassword.length < 8) {
+    throw new AppError('Password must be at least 8 characters.', 400, 'VALIDATION_ERROR');
+  }
+  if (await comparePassword(resolvedPassword, user.password_hash)) {
+    throw new AppError('New password must differ from the current password.', 400, 'PASSWORD_UNCHANGED');
+  }
+
+  const newPasswordHash = await hashPassword(resolvedPassword);
+
+  await User.sequelize.transaction(async (transaction) => {
+    const [usedCount] = await authRepository.markPasswordResetTokenUsed(otpRecord.id, transaction);
+    if (!usedCount) throw new AppError('OTP has already been used.', 401, 'OTP_USED');
+    await User.update({ password_hash: newPasswordHash, password_changed_at: new Date(), must_change_password: false }, { where: { id: user.id }, transaction });
+    await authRepository.revokeAllUserRefreshTokens(user.id, transaction);
+    await authRepository.invalidatePasswordResetTokens(user.id, transaction);
+  });
+
+  await logActivity({ actorId: user.id, action: 'password_reset', entityId: user.id });
 
   return { reset: true };
 }
@@ -291,11 +414,21 @@ async function getUserPreferences(userId) {
   return preferences ? preferences.toJSON() : null;
 }
 
-async function listUsers({ page = 1, limit = 20, role, status, facilityId }) {
+async function listUsers({ page = 1, limit = 20, role, status, facilityId }, actor) {
   const filter = {};
   if (role) filter.role = role;
   if (status) filter.status = status;
-  if (facilityId) filter.facility_id = facilityId;
+
+  // Enforce facility scope for Facility Admin
+  if (actor && actor.role === 'facility_admin') {
+    if (!actor.facility_id) {
+      throw new AppError('Facility administrator must be assigned to a facility.', 403, 'FORBIDDEN');
+    }
+    filter.facility_id = actor.facility_id;
+  } else if (facilityId) {
+    // System Admin can filter by facility if specified
+    filter.facility_id = facilityId;
+  }
 
   const { count, rows } = await User.findAndCountAll({
     where: filter,
@@ -314,9 +447,15 @@ async function listUsers({ page = 1, limit = 20, role, status, facilityId }) {
   };
 }
 
-async function getUserByIdForAdmin(userId) {
+async function getUserByIdForAdmin(userId, actor) {
   const user = await authRepository.findUserById(userId);
   if (!user) throw new AppError('User not found.', 404, 'USER_NOT_FOUND');
+
+  // Enforce facility scope for Facility Admin
+  if (actor && actor.role === 'facility_admin' && !canAccessUser(actor, user)) {
+    throw new AppError('You do not have permission to access this user.', 403, 'FORBIDDEN');
+  }
+
   return sanitizeUser(user);
 }
 
@@ -324,6 +463,21 @@ async function createUserByAdmin(payload) {
   const cleanedRole = String(payload.role || '').trim().toLowerCase();
   if (!USER_SYSTEM_ROLES.has(cleanedRole)) {
     throw new AppError('Unsupported role selected for account creation.', 422, 'INVALID_ROLE');
+  }
+
+  const actor = payload.created_by ? await authRepository.findUserById(payload.created_by) : null;
+  if (actor && !canAssignRole(actor.role, cleanedRole)) {
+    throw new AppError('You do not have permission to create or assign this role.', 403, 'FORBIDDEN');
+  }
+
+  if (actor && actor.role === 'facility_admin') {
+    const facilityId = payload.facility_id != null ? Number(payload.facility_id) : null;
+    if (!facilityId || Number(actor.facility_id) !== facilityId) {
+      throw new AppError('Facility administrators can only assign users to their own facility.', 403, 'FORBIDDEN');
+    }
+    if (cleanedRole === 'facility_admin' || cleanedRole === 'admin') {
+      throw new AppError('Facility administrators cannot create or promote another administrator.', 403, 'FORBIDDEN');
+    }
   }
 
   const email = String(payload.email || '').trim().toLowerCase();
@@ -376,6 +530,12 @@ async function updateUserStatus(userId, status, updatedBy) {
   if (!['active', 'inactive', 'suspended'].includes(String(status))) {
     throw new AppError('Unsupported account status.', 422, 'INVALID_STATUS');
   }
+
+  const actor = await authRepository.findUserById(updatedBy);
+  if (actor && actor.role === 'facility_admin' && Number(actor.facility_id) !== Number(user.facility_id)) {
+    throw new AppError('Facility administrators can only manage users within their own facility.', 403, 'FORBIDDEN');
+  }
+
   if (Number(updatedBy) === Number(userId) && status !== 'active') {
     throw new AppError('Administrators cannot disable their own account.', 409, 'SELF_DEACTIVATION_FORBIDDEN');
   }
@@ -408,7 +568,9 @@ module.exports = {
   refreshToken,
   logout,
   forgotPassword,
+  forgotOtp,
   resetPassword,
+  resetOtp,
   changePassword,
   getSession,
   getUserProfile,

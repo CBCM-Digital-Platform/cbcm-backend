@@ -1,4 +1,3 @@
-// src/middlewares/error-handler.middleware.js
 const AppError = require('../errors/app-error');
 
 function notFoundHandler(req, res) {
