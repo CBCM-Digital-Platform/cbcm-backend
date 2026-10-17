@@ -1,0 +1,17 @@
+module.exports = (sequelize, DataTypes) => sequelize.define('LearningModuleContent', {
+	id: { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true },
+	module_id: { type: DataTypes.INTEGER, allowNull: false },
+	title: { type: DataTypes.STRING, allowNull: false },
+	type: { type: DataTypes.STRING, defaultValue: 'article' },
+	content_text: { type: DataTypes.TEXT },
+	content_url: { type: DataTypes.STRING },
+	order_number: { type: DataTypes.INTEGER, defaultValue: 0 },
+	is_required: { type: DataTypes.BOOLEAN, defaultValue: true },
+	is_published: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: false },
+	is_authorized: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: false },
+	duration_minutes: { type: DataTypes.INTEGER, defaultValue: 0 },
+	created_by: { type: DataTypes.INTEGER },
+	updated_by: { type: DataTypes.INTEGER },
+	created_at: { type: DataTypes.DATE },
+	updated_at: { type: DataTypes.DATE },
+}, { tableName: 'learning_module_contents', timestamps: true, createdAt: 'created_at', updatedAt: 'updated_at' });

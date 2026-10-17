@@ -7,6 +7,10 @@ const asyncHandler = (handler) => (req, res, next) => {
 };
 
 module.exports = {
+	listContacts: asyncHandler(async (req, res) => {
+		const contacts = await service.listContacts(req.user.id, req.user.role, req.messagingInput.q);
+		return res.json({ success: true, data: contacts });
+	}),
 	listConversations: asyncHandler(async (req, res) => {
 		const records = await service.listConversations(req.user.id);
 		return res.json({

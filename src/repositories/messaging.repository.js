@@ -5,7 +5,7 @@ const safeUserAttributes = ['id', 'full_name', 'role', 'avatar_url'];
 const participantInclude = {
 	model: models.User,
 	as: 'participants',
-	attributes: safeUserAttributes,
+	attributes: [...safeUserAttributes, 'status'],
 	through: { attributes: [] },
 };
 const messageIncludes = [
@@ -17,6 +17,41 @@ const messageIncludes = [
 	},
 	{ model: models.MessageRead, as: 'reads', attributes: ['user_id', 'read_at'] },
 ];
+
+const listContactsForUser = async ({ userId, role, q }) => {
+	const isMentor = String(role || '').toLowerCase() === 'mentor';
+	const assignmentField = isMentor ? 'mentor_id' : 'mentee_id';
+	const contactAlias = isMentor ? 'mentee' : 'mentor';
+	const contactRole = isMentor ? 'mentee' : 'mentor';
+	const search = q ? q.replace(/[\\%_]/g, '\\$&') : null;
+	const contacts = await models.Assignment.findAll({
+		where: { [assignmentField]: userId, unassigned_at: null },
+		attributes: ['id'],
+		include: [{
+			model: models.User,
+			as: contactAlias,
+			attributes: safeUserAttributes,
+			required: true,
+			where: {
+				role: contactRole,
+				status: 'active',
+				...(search ? {
+					[Op.or]: [
+						{ full_name: { [Op.iLike]: `%${search}%` } },
+						{ email: { [Op.iLike]: `%${search}%` } },
+					],
+				} : {}),
+			},
+		}],
+	});
+
+	const uniqueContacts = new Map();
+	for (const assignment of contacts) {
+		const contact = assignment[contactAlias];
+		if (contact) uniqueContacts.set(contact.id, contact);
+	}
+	return [...uniqueContacts.values()].sort((left, right) => (left.full_name || '').localeCompare(right.full_name || ''));
+};
 
 const getConversation = (conversationId) => models.Conversation.findByPk(conversationId, {
 	include: [participantInclude],
@@ -93,6 +128,11 @@ const listConversationsForUser = async (userId) => {
 
 const getUsersByIds = (ids) => models.User.findAll({
 	where: { id: { [Op.in]: ids } },
+	attributes: ['id', 'role', 'status'],
+});
+
+const hasActiveMentorAssignment = ({ mentorId, menteeId }) => models.Assignment.findOne({
+	where: { mentor_id: mentorId, mentee_id: menteeId, unassigned_at: null },
 	attributes: ['id'],
 });
 
@@ -110,9 +150,19 @@ const findDirectConversation = async (participantIds, transaction) => {
 	}) || null;
 };
 
+const lockDirectConversationPair = async (participantIds, transaction) => {
+	const [firstId, secondId] = [...participantIds].sort((left, right) => left - right);
+	const lockKey = ((BigInt(firstId) << 32n) | BigInt(secondId)).toString();
+	await models.sequelize.query(
+		'SELECT pg_advisory_xact_lock(CAST(:lockKey AS bigint))',
+		{ replacements: { lockKey }, transaction, type: QueryTypes.SELECT },
+	);
+};
+
 const createConversation = async ({ userId, participantIds, type }) => {
 	const conversationId = await models.sequelize.transaction(async (transaction) => {
 		if (type === 'direct') {
+			await lockDirectConversationPair(participantIds, transaction);
 			const existing = await findDirectConversation(participantIds, transaction);
 			if (existing) return existing.id;
 		}
@@ -232,10 +282,12 @@ const markConversationRead = async ({ conversationId, userId }) => {
 };
 
 module.exports = {
+	listContactsForUser,
 	getConversation,
 	getConversationWithMessages,
 	listConversationsForUser,
 	getUsersByIds,
+	hasActiveMentorAssignment,
 	createConversation,
 	getUploadedFile,
 	createMessage,

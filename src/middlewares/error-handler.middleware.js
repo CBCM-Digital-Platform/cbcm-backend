@@ -1,16 +1,3 @@
-<<<<<<< HEAD
-module.exports = (error, req, res, next) => {
-	if (res.headersSent) return next(error);
-
-	const statusCode = Number.isInteger(error.statusCode) ? error.statusCode : 500;
-	return res.status(statusCode).json({
-		success: false,
-		error: {
-			code: error.code || 'INTERNAL_ERROR',
-			message: statusCode === 500 ? 'An unexpected error occurred.' : error.message,
-		},
-	});
-=======
 // src/middlewares/error-handler.middleware.js
 const AppError = require('../errors/app-error');
 
@@ -28,16 +15,28 @@ function notFoundHandler(req, res) {
 function errorHandler(err, req, res, next) {
   if (res.headersSent) return next(err);
 
-  const statusCode = err instanceof AppError ? err.statusCode : 500;
-  const code = err instanceof AppError ? err.code : 'INTERNAL_SERVER_ERROR';
-  const message = err instanceof AppError ? err.message : 'An unexpected error occurred.';
+  const invalidJson = err instanceof SyntaxError && err.status === 400 && err.type === 'entity.parse.failed';
+  const statusCode = err instanceof AppError ? err.statusCode : invalidJson ? 400 : 500;
+  const code = err instanceof AppError
+    ? err.code
+    : invalidJson
+      ? 'INVALID_JSON'
+      : 'INTERNAL_SERVER_ERROR';
+  const message = err instanceof AppError
+    ? err.message
+    : invalidJson
+      ? 'Request body contains invalid JSON.'
+      : 'An unexpected error occurred.';
+  const details = err?.details || (process.env.NODE_ENV !== 'production' && err ? [err.message] : []);
+
+  console.error('Unhandled API error:', err);
 
   return res.status(statusCode).json({
     success: false,
     error: {
       code,
       message,
-      details: err.details || [],
+      details,
     },
   });
 }
@@ -45,5 +44,4 @@ function errorHandler(err, req, res, next) {
 module.exports = {
   notFoundHandler,
   errorHandler,
->>>>>>> origin/main
 };

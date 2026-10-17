@@ -6,6 +6,7 @@ const authRoutes = require('./auth.routes');
 const usersRoutes = require('./users.routes');
 const facilitiesRoutes = require('./facilities.routes');
 const cyclesRoutes = require('./cycles.routes');
+const notificationsRoutes = require('./notifications.routes');
 
 const router = express.Router();
 router.use('/auth', authRoutes);
@@ -14,5 +15,6 @@ router.use('/messages', messagingRoutes);
 router.use('/learning', learningRoutes);
 router.use('/facilities', facilitiesRoutes);
 router.use('/mentorship-cycles', cyclesRoutes);
+router.use('/notifications', notificationsRoutes);
 
 module.exports = router;

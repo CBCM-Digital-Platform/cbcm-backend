@@ -1,5 +1,31 @@
 const repository = require('../repositories/messaging.repository');
 const AppError = require('../errors/app-error');
+const notificationService = require('./notifications.service');
+const NotificationType = require('../enums/notification-type.enum');
+
+const isActiveMentorMenteePair = async (firstUser, secondUser) => {
+	const firstRole = String(firstUser?.role || '').toLowerCase();
+	const secondRole = String(secondUser?.role || '').toLowerCase();
+	if (!['mentor', 'mentee'].includes(firstRole) || !['mentor', 'mentee'].includes(secondRole) || firstRole === secondRole) {
+		return false;
+	}
+	if ([firstUser, secondUser].some((user) => String(user.status || '').toLowerCase() !== 'active')) {
+		return false;
+	}
+
+	const mentor = firstRole === 'mentor' ? firstUser : secondUser;
+	const mentee = firstRole === 'mentee' ? firstUser : secondUser;
+	return Boolean(await repository.hasActiveMentorAssignment({ mentorId: mentor.id, menteeId: mentee.id }));
+};
+
+const hasDirectConversationAccess = async (conversation, userId) => {
+	const value = conversation.get ? conversation.get({ plain: true }) : conversation;
+	if (value.type !== 'direct') return true;
+	const currentParticipant = value.participants.find((participant) => participant.id === userId);
+	const otherParticipant = value.participants.find((participant) => participant.id !== userId);
+	return Boolean(currentParticipant && otherParticipant
+		&& await isActiveMentorMenteePair(currentParticipant, otherParticipant));
+};
 
 const ensureParticipant = async (conversationId, userId) => {
 	const conversation = await repository.getConversation(conversationId);
@@ -7,10 +33,25 @@ const ensureParticipant = async (conversationId, userId) => {
 	if (!conversation.participants.some((participant) => participant.id === userId)) {
 		throw new AppError('You do not have access to this conversation.', 403, 'FORBIDDEN');
 	}
+	if (!(await hasDirectConversationAccess(conversation, userId))) {
+		throw new AppError('You do not have access to this conversation.', 403, 'FORBIDDEN');
+	}
 	return conversation;
 };
 
-const listConversations = (userId) => repository.listConversationsForUser(userId);
+const listContacts = async (userId, role, q) => {
+	const normalizedRole = String(role || '').toLowerCase();
+	if (!['mentor', 'mentee'].includes(normalizedRole)) {
+		throw new AppError('Only mentors and mentees can view messaging contacts.', 403, 'FORBIDDEN');
+	}
+	return repository.listContactsForUser({ userId, role: normalizedRole, q });
+};
+
+const listConversations = async (userId) => {
+	const records = await repository.listConversationsForUser(userId);
+	const accessChecks = await Promise.all(records.map(({ conversation }) => hasDirectConversationAccess(conversation, userId)));
+	return records.filter((record, index) => accessChecks[index]);
+};
 
 const getConversation = async (conversationId, userId) => {
 	await ensureParticipant(conversationId, userId);
@@ -27,12 +68,19 @@ const createConversation = async ({ userId, participantIds, type }) => {
 	if (users.length !== allParticipantIds.length) {
 		throw new AppError('One or more participants do not exist.', 400, 'VALIDATION_ERROR');
 	}
+	if (type === 'direct') {
+		const currentUser = users.find((user) => user.id === userId);
+		const otherParticipant = users.find((user) => user.id !== userId);
+		if (!otherParticipant || !(await isActiveMentorMenteePair(currentUser, otherParticipant))) {
+			throw new AppError('You can only start a direct conversation with an assigned mentor or mentee.', 403, 'FORBIDDEN');
+		}
+	}
 
 	return repository.createConversation({ userId, participantIds: allParticipantIds, type });
 };
 
 const sendMessage = async ({ conversationId, userId, content, attachmentFileId }) => {
-	await ensureParticipant(conversationId, userId);
+	const conversation = await ensureParticipant(conversationId, userId);
 	if (attachmentFileId) {
 		const file = await repository.getUploadedFile(attachmentFileId);
 		if (!file) throw new AppError('Attachment not found.', 404, 'NOT_FOUND');
@@ -40,7 +88,19 @@ const sendMessage = async ({ conversationId, userId, content, attachmentFileId }
 			throw new AppError('You cannot attach a file you do not own.', 403, 'FORBIDDEN');
 		}
 	}
-	return repository.createMessage({ conversationId, senderId: userId, content, attachmentFileId });
+	const message = await repository.createMessage({ conversationId, senderId: userId, content, attachmentFileId });
+	const recipientIds = conversation.participants
+		.map((participant) => Number(participant.id))
+		.filter((participantId) => participantId !== Number(userId));
+	await notificationService.createNotifications({
+		userIds: recipientIds,
+		type: NotificationType.MESSAGE_RECEIVED,
+		title: 'New message',
+		body: 'You received a new message.',
+		referenceType: 'conversation',
+		referenceId: conversationId,
+	});
+	return message;
 };
 
 const ensureMessageOwner = async ({ conversationId, messageId, userId }) => {
@@ -71,6 +131,7 @@ const markRead = async ({ conversationId, userId }) => {
 };
 
 module.exports = {
+	listContacts,
 	listConversations,
 	getConversation,
 	createConversation,
