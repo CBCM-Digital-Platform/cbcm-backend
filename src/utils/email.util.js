@@ -1,6 +1,8 @@
 const nodemailer = require('nodemailer');
 const env = require('../config/env');
 
+const BREVO_API_URL = 'https://api.brevo.com/v3/smtp/email';
+
 function createTransporter() {
   return nodemailer.createTransport({
     host: env.SMTP_HOST,
@@ -13,7 +15,66 @@ function createTransporter() {
   });
 }
 
-async function sendEmail({ to, subject, text }) {
+async function sendBrevoEmail({ to, subject, text, html }) {
+  if (!env.BREVO_SENDER_EMAIL) {
+    throw new Error('Brevo sender email is not configured (BREVO_SENDER_EMAIL is required).');
+  }
+
+  const recipients = (Array.isArray(to) ? to : [to]).map((recipient) => {
+    if (typeof recipient === 'string') {
+      return { email: recipient };
+    }
+    return recipient;
+  });
+
+  const body = {
+    sender: {
+      email: env.BREVO_SENDER_EMAIL,
+      ...(env.BREVO_SENDER_NAME ? { name: env.BREVO_SENDER_NAME } : {}),
+    },
+    to: recipients,
+    subject,
+    textContent: text,
+    ...(html ? { htmlContent: html } : {}),
+  };
+
+  const response = await fetch(BREVO_API_URL, {
+    method: 'POST',
+    headers: {
+      'api-key': env.BREVO_API_KEY,
+      'Content-Type': 'application/json',
+      accept: 'application/json',
+    },
+    body: JSON.stringify(body),
+    signal: AbortSignal.timeout(10000),
+  });
+
+  if (!response.ok) {
+    let errorDetail = '';
+    try {
+      const data = await response.json();
+      errorDetail = data?.message || data?.code || '';
+    } catch {
+      try {
+        errorDetail = await response.text();
+      } catch {
+        errorDetail = '';
+      }
+    }
+    const message = errorDetail
+      ? `Brevo API returned HTTP ${response.status}: ${errorDetail}`
+      : `Brevo API returned HTTP ${response.status}.`;
+    throw new Error(message);
+  }
+
+  return true;
+}
+
+async function sendEmail({ to, subject, text, html }) {
+  if (env.BREVO_API_KEY) {
+    return sendBrevoEmail({ to, subject, text, html });
+  }
+
   if (env.RESEND_API_KEY) {
     const response = await fetch('https://api.resend.com/emails', {
       method: 'POST',
@@ -21,7 +82,7 @@ async function sendEmail({ to, subject, text }) {
         Authorization: `Bearer ${env.RESEND_API_KEY}`,
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({ from: env.EMAIL_FROM, to: [to], subject, text }),
+      body: JSON.stringify({ from: env.EMAIL_FROM, to: Array.isArray(to) ? to : [to], subject, text, ...(html ? { html } : {}) }),
       signal: AbortSignal.timeout(10000),
     });
 
@@ -34,7 +95,7 @@ async function sendEmail({ to, subject, text }) {
   if (!env.SMTP_HOST) return false;
 
   const transporter = createTransporter();
-  await transporter.sendMail({ from: env.SMTP_FROM, to, subject, text });
+  await transporter.sendMail({ from: env.SMTP_FROM, to, subject, text, ...(html ? { html } : {}) });
   return true;
 }
 
@@ -54,4 +115,4 @@ async function sendOtpEmail({ to, otp }) {
   });
 }
 
-module.exports = { sendPasswordResetEmail, sendOtpEmail };
+module.exports = { sendPasswordResetEmail, sendOtpEmail, sendEmail };

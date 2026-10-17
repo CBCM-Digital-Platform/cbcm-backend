@@ -12,10 +12,18 @@ process.env.JWT_ACCESS_EXPIRES_IN = '15m';
 process.env.JWT_REFRESH_EXPIRES_IN = '30d';
 process.env.DATABASE_URL = 'sqlite::memory:';
 process.env.PASSWORD_RESET_EXPIRES_IN = '1h';
+process.env.BREVO_API_KEY = '';
+process.env.BREVO_SENDER_EMAIL = '';
+process.env.BREVO_SENDER_NAME = '';
+process.env.RESEND_API_KEY = '';
 
 const models = require('../src/models');
 const emailUtil = require('../src/utils/email.util');
 const env = require('../src/config/env');
+env.BREVO_API_KEY = '';
+env.BREVO_SENDER_EMAIL = '';
+env.BREVO_SENDER_NAME = '';
+env.RESEND_API_KEY = '';
 const { createApp } = require('../src/app');
 
 async function createUser(overrides = {}) {
@@ -45,11 +53,54 @@ test.beforeEach(async () => {
   await models.User.destroy({ where: {} });
 });
 
+test('email utility sends through Brevo transactional API when configured', async () => {
+  const originalBrevoKey = env.BREVO_API_KEY;
+  const originalBrevoSenderEmail = env.BREVO_SENDER_EMAIL;
+  const originalBrevoSenderName = env.BREVO_SENDER_NAME;
+  const originalFetch = global.fetch;
+  let requestOptions;
+
+  env.BREVO_API_KEY = 'test-brevo-key';
+  env.BREVO_SENDER_EMAIL = 'verify@cbcm.org';
+  env.BREVO_SENDER_NAME = 'CBCM Health';
+  global.fetch = async (url, options) => {
+    requestOptions = { url, options };
+    return { ok: true, status: 201, json: async () => ({ messageId: '<test-brevo-id>' }) };
+  };
+
+  try {
+    const sent = await emailUtil.sendOtpEmail({ to: 'recipient@example.com', otp: '123456' });
+
+    assert.equal(sent, true);
+    assert.equal(requestOptions.url, 'https://api.brevo.com/v3/smtp/email');
+    assert.equal(requestOptions.options.method, 'POST');
+    assert.equal(requestOptions.options.headers['api-key'], 'test-brevo-key');
+    assert.equal(requestOptions.options.headers['Content-Type'], 'application/json');
+    assert.equal(requestOptions.options.headers.accept, 'application/json');
+    assert.deepEqual(JSON.parse(requestOptions.options.body), {
+      sender: {
+        email: 'verify@cbcm.org',
+        name: 'CBCM Health',
+      },
+      to: [{ email: 'recipient@example.com' }],
+      subject: 'Your CBCM password reset code',
+      textContent: 'Your CBCM password reset code is 123456. It is valid for a short time and can only be used once.',
+    });
+  } finally {
+    env.BREVO_API_KEY = originalBrevoKey;
+    env.BREVO_SENDER_EMAIL = originalBrevoSenderEmail;
+    env.BREVO_SENDER_NAME = originalBrevoSenderName;
+    global.fetch = originalFetch;
+  }
+});
+
 test('email utility sends through Resend HTTPS API when configured', async () => {
+  const originalBrevoKey = env.BREVO_API_KEY;
   const originalApiKey = env.RESEND_API_KEY;
   const originalFrom = env.EMAIL_FROM;
   const originalFetch = global.fetch;
   let requestOptions;
+  env.BREVO_API_KEY = '';
   env.RESEND_API_KEY = 'test-resend-key';
   env.EMAIL_FROM = 'CBCM <verified@example.com>';
   global.fetch = async (url, options) => {
@@ -71,6 +122,7 @@ test('email utility sends through Resend HTTPS API when configured', async () =>
       text: 'Your CBCM password reset code is 123456. It is valid for a short time and can only be used once.',
     });
   } finally {
+    env.BREVO_API_KEY = originalBrevoKey;
     env.RESEND_API_KEY = originalApiKey;
     env.EMAIL_FROM = originalFrom;
     global.fetch = originalFetch;

@@ -18,6 +18,9 @@ const env = {
   SMTP_FROM: process.env.SMTP_FROM || 'no-reply@localhost',
   RESEND_API_KEY: process.env.RESEND_API_KEY || '',
   EMAIL_FROM: process.env.EMAIL_FROM || process.env.SMTP_FROM || 'no-reply@localhost',
+  BREVO_API_KEY: process.env.BREVO_API_KEY || '',
+  BREVO_SENDER_EMAIL: process.env.BREVO_SENDER_EMAIL || '',
+  BREVO_SENDER_NAME: process.env.BREVO_SENDER_NAME || '',
   CORS_ORIGIN: process.env.CORS_ORIGIN || '*',
 };
 
