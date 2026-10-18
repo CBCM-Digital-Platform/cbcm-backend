@@ -256,7 +256,7 @@ router.patch('/:id', requireRole(FACILITY_MANAGEMENT_ROLES), assignmentIdValidat
  * /api/v1/assignments/{id}/status:
  *   patch:
  *     summary: Update assignment status
- *     description: Transitions an assignment status. Valid transitions: pending_match → assigned → completed/cancelled.
+ *     description: "Transitions an assignment status. Valid transitions: pending_match → assigned → completed/cancelled."
  *     tags: [Assignments]
  *     security:
  *       - bearerAuth: []

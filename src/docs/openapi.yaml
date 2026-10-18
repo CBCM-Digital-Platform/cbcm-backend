@@ -2035,6 +2035,62 @@ components:
       schema:
         type: integer
         minimum: 1
+    LearningId:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: integer
+        minimum: 1
+    ModuleId:
+      name: moduleId
+      in: path
+      required: true
+      schema:
+        type: integer
+        minimum: 1
+    ContentId:
+      name: contentId
+      in: path
+      required: true
+      schema:
+        type: integer
+        minimum: 1
+    QuizId:
+      name: quizId
+      in: path
+      required: true
+      schema:
+        type: integer
+        minimum: 1
+    MentorId:
+      name: mentorId
+      in: path
+      required: true
+      schema:
+        type: integer
+        minimum: 1
+    MenteeId:
+      name: menteeId
+      in: path
+      required: true
+      schema:
+        type: integer
+        minimum: 1
+    QuestionId:
+      name: questionId
+      in: path
+      required: true
+      schema:
+        type: integer
+        minimum: 1
+    OptionId:
+      name: optionId
+      in: path
+      required: true
+      schema:
+        type: integer
+        minimum: 1
   responses:
     BadRequest:
       description: Invalid request data.
@@ -2066,6 +2122,116 @@ components:
         application/json:
           schema:
             $ref: '#/components/schemas/ErrorResponse'
+    Conflict:
+      description: Requested action conflicts with the current resource state.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    LearningObject:
+      description: Learning resource returned.
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [success, data]
+            properties:
+              success:
+                type: boolean
+                example: true
+              data:
+                type: object
+    LearningList:
+      description: Learning resources returned.
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [success, data]
+            properties:
+              success:
+                type: boolean
+                example: true
+              data:
+                type: array
+                items:
+                  type: object
+    LearningCreated:
+      description: Learning resource created.
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [success, data]
+            properties:
+              success:
+                type: boolean
+                example: true
+              data:
+                type: object
+    LearningAction:
+      description: Learning action completed.
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [success, data]
+            properties:
+              success:
+                type: boolean
+                example: true
+              data:
+                type: object
+    NotificationList:
+      description: Notifications belonging to the authenticated user.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/NotificationListResponse'
+    NotificationItem:
+      description: Notification returned.
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [success, data]
+            properties:
+              success:
+                type: boolean
+                example: true
+              data:
+                $ref: '#/components/schemas/Notification'
+    NotificationAction:
+      description: Notification action completed.
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [success, data]
+            properties:
+              success:
+                type: boolean
+                example: true
+              data:
+                type: object
+    NotificationUnreadCount:
+      description: Unread notification count.
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [success, data]
+            properties:
+              success:
+                type: boolean
+                example: true
+              data:
+                type: object
+                required: [unreadCount]
+                properties:
+                  unreadCount:
+                    type: integer
+                    minimum: 0
 paths:
   /api/v1/users/me:
     get:
@@ -3523,6 +3689,49 @@ paths:
           $ref: '#/components/responses/ServerError'
       security:
         - bearerAuth: []
+  /api/v1/messages/contacts:
+    get:
+      tags: [Messaging]
+      summary: List messaging contacts
+      description: Returns mentors or mentees connected to the authenticated user through active assignments. Email addresses are not included. Only mentors and mentees can use this endpoint.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: q
+          in: query
+          required: false
+          description: Optional case-insensitive name or email search. Matching email addresses are not returned.
+          schema:
+            type: string
+            maxLength: 255
+      responses:
+        '200':
+          description: Contacts returned.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [success, data]
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/MessagingContact'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          description: Only mentors and mentees can access messaging contacts.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          $ref: '#/components/responses/ServerError'
   /api/v1/messages/conversations/{id}:
     parameters:
       - $ref: '#/components/parameters/ConversationId'
@@ -3728,4 +3937,1188 @@ paths:
     servers:
       - url: http://localhost:5000/api/v1
         description: Local development server
-tags: []
+  /api/v1/notifications:
+    get:
+      tags: [Notifications]
+      summary: List the authenticated user's notifications
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          $ref: '#/components/responses/NotificationList'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/ServerError'
+  /api/v1/notifications/unread-count:
+    get:
+      tags: [Notifications]
+      summary: Get the authenticated user's unread notification count
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          $ref: '#/components/responses/NotificationUnreadCount'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/ServerError'
+  /api/v1/notifications/read-all:
+    patch:
+      tags: [Notifications]
+      summary: Mark all of the authenticated user's notifications as read
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          $ref: '#/components/responses/NotificationAction'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/ServerError'
+  /api/v1/notifications/{id}/read:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: integer
+          minimum: 1
+    patch:
+      tags: [Notifications]
+      summary: Mark a notification as read
+      description: Only the notification owner can mark it as read.
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          $ref: '#/components/responses/NotificationItem'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/ServerError'
+  /api/v1/notifications/{id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: integer
+          minimum: 1
+    delete:
+      tags: [Notifications]
+      summary: Delete a notification
+      description: Only the notification owner can delete it.
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          $ref: '#/components/responses/NotificationAction'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/ServerError'
+  /api/v1/learning/modules:
+    get:
+      tags: [Learning]
+      summary: List learning modules available to the authenticated user
+      description: Results are filtered according to the user's role, publication status, and access grants.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [draft, published, archived]
+        - name: thematicAreaId
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+        - name: publishedOnly
+          in: query
+          schema:
+            type: boolean
+        - name: authorizedOnly
+          in: query
+          schema:
+            type: boolean
+      responses:
+        '200':
+          $ref: '#/components/responses/LearningList'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/ServerError'
+    post:
+      tags: [Learning]
+      summary: Create a learning module
+      description: Available to system and facility administrators.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [title]
+              properties:
+                title:
+                  type: string
+                description:
+                  type: string
+                  nullable: true
+                thematicAreaId:
+                  type: integer
+                  nullable: true
+                protocolSummary:
+                  type: string
+                  nullable: true
+                status:
+                  type: string
+                  enum: [draft, published, archived]
+                orderNumber:
+                  type: integer
+                  minimum: 0
+                isPublished:
+                  type: boolean
+                isAuthorized:
+                  type: boolean
+                estimatedDurationMinutes:
+                  type: integer
+                  minimum: 0
+      responses:
+        '201':
+          $ref: '#/components/responses/LearningCreated'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '500':
+          $ref: '#/components/responses/ServerError'
+  /api/v1/learning/modules/{id}:
+    parameters:
+      - $ref: '#/components/parameters/LearningId'
+    get:
+      tags: [Learning]
+      summary: Get a learning module
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          $ref: '#/components/responses/LearningObject'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    patch:
+      tags: [Learning]
+      summary: Partially update a learning module
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                title:
+                  type: string
+                description:
+                  type: string
+                  nullable: true
+                thematicAreaId:
+                  type: integer
+                  nullable: true
+                protocolSummary:
+                  type: string
+                  nullable: true
+                status:
+                  type: string
+                  enum: [draft, published, archived]
+                orderNumber:
+                  type: integer
+                isPublished:
+                  type: boolean
+                isAuthorized:
+                  type: boolean
+                estimatedDurationMinutes:
+                  type: integer
+      responses:
+        '200':
+          $ref: '#/components/responses/LearningObject'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    put:
+      tags: [Learning]
+      summary: Replace a learning module's editable fields
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [title]
+              properties:
+                title:
+                  type: string
+                description:
+                  type: string
+                  nullable: true
+                thematicAreaId:
+                  type: integer
+                  nullable: true
+                protocolSummary:
+                  type: string
+                  nullable: true
+                status:
+                  type: string
+                orderNumber:
+                  type: integer
+                isPublished:
+                  type: boolean
+                isAuthorized:
+                  type: boolean
+                estimatedDurationMinutes:
+                  type: integer
+      responses:
+        '200':
+          $ref: '#/components/responses/LearningObject'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    delete:
+      tags: [Learning]
+      summary: Delete a learning module
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          $ref: '#/components/responses/LearningAction'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /api/v1/learning/modules/{moduleId}/contents:
+    parameters:
+      - $ref: '#/components/parameters/ModuleId'
+    get:
+      tags: [Learning]
+      summary: List content in a learning module
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          $ref: '#/components/responses/LearningList'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    post:
+      tags: [Learning]
+      summary: Add content to a learning module
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [title]
+              properties:
+                title:
+                  type: string
+                type:
+                  type: string
+                  enum: [article, video, pdf, quiz]
+                contentText:
+                  type: string
+                  nullable: true
+                contentUrl:
+                  type: string
+                  format: uri
+                  nullable: true
+                orderNumber:
+                  type: integer
+                  minimum: 0
+                isRequired:
+                  type: boolean
+                isPublished:
+                  type: boolean
+                isAuthorized:
+                  type: boolean
+                durationMinutes:
+                  type: integer
+                  minimum: 0
+      responses:
+        '201':
+          $ref: '#/components/responses/LearningCreated'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /api/v1/learning/modules/{moduleId}/contents/{contentId}:
+    parameters:
+      - $ref: '#/components/parameters/ModuleId'
+      - $ref: '#/components/parameters/ContentId'
+    get:
+      tags: [Learning]
+      summary: Get learning content
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          $ref: '#/components/responses/LearningObject'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    patch:
+      tags: [Learning]
+      summary: Partially update learning content
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                title:
+                  type: string
+                type:
+                  type: string
+                  enum: [article, video, pdf, quiz]
+                contentText:
+                  type: string
+                  nullable: true
+                contentUrl:
+                  type: string
+                  format: uri
+                  nullable: true
+                orderNumber:
+                  type: integer
+                isRequired:
+                  type: boolean
+                isPublished:
+                  type: boolean
+                isAuthorized:
+                  type: boolean
+                durationMinutes:
+                  type: integer
+      responses:
+        '200':
+          $ref: '#/components/responses/LearningObject'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    put:
+      tags: [Learning]
+      summary: Replace learning content fields
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [title]
+              properties:
+                title:
+                  type: string
+                type:
+                  type: string
+                contentText:
+                  type: string
+                  nullable: true
+                contentUrl:
+                  type: string
+                  format: uri
+                  nullable: true
+                orderNumber:
+                  type: integer
+                isRequired:
+                  type: boolean
+                isPublished:
+                  type: boolean
+                isAuthorized:
+                  type: boolean
+                durationMinutes:
+                  type: integer
+      responses:
+        '200':
+          $ref: '#/components/responses/LearningObject'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    delete:
+      tags: [Learning]
+      summary: Delete learning content
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          $ref: '#/components/responses/LearningAction'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /api/v1/learning/modules/{moduleId}/quizzes:
+    parameters:
+      - $ref: '#/components/parameters/ModuleId'
+    get:
+      tags: [Learning]
+      summary: Get the quiz for a module
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          $ref: '#/components/responses/LearningObject'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    post:
+      tags: [Learning]
+      summary: Create a quiz for a module
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [title]
+              properties:
+                title:
+                  type: string
+                description:
+                  type: string
+                  nullable: true
+                passScore:
+                  type: number
+                  minimum: 0
+                timeLimitMinutes:
+                  type: integer
+                  minimum: 0
+                attemptLimit:
+                  type: integer
+                  minimum: 0
+                isPublished:
+                  type: boolean
+                isAuthorized:
+                  type: boolean
+      responses:
+        '201':
+          $ref: '#/components/responses/LearningCreated'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /api/v1/learning/quizzes/{quizId}:
+    parameters:
+      - $ref: '#/components/parameters/QuizId'
+    get:
+      tags: [Learning]
+      summary: Get a quiz for the authenticated mentee
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          $ref: '#/components/responses/LearningObject'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    patch:
+      tags: [Learning]
+      summary: Partially update a quiz
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                title:
+                  type: string
+                description:
+                  type: string
+                  nullable: true
+                passScore:
+                  type: number
+                timeLimitMinutes:
+                  type: integer
+                attemptLimit:
+                  type: integer
+                isPublished:
+                  type: boolean
+                isAuthorized:
+                  type: boolean
+      responses:
+        '200':
+          $ref: '#/components/responses/LearningObject'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /api/v1/learning/modules/{moduleId}/mentor-access:
+    parameters:
+      - $ref: '#/components/parameters/ModuleId'
+    get:
+      tags: [Learning]
+      summary: List mentors authorized for a module
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          $ref: '#/components/responses/LearningList'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    post:
+      tags: [Learning]
+      summary: Grant a mentor access to a module
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [mentorId]
+              properties:
+                mentorId:
+                  type: integer
+                  minimum: 1
+      responses:
+        '201':
+          $ref: '#/components/responses/LearningCreated'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /api/v1/learning/modules/{moduleId}/mentor-access/{mentorId}:
+    parameters:
+      - $ref: '#/components/parameters/ModuleId'
+      - $ref: '#/components/parameters/MentorId'
+    delete:
+      tags: [Learning]
+      summary: Revoke a mentor's access to a module
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          $ref: '#/components/responses/LearningAction'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /api/v1/learning/modules/{moduleId}/access:
+    parameters:
+      - $ref: '#/components/parameters/ModuleId'
+    get:
+      tags: [Learning]
+      summary: List mentee access grants for a module
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          $ref: '#/components/responses/LearningList'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    post:
+      tags: [Learning]
+      summary: Grant a mentee access to a module
+      description: Available to mentors.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [menteeId]
+              properties:
+                menteeId:
+                  type: integer
+                  minimum: 1
+      responses:
+        '201':
+          $ref: '#/components/responses/LearningCreated'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /api/v1/learning/modules/{moduleId}/access/{menteeId}:
+    parameters:
+      - $ref: '#/components/parameters/ModuleId'
+      - $ref: '#/components/parameters/MenteeId'
+    delete:
+      tags: [Learning]
+      summary: Revoke a mentee's access to a module
+      description: Available to module administrators and the mentor who granted the access.
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          $ref: '#/components/responses/LearningAction'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /api/v1/learning/mentees/{menteeId}/modules:
+    parameters:
+      - $ref: '#/components/parameters/MenteeId'
+    get:
+      tags: [Learning]
+      summary: List modules assigned to a mentee
+      description: Available to administrators and mentors with access to the mentee.
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          $ref: '#/components/responses/LearningList'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /api/v1/learning/my/modules:
+    get:
+      tags: [Learning]
+      summary: List modules assigned to the authenticated mentee
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          $ref: '#/components/responses/LearningList'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /api/v1/learning/my/modules/{moduleId}:
+    parameters:
+      - $ref: '#/components/parameters/ModuleId'
+    get:
+      tags: [Learning]
+      summary: Get the authenticated mentee's module progress
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          $ref: '#/components/responses/LearningObject'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /api/v1/learning/my/modules/{moduleId}/progress:
+    parameters:
+      - $ref: '#/components/parameters/ModuleId'
+    get:
+      tags: [Learning]
+      summary: Get the authenticated mentee's module progress
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          $ref: '#/components/responses/LearningObject'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /api/v1/learning/my/modules/{moduleId}/contents/progress:
+    parameters:
+      - $ref: '#/components/parameters/ModuleId'
+    get:
+      tags: [Learning]
+      summary: Get content completion progress for a module
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          $ref: '#/components/responses/LearningList'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /api/v1/learning/my/modules/{moduleId}/contents/{contentId}/complete:
+    parameters:
+      - $ref: '#/components/parameters/ModuleId'
+      - $ref: '#/components/parameters/ContentId'
+    post:
+      tags: [Learning]
+      summary: Mark module content as completed
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          $ref: '#/components/responses/LearningObject'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /api/v1/learning/my/modules/{moduleId}/confirm-completion:
+    parameters:
+      - $ref: '#/components/parameters/ModuleId'
+    post:
+      tags: [Learning]
+      summary: Confirm completion of a learning module
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          $ref: '#/components/responses/LearningObject'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /api/v1/learning/modules/{moduleId}/quiz:
+    parameters:
+      - $ref: '#/components/parameters/ModuleId'
+    get:
+      tags: [Learning]
+      summary: Get the quiz for a module
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          $ref: '#/components/responses/LearningObject'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /api/v1/learning/quizzes/{quizId}/start:
+    parameters:
+      - $ref: '#/components/parameters/QuizId'
+    post:
+      tags: [Learning]
+      summary: Start a quiz attempt
+      security:
+        - bearerAuth: []
+      responses:
+        '201':
+          $ref: '#/components/responses/LearningCreated'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+  /api/v1/learning/quizzes/{quizId}/submit:
+    parameters:
+      - $ref: '#/components/parameters/QuizId'
+    post:
+      tags: [Learning]
+      summary: Submit answers for a quiz attempt
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/QuizSubmissionRequest'
+      responses:
+        '200':
+          $ref: '#/components/responses/LearningObject'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+  /api/v1/learning/quizzes/{quizId}/results:
+    parameters:
+      - $ref: '#/components/parameters/QuizId'
+    get:
+      tags: [Learning]
+      summary: Get the authenticated mentee's quiz results
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          $ref: '#/components/responses/LearningList'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /api/v1/learning/quizzes/{quizId}/attempts:
+    parameters:
+      - $ref: '#/components/parameters/QuizId'
+    get:
+      tags: [Learning]
+      summary: List the authenticated mentee's quiz attempts
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          $ref: '#/components/responses/LearningList'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /api/v1/learning/quizzes/{quizId}/questions:
+    parameters:
+      - $ref: '#/components/parameters/QuizId'
+    get:
+      tags: [Learning]
+      summary: List questions in a quiz
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          $ref: '#/components/responses/LearningList'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    post:
+      tags: [Learning]
+      summary: Add a question to a quiz
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [prompt]
+              properties:
+                prompt:
+                  type: string
+                questionType:
+                  type: string
+                clinicalContext:
+                  type: string
+                  nullable: true
+                points:
+                  type: number
+                  exclusiveMinimum: 0
+                explanation:
+                  type: string
+                  nullable: true
+                orderNumber:
+                  type: integer
+      responses:
+        '201':
+          $ref: '#/components/responses/LearningCreated'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /api/v1/learning/quizzes/{quizId}/questions/{questionId}:
+    parameters:
+      - $ref: '#/components/parameters/QuizId'
+      - $ref: '#/components/parameters/QuestionId'
+    put:
+      tags: [Learning]
+      summary: Replace a quiz question
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [prompt]
+              properties:
+                prompt:
+                  type: string
+                questionType:
+                  type: string
+                clinicalContext:
+                  type: string
+                  nullable: true
+                points:
+                  type: number
+                explanation:
+                  type: string
+                  nullable: true
+                orderNumber:
+                  type: integer
+      responses:
+        '200':
+          $ref: '#/components/responses/LearningObject'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    delete:
+      tags: [Learning]
+      summary: Delete a quiz question
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          $ref: '#/components/responses/LearningAction'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /api/v1/learning/questions/{questionId}/options:
+    parameters:
+      - $ref: '#/components/parameters/QuestionId'
+    post:
+      tags: [Learning]
+      summary: Add an answer option to a quiz question
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [text]
+              properties:
+                text:
+                  type: string
+                isCorrect:
+                  type: boolean
+                orderNumber:
+                  type: integer
+      responses:
+        '201':
+          $ref: '#/components/responses/LearningCreated'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /api/v1/learning/questions/{questionId}/options/{optionId}:
+    parameters:
+      - $ref: '#/components/parameters/QuestionId'
+      - $ref: '#/components/parameters/OptionId'
+    put:
+      tags: [Learning]
+      summary: Replace an answer option
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [text]
+              properties:
+                text:
+                  type: string
+                isCorrect:
+                  type: boolean
+                orderNumber:
+                  type: integer
+      responses:
+        '200':
+          $ref: '#/components/responses/LearningObject'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    delete:
+      tags: [Learning]
+      summary: Delete an answer option
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          $ref: '#/components/responses/LearningAction'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+tags:
+  - name: Auth
+    description: Authentication and session management
+  - name: Users
+    description: User management and profiles
+  - name: Facilities
+    description: Facility management
+  - name: Mentorship Cycles
+    description: Mentorship cycle management
+  - name: Cycle Configuration
+    description: Cycle facility and thematic area configuration
+  - name: Messaging
+    description: Messaging and conversations
+  - name: Thematic Areas
+    description: Global thematic area management (System Admin only)
+  - name: Assignments
+    description: Mentor-mentee assignment management
+  - name: Progress
+    description: Knowledge-score snapshots and progress tracking
+  - name: Learning
+    description: Learning modules, content, access, progress, and quizzes.
+  - name: Notifications
+    description: Notifications belonging to the authenticated user.

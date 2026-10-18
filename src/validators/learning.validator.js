@@ -1,4 +1,5 @@
 const AppError = require('../errors/app-error');
+const LearningPermission = require('../enums/learning-permission.enum');
 
 const invalid = (message) => new AppError(message, 400, 'VALIDATION_ERROR');
 
@@ -143,6 +144,21 @@ const parseMentorAccessGrant = (body = {}) => {
 	return { mentorId };
 };
 
+const parseLearningPermission = (permission) => {
+	if (!Object.values(LearningPermission).includes(permission)) {
+		throw invalid('permission must be a supported learning permission.');
+	}
+	return permission;
+};
+
+const parseMentorPermissionGrant = (body = {}) => {
+	const { mentorId } = parseMentorAccessGrant(body);
+	return {
+		mentorId,
+		permission: parseLearningPermission(body.permission),
+	};
+};
+
 const parseQuizSubmission = (body = {}) => {
 	const answers = Array.isArray(body.answers) ? body.answers : [];
 	if (answers.length === 0) {
@@ -215,6 +231,8 @@ module.exports = {
 	parseQuizPatch,
 	parseAccessGrant,
 	parseMentorAccessGrant,
+	parseLearningPermission,
+	parseMentorPermissionGrant,
 	parseQuizSubmission,
 	parseQuestion,
 	parseOption,

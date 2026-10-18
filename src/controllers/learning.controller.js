@@ -19,14 +19,13 @@ module.exports = {
 			status: req.query.status,
 			thematicAreaId: req.query.thematicAreaId || req.query.thematic_area_id,
 			createdBy: req.query.createdBy || req.query.created_by,
-			mentorId: role === 'mentor' ? req.user.id : undefined,
 			publishedOnly: role === 'mentor' || req.query.publishedOnly === 'true',
 			authorizedOnly: role === 'mentor' || req.query.authorizedOnly === 'true',
-		});
+		}, req.user);
 		return res.json({ success: true, data: modules.map((module) => moduleDto.toModule(module)) });
 	}),
 	getModule: asyncHandler(async (req, res) => {
-		const moduleRecord = await service.getModule(req.params.id, { role: req.user.role, userId: req.user.id });
+		const moduleRecord = await service.getModule(req.params.id, req.user);
 		return res.json({ success: true, data: moduleDto.toModule(moduleRecord) });
 	}),
 	createModule: asyncHandler(async (req, res) => {
@@ -34,19 +33,19 @@ module.exports = {
 		return res.status(201).json({ success: true, data: moduleDto.toModule(moduleRecord) });
 	}),
 	updateModule: asyncHandler(async (req, res) => {
-		const moduleRecord = await service.updateModule(req.params.id, { ...req.learningInput, updatedBy: req.user.id });
+		const moduleRecord = await service.updateModule(req.params.id, { ...req.learningInput, updatedBy: req.user.id }, req.user);
 		return res.json({ success: true, data: moduleDto.toModule(moduleRecord) });
 	}),
 	deleteModule: asyncHandler(async (req, res) => {
-		await service.deleteModule(req.params.id);
+		await service.deleteModule(req.params.id, req.user);
 		return res.json({ success: true, data: { deleted: true } });
 	}),
 	listContents: asyncHandler(async (req, res) => {
-		const contents = await service.listContents(req.params.moduleId, { role: req.user.role, userId: req.user.id });
+		const contents = await service.listContents(req.params.moduleId, req.user);
 		return res.json({ success: true, data: contents });
 	}),
 	getContent: asyncHandler(async (req, res) => {
-		const content = await service.getContent(req.params.contentId, { role: req.user.role, userId: req.user.id });
+		const content = await service.getContent(req.params.contentId, req.user);
 		if (Number(content.module_id) !== Number(req.params.moduleId)) {
 			throw new AppError('Learning content not found.', 404, 'NOT_FOUND');
 		}
@@ -57,15 +56,16 @@ module.exports = {
 			...req.learningInput,
 			moduleId: req.params.moduleId,
 			createdBy: req.user.id,
+			actor: req.user,
 		});
 		return res.status(201).json({ success: true, data: content });
 	}),
 	updateContent: asyncHandler(async (req, res) => {
-		const content = await service.updateContent(req.params.moduleId, req.params.contentId, { ...req.learningInput, updatedBy: req.user.id });
+		const content = await service.updateContent(req.params.moduleId, req.params.contentId, { ...req.learningInput, updatedBy: req.user.id }, req.user);
 		return res.json({ success: true, data: content });
 	}),
 	deleteContent: asyncHandler(async (req, res) => {
-		await service.deleteContent(req.params.moduleId, req.params.contentId);
+		await service.deleteContent(req.params.moduleId, req.params.contentId, req.user);
 		return res.json({ success: true, data: { deleted: true } });
 	}),
 	grantModuleAccess: asyncHandler(async (req, res) => {
@@ -77,18 +77,41 @@ module.exports = {
 		const grant = await service.grantMentorModuleAccess({
 			moduleId: req.params.moduleId,
 			mentorId: req.learningInput.mentorId,
-			grantedBy: req.user.id,
+			actor: req.user,
 		});
 		return res.status(201).json({ success: true, data: learningMapper.toMentorAccess(grant) });
 	}),
 	getModuleMentorAccess: asyncHandler(async (req, res) => {
-		const grants = await service.getModuleMentorAccess(req.params.moduleId);
+		const grants = await service.getModuleMentorAccess(req.params.moduleId, req.user);
 		return res.json({ success: true, data: grants.map(learningMapper.toMentorAccess) });
 	}),
 	revokeModuleMentorAccess: asyncHandler(async (req, res) => {
 		const revoked = await service.revokeModuleMentorAccess({
 			moduleId: req.params.moduleId,
 			mentorId: req.params.mentorId,
+			actor: req.user,
+		});
+		return res.json({ success: true, data: { revoked } });
+	}),
+	getModuleMentorPermissions: asyncHandler(async (req, res) => {
+		const permissions = await service.listModuleMentorPermissions(req.params.moduleId, req.user);
+		return res.json({ success: true, data: permissions.map(learningMapper.toMentorPermission) });
+	}),
+	grantModuleMentorPermission: asyncHandler(async (req, res) => {
+		const grant = await service.grantModuleMentorPermission({
+			moduleId: req.params.moduleId,
+			mentorId: req.learningInput.mentorId,
+			permission: req.learningInput.permission,
+			actor: req.user,
+		});
+		return res.status(201).json({ success: true, data: learningMapper.toMentorPermission(grant) });
+	}),
+	revokeModuleMentorPermission: asyncHandler(async (req, res) => {
+		const revoked = await service.revokeModuleMentorPermission({
+			moduleId: req.params.moduleId,
+			mentorId: req.params.mentorId,
+			permission: req.params.permission,
+			actor: req.user,
 		});
 		return res.json({ success: true, data: { revoked } });
 	}),
@@ -101,12 +124,12 @@ module.exports = {
 			success: true,
 			data: (await service.getMenteeModules(
 				menteeId,
-				String(req.user.role).toLowerCase() === 'mentor' ? req.user.id : undefined
+				req.user
 			)).map(learningMapper.toProgress),
 		});
 	}),
 	getModuleAccess: asyncHandler(async (req, res) => {
-		const records = await service.getModuleAccess(req.params.moduleId);
+		const records = await service.getModuleAccess(req.params.moduleId, req.user);
 		return res.json({ success: true, data: records.map(learningMapper.toProgress) });
 	}),
 	revokeModuleAccess: asyncHandler(async (req, res) => {
@@ -118,6 +141,7 @@ module.exports = {
 			menteeId,
 			moduleId: req.params.moduleId,
 			mentorId: String(req.user.role).toLowerCase() === 'mentor' ? req.user.id : undefined,
+			actor: req.user,
 		});
 		return res.json({ success: true, data: { deleted } });
 	}),
@@ -169,40 +193,45 @@ module.exports = {
 		const quiz = await service.createQuiz({
 			moduleId: req.params.moduleId,
 			createdBy: req.user.id,
+			actor: req.user,
 			...req.learningInput,
 		});
 		return res.status(201).json({ success: true, data: quiz });
 	}),
 	updateQuiz: asyncHandler(async (req, res) => {
-		const quiz = await service.updateQuiz(req.params.quizId, req.learningInput);
+		const quiz = await service.updateQuiz(req.params.quizId, req.learningInput, req.user);
 		return res.json({ success: true, data: quiz });
 	}),
 	listQuizQuestions: asyncHandler(async (req, res) => res.json({
 		success: true,
-		data: await service.listQuizQuestions(req.params.quizId),
+		data: await service.listQuizQuestions(req.params.quizId, req.user),
 	})),
 	createQuizQuestion: asyncHandler(async (req, res) => res.status(201).json({
 		success: true,
-		data: await service.createQuizQuestion(req.params.quizId, req.learningInput),
+		data: await service.createQuizQuestion(req.params.quizId, req.learningInput, req.user),
 	})),
 	updateQuizQuestion: asyncHandler(async (req, res) => res.json({
 		success: true,
-		data: await service.updateQuizQuestion(req.params.quizId, req.params.questionId, req.learningInput),
+		data: await service.updateQuizQuestion(req.params.quizId, req.params.questionId, req.learningInput, req.user),
 	})),
 	deleteQuizQuestion: asyncHandler(async (req, res) => {
-		await service.deleteQuizQuestion(req.params.quizId, req.params.questionId);
+		await service.deleteQuizQuestion(req.params.quizId, req.params.questionId, req.user);
 		return res.json({ success: true, data: { deleted: true } });
 	}),
 	createQuestionOption: asyncHandler(async (req, res) => res.status(201).json({
 		success: true,
-		data: await service.createQuestionOption(req.params.questionId, req.learningInput),
+		data: await service.createQuestionOption(req.params.questionId, req.learningInput, req.user),
 	})),
 	updateQuestionOption: asyncHandler(async (req, res) => res.json({
 		success: true,
-		data: await service.updateQuestionOption(req.params.questionId, req.params.optionId, req.learningInput),
+		data: await service.updateQuestionOption(req.params.questionId, req.params.optionId, req.learningInput, req.user),
 	})),
 	deleteQuestionOption: asyncHandler(async (req, res) => {
-		await service.deleteQuestionOption(req.params.questionId, req.params.optionId);
+		await service.deleteQuestionOption(req.params.questionId, req.params.optionId, req.user);
 		return res.json({ success: true, data: { deleted: true } });
+	}),
+	getQuizAnswerKey: asyncHandler(async (req, res) => {
+		const answerKey = await service.getQuizAnswerKey({ quizId: req.params.quizId, actor: req.user });
+		return res.json({ success: true, data: answerKey });
 	}),
 };

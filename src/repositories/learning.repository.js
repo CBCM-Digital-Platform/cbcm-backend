@@ -1,8 +1,10 @@
 const { Op } = require('sequelize');
 const models = require('../models');
 const AppError = require('../errors/app-error');
+const LearningPermission = require('../enums/learning-permission.enum');
 
 const isLearnerVisible = { is_published: true, is_authorized: true };
+const ACTIVE_ASSIGNMENT_STATUSES = ['assigned', 'active'];
 
 const listModules = async ({ status, thematicAreaId, createdBy, publishedOnly = false, authorizedOnly = false, moduleIds } = {}) => {
 	const where = {};
@@ -29,6 +31,58 @@ const listModules = async ({ status, thematicAreaId, createdBy, publishedOnly = 
 		],
 		order: [['order_number', 'ASC'], ['id', 'ASC']],
 	});
+};
+
+const listModuleIdsForFacility = async (facilityId) => {
+	if (!facilityId) return [];
+	const modules = await models.LearningModule.findAll({
+		where: { thematic_area_id: { [Op.ne]: null } },
+		attributes: ['id', 'thematic_area_id'],
+	});
+	if (!modules.length) return [];
+	const thematicAreaIds = [...new Set(modules.map((module) => module.thematic_area_id))];
+	const cycleThematicAreas = await models.CycleThematicArea.findAll({
+		where: { thematic_area_id: { [Op.in]: thematicAreaIds } },
+		attributes: ['cycle_id', 'thematic_area_id'],
+	});
+	if (!cycleThematicAreas.length) return [];
+	const cycleIds = [...new Set(cycleThematicAreas.map((entry) => entry.cycle_id))];
+	const facilityCycles = await models.CycleFacility.findAll({
+		where: { facility_id: facilityId, cycle_id: { [Op.in]: cycleIds } },
+		attributes: ['cycle_id'],
+	});
+	const facilityCycleIds = new Set(facilityCycles.map((entry) => Number(entry.cycle_id)));
+	const scopedThematicAreaIds = new Set(cycleThematicAreas
+		.filter((entry) => facilityCycleIds.has(Number(entry.cycle_id)))
+		.map((entry) => Number(entry.thematic_area_id)));
+	return modules
+		.filter((module) => scopedThematicAreaIds.has(Number(module.thematic_area_id)))
+		.map((module) => module.id);
+};
+
+const isModuleInFacilityScope = async ({ moduleId, facilityId }) => {
+	const module = await models.LearningModule.findByPk(moduleId, { attributes: ['thematic_area_id'] });
+	if (!module || !module.thematic_area_id || !facilityId) return false;
+	return isThematicAreaInFacilityScope({
+		thematicAreaId: module.thematic_area_id,
+		facilityId,
+	});
+};
+
+const isThematicAreaInFacilityScope = async ({ thematicAreaId, facilityId }) => {
+	if (!thematicAreaId || !facilityId) return false;
+	const cycleThematicAreas = await models.CycleThematicArea.findAll({
+		where: { thematic_area_id: thematicAreaId },
+		attributes: ['cycle_id'],
+	});
+	if (!cycleThematicAreas.length) return false;
+	return Boolean(await models.CycleFacility.findOne({
+		where: {
+			facility_id: facilityId,
+			cycle_id: { [Op.in]: cycleThematicAreas.map((entry) => entry.cycle_id) },
+		},
+		attributes: ['id'],
+	}));
 };
 
 const getModuleById = async (moduleId, { learnerVisible = false } = {}) => models.LearningModule.findByPk(moduleId, {
@@ -226,45 +280,90 @@ const grantModuleAccess = async ({ menteeId, moduleId, mentorId }) => {
 };
 
 const grantMentorModuleAccess = async ({ moduleId, mentorId, grantedBy }) => {
-	const now = new Date();
-	const [grant] = await models.LearningModuleMentorAccess.findOrCreate({
-		where: { module_id: moduleId, mentor_id: mentorId },
-		defaults: {
-			module_id: moduleId,
-			mentor_id: mentorId,
-			granted_by: grantedBy,
-			granted_at: now,
-			revoked_at: null,
-		},
+	return grantModuleMentorPermission({
+		moduleId,
+		mentorId,
+		permission: LearningPermission.RESOURCES_VIEW,
+		grantedBy,
 	});
-	if (grant.revoked_at) {
-		await grant.update({ granted_by: grantedBy, granted_at: now, revoked_at: null });
-	}
-	return grant;
 };
 
-const listModuleMentorAccess = async (moduleId) => models.LearningModuleMentorAccess.findAll({
-	where: { module_id: moduleId, revoked_at: null },
+const listModuleMentorAccess = async (moduleId) => models.LearningModuleMentorPermission.findAll({
+	where: {
+		module_id: moduleId,
+		permission: LearningPermission.RESOURCES_VIEW,
+		revoked_at: null,
+	},
 	include: [{ model: models.User, as: 'mentor', attributes: ['id', 'full_name', 'email'] }],
 	order: [['id', 'ASC']],
 });
 
 const listMentorModuleIds = async (mentorId) => {
-	const grants = await models.LearningModuleMentorAccess.findAll({
-		where: { mentor_id: mentorId, revoked_at: null },
+	const grants = await models.LearningModuleMentorPermission.findAll({
+		where: {
+			mentor_id: mentorId,
+			permission: LearningPermission.RESOURCES_VIEW,
+			revoked_at: null,
+		},
 		attributes: ['module_id'],
 	});
 	return grants.map((grant) => grant.module_id);
 };
 
-const hasModuleMentorAccess = async ({ mentorId, moduleId }) => Boolean(await models.LearningModuleMentorAccess.findOne({
-	where: { mentor_id: mentorId, module_id: moduleId, revoked_at: null },
+const hasModuleMentorAccess = async ({ mentorId, moduleId }) => Boolean(await models.LearningModuleMentorPermission.findOne({
+	where: {
+		mentor_id: mentorId,
+		module_id: moduleId,
+		permission: LearningPermission.RESOURCES_VIEW,
+		revoked_at: null,
+	},
 	attributes: ['id'],
 }));
 
-const revokeModuleMentorAccess = async ({ mentorId, moduleId }) => models.sequelize.transaction(async (transaction) => {
-	const [count] = await models.LearningModuleMentorAccess.update(
-		{ revoked_at: new Date() },
+const hasModuleMentorPermission = async ({ mentorId, moduleId, permission }) => Boolean(
+	await models.LearningModuleMentorPermission.findOne({
+		where: { mentor_id: mentorId, module_id: moduleId, permission, revoked_at: null },
+		attributes: ['id'],
+	})
+);
+
+const grantModuleMentorPermission = async ({ moduleId, mentorId, permission, grantedBy }) => (
+	models.sequelize.transaction(async (transaction) => {
+		const existing = await models.LearningModuleMentorPermission.findOne({
+			where: { module_id: moduleId, mentor_id: mentorId, permission, revoked_at: null },
+			transaction,
+			lock: transaction.LOCK.UPDATE,
+		});
+		if (existing) return existing;
+		return models.LearningModuleMentorPermission.create({
+			module_id: moduleId,
+			mentor_id: mentorId,
+			permission,
+			granted_by: grantedBy,
+			granted_at: new Date(),
+			revoked_by: null,
+			revoked_at: null,
+		}, { transaction });
+	})
+);
+
+const listModuleMentorPermissions = async (moduleId) => models.LearningModuleMentorPermission.findAll({
+	where: { module_id: moduleId },
+	include: [{ model: models.User, as: 'mentor', attributes: ['id', 'full_name', 'email'] }],
+	order: [['id', 'ASC']],
+});
+
+const revokeModuleMentorPermission = async ({ mentorId, moduleId, permission, revokedBy }) => {
+	const [count] = await models.LearningModuleMentorPermission.update(
+		{ revoked_by: revokedBy, revoked_at: new Date() },
+		{ where: { mentor_id: mentorId, module_id: moduleId, permission, revoked_at: null } }
+	);
+	return count > 0;
+};
+
+const revokeModuleMentorAccess = async ({ mentorId, moduleId, revokedBy }) => models.sequelize.transaction(async (transaction) => {
+	const [count] = await models.LearningModuleMentorPermission.update(
+		{ revoked_by: revokedBy, revoked_at: new Date() },
 		{ where: { mentor_id: mentorId, module_id: moduleId, revoked_at: null }, transaction }
 	);
 	if (!count) return false;
@@ -307,7 +406,7 @@ const hasValidMentorGrantedAccess = async (progress) => {
 	if (!mentor) return false;
 	const [moduleAccess, mentorAssignment] = await Promise.all([
 		hasModuleMentorAccess({ mentorId, moduleId: progress.module_id }),
-		hasActiveMentorAssignment({ mentorId, menteeId: progress.mentee_id }),
+		hasActiveMentorAssignment({ mentorId, menteeId: progress.mentee_id, moduleId: progress.module_id }),
 	]);
 	return moduleAccess && mentorAssignment;
 };
@@ -315,40 +414,24 @@ const hasValidMentorGrantedAccess = async (progress) => {
 const filterValidMentorGrantedAccess = async (records) => {
 	const candidates = records.filter((progress) => progress.assigned_by != null);
 	if (candidates.length === 0) return [];
-	const mentorIds = [...new Set(candidates.map((progress) => Number(progress.assigned_by)))];
-	const menteeIds = [...new Set(candidates.map((progress) => Number(progress.mentee_id)))];
-	const moduleIds = [...new Set(candidates.map((progress) => Number(progress.module_id)))];
-	const [mentors, grants, assignments] = await Promise.all([
-		models.User.findAll({
-			where: { id: { [Op.in]: mentorIds }, role: 'mentor' },
-			attributes: ['id'],
-		}),
-		models.LearningModuleMentorAccess.findAll({
-			where: {
-				mentor_id: { [Op.in]: mentorIds },
-				module_id: { [Op.in]: moduleIds },
-				revoked_at: null,
-			},
-			attributes: ['mentor_id', 'module_id'],
-		}),
-		models.Assignment.findAll({
-			where: {
-				mentor_id: { [Op.in]: mentorIds },
-				mentee_id: { [Op.in]: menteeIds },
-				unassigned_at: null,
-			},
-			attributes: ['mentor_id', 'mentee_id'],
-		}),
-	]);
-	const validMentorIds = new Set(mentors.map((mentor) => Number(mentor.id)));
-	const activeModuleGrants = new Set(grants.map((grant) => `${Number(grant.mentor_id)}:${Number(grant.module_id)}`));
-	const activeMentorAssignments = new Set(assignments.map((assignment) => `${Number(assignment.mentor_id)}:${Number(assignment.mentee_id)}`));
-	return candidates.filter((progress) => {
+	const validity = await Promise.all(candidates.map(async (progress) => {
 		const mentorId = Number(progress.assigned_by);
-		return validMentorIds.has(mentorId)
-			&& activeModuleGrants.has(`${mentorId}:${Number(progress.module_id)}`)
-			&& activeMentorAssignments.has(`${mentorId}:${Number(progress.mentee_id)}`);
-	});
+		const mentor = await models.User.findOne({
+			where: { id: mentorId, role: 'mentor' },
+			attributes: ['id'],
+		});
+		if (!mentor) return false;
+		const [moduleAccess, mentorAssignment] = await Promise.all([
+			hasModuleMentorAccess({ mentorId, moduleId: progress.module_id }),
+			hasActiveMentorAssignment({
+				mentorId,
+				menteeId: progress.mentee_id,
+				moduleId: progress.module_id,
+			}),
+		]);
+		return moduleAccess && mentorAssignment;
+	}));
+	return candidates.filter((progress, index) => validity[index]);
 };
 
 const countCompletedRequiredContents = async ({ menteeId, moduleId }, transaction) => {
@@ -667,15 +750,38 @@ const listQuizAttempts = async ({ quizId, menteeId, completedOnly = false }) => 
 	order: [['attempt_number', 'DESC']],
 });
 
-const hasActiveMentorAssignment = async ({ mentorId, menteeId }) => Boolean(await models.Assignment.findOne({
-	where: { mentor_id: mentorId, mentee_id: menteeId, unassigned_at: null },
-	attributes: ['id'],
-}));
+const hasActiveMentorAssignment = async ({ mentorId, menteeId, moduleId }) => {
+	const mentor = await models.User.findByPk(mentorId, { attributes: ['id', 'role', 'facility_id'] });
+	if (!mentor || mentor.role !== 'mentor' || !mentor.facility_id) return false;
+	const where = {
+		mentor_id: mentorId,
+		facility_id: mentor.facility_id,
+		status: { [Op.in]: ACTIVE_ASSIGNMENT_STATUSES },
+		unassigned_at: null,
+	};
+	if (menteeId) {
+		const mentee = await models.User.findByPk(menteeId, { attributes: ['id', 'role', 'facility_id'] });
+		if (!mentee || mentee.role !== 'mentee' || Number(mentee.facility_id) !== Number(mentor.facility_id)) {
+			return false;
+		}
+		where.mentee_id = menteeId;
+	}
+	if (moduleId) {
+		const module = await models.LearningModule.findByPk(moduleId, { attributes: ['thematic_area_id'] });
+		if (!module || !module.thematic_area_id) return false;
+		where.thematic_area_id = module.thematic_area_id;
+	}
+	return Boolean(await models.Assignment.findOne({ where, attributes: ['id'] }));
+};
 
 const isMentee = async (menteeId) => {
 	const user = await models.User.findByPk(menteeId, { attributes: ['id', 'role'] });
 	return String(user?.role || '').toLowerCase() === 'mentee';
 };
+
+const getUserById = async (userId) => models.User.findByPk(userId, {
+	attributes: ['id', 'role', 'facility_id'],
+});
 
 const isMentor = async (mentorId) => {
 	const user = await models.User.findByPk(mentorId, { attributes: ['id', 'role'] });
@@ -689,6 +795,9 @@ const isLearningAdmin = async (userId) => {
 
 module.exports = {
 	listModules,
+	listModuleIdsForFacility,
+	isModuleInFacilityScope,
+	isThematicAreaInFacilityScope,
 	getModuleById,
 	createModule,
 	updateModule,
@@ -703,6 +812,10 @@ module.exports = {
 	listModuleMentorAccess,
 	listMentorModuleIds,
 	hasModuleMentorAccess,
+	hasModuleMentorPermission,
+	grantModuleMentorPermission,
+	listModuleMentorPermissions,
+	revokeModuleMentorPermission,
 	revokeModuleMentorAccess,
 	listModuleProgress,
 	removeModuleAccess,
@@ -734,4 +847,5 @@ module.exports = {
 	isMentor,
 	isLearningAdmin,
 	isMentee,
+	getUserById,
 };

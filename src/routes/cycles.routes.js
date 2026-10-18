@@ -5,7 +5,7 @@ const controller = require('../controllers/cycles.controller');
 const authenticate = require('../middlewares/auth/authenticate.middleware');
 const requireRole = require('../middlewares/auth/require-role.middleware');
 const requireFacilityScope = require('../middlewares/auth/require-facility-scope.middleware');
-const { ADMIN_ROLES, FACILITY_MANAGEMENT_ROLES } = require('../constants/roles.constants');
+const { FACILITY_MANAGEMENT_ROLES } = require('../constants/roles.constants');
 const {
 	cycleFields,
 	createCycleValidation,
@@ -66,7 +66,7 @@ router.get('/:id', cycleIdValidation, validateRequest, controller.getById);
  * /api/v1/mentorship-cycles:
  *   post:
  *     summary: Create a mentorship cycle
- *     description: Administrator only. New cycles begin in draft status.
+ *     description: Available to system and facility administrators. New cycles begin in draft status.
  *     tags: [Mentorship Cycles]
  *     security:
  *       - bearerAuth: []
@@ -96,7 +96,7 @@ router.get('/:id', cycleIdValidation, validateRequest, controller.getById);
  *             schema:
  *               $ref: '#/components/schemas/ErrorResponse'
  *       403:
- *         description: Administrator role required
+ *         description: System administrator or facility administrator role required
  *         content:
  *           application/json:
  *             schema:
@@ -143,7 +143,7 @@ router.post('/', requireRole(FACILITY_MANAGEMENT_ROLES), rejectUnexpectedFields(
  *             schema:
  *               $ref: '#/components/schemas/ErrorResponse'
  *       403:
- *         description: Administrator role required
+ *         description: System administrator or facility administrator role required
  *         content:
  *           application/json:
  *             schema:
@@ -197,7 +197,7 @@ router.patch('/:id', requireRole(FACILITY_MANAGEMENT_ROLES), cycleIdValidation, 
  *             schema:
  *               $ref: '#/components/schemas/ErrorResponse'
  *       403:
- *         description: Administrator role required
+ *         description: System administrator or facility administrator role required
  *         content:
  *           application/json:
  *             schema:

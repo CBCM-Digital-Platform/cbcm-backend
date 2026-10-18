@@ -61,14 +61,20 @@ const toMentorAccess = (grant = {}) => ({
 	id: grant.id,
 	moduleId: grant.module_id ?? grant.moduleId ?? null,
 	mentorId: grant.mentor_id ?? grant.mentorId ?? null,
+	permission: grant.permission ?? null,
 	grantedBy: grant.granted_by ?? grant.grantedBy ?? null,
 	grantedAt: grant.granted_at ?? grant.grantedAt ?? null,
+	revokedBy: grant.revoked_by ?? grant.revokedBy ?? null,
 	revokedAt: grant.revoked_at ?? grant.revokedAt ?? null,
 	mentor: grant.mentor ? {
 		id: grant.mentor.id,
 		fullName: grant.mentor.full_name,
 		email: grant.mentor.email,
 	} : null,
+});
+
+const toMentorPermission = (grant = {}) => ({
+	...toMentorAccess(grant),
 });
 
 const toQuizAttempt = (attempt = {}) => ({
@@ -93,6 +99,7 @@ module.exports = {
 	toModuleDetail,
 	toProgress,
 	toMentorAccess,
+	toMentorPermission,
 	toQuizAttempt,
 	toQuizResult,
 };
