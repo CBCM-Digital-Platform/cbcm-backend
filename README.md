@@ -107,6 +107,49 @@ The migration is idempotent - it checks if the admin user already exists before 
 - `POST /api/v1/users` - Create user (admin only)
 - `PATCH /api/v1/users/:id/status` - Update user status (admin only)
 
+### Learning Base
+- `GET /api/v1/learning/modules` - List learning modules
+- `POST /api/v1/learning/modules` - Create learning module (System Admin only)
+- `GET /api/v1/learning/modules/:id` - Get module details
+- `PATCH /api/v1/learning/modules/:id` - Partially update module (Admins only)
+- `PUT /api/v1/learning/modules/:id` - Replace module (Admins only)
+- `DELETE /api/v1/learning/modules/:id` - Delete module (Admins only)
+- `GET /api/v1/learning/modules/:moduleId/contents` - List module content items
+- `POST /api/v1/learning/modules/:moduleId/contents` - Add content item (Admins only)
+- `GET /api/v1/learning/modules/:moduleId/contents/:contentId` - Get content item
+- `PATCH /api/v1/learning/modules/:moduleId/contents/:contentId` - Update content item (Admins only)
+- `DELETE /api/v1/learning/modules/:moduleId/contents/:contentId` - Delete content item (Admins only)
+- `GET /api/v1/learning/modules/:moduleId/mentor-access` - List mentor module access grants (Admins only)
+- `POST /api/v1/learning/modules/:moduleId/mentor-access` - Grant mentor module access (Admins only)
+- `DELETE /api/v1/learning/modules/:moduleId/mentor-access/:mentorId` - Revoke mentor module access (Admins only)
+- `GET /api/v1/learning/modules/:moduleId/mentor-permissions` - List mentor permissions (Admins only)
+- `POST /api/v1/learning/modules/:moduleId/mentor-permissions` - Grant mentor permission (Admins only)
+- `DELETE /api/v1/learning/modules/:moduleId/mentor-permissions/:mentorId/:permission` - Revoke mentor permission (Admins only)
+- `POST /api/v1/learning/modules/:moduleId/access` - Assign module to mentee (Mentors only)
+- `GET /api/v1/learning/modules/:moduleId/access` - List mentee module assignments (Admins only)
+- `DELETE /api/v1/learning/modules/:moduleId/access/:menteeId` - Revoke mentee access (Admins and assigned Mentors)
+- `GET /api/v1/learning/mentees/:menteeId/modules` - List modules assigned to mentee
+- `GET /api/v1/learning/my/modules` - List modules for authenticated mentee
+- `GET /api/v1/learning/my/modules/:moduleId` - Get mentee module progress
+- `GET /api/v1/learning/my/modules/:moduleId/contents/progress` - Get content completion progress
+- `POST /api/v1/learning/my/modules/:moduleId/contents/:contentId/complete` - Mark content item as completed
+- `POST /api/v1/learning/my/modules/:moduleId/confirm-completion` - Confirm module completion
+- `GET /api/v1/learning/modules/:moduleId/quiz` - Get quiz for module (Mentees only)
+- `POST /api/v1/learning/modules/:moduleId/quizzes` - Create quiz for module (Admins only)
+- `PATCH /api/v1/learning/quizzes/:quizId` - Update quiz (Admins only)
+- `POST /api/v1/learning/quizzes/:quizId/start` - Start quiz attempt (Mentees only)
+- `POST /api/v1/learning/quizzes/:quizId/submit` - Submit quiz attempt answers (Mentees only)
+- `GET /api/v1/learning/quizzes/:quizId/results` - Get quiz results (Mentees only)
+- `GET /api/v1/learning/quizzes/:quizId/attempts` - List quiz attempts (Mentees only)
+- `GET /api/v1/learning/quizzes/:quizId/answer-key` - View quiz answer key (Admins and authorized Mentors)
+- `GET /api/v1/learning/quizzes/:quizId/questions` - List quiz questions (Admins only)
+- `POST /api/v1/learning/quizzes/:quizId/questions` - Add question to quiz (Admins only)
+- `PUT /api/v1/learning/quizzes/:quizId/questions/:questionId` - Update question (Admins only)
+- `DELETE /api/v1/learning/quizzes/:quizId/questions/:questionId` - Delete question (Admins only)
+- `POST /api/v1/learning/questions/:questionId/options` - Add option to question (Admins only)
+- `PUT /api/v1/learning/questions/:questionId/options/:optionId` - Update option (Admins only)
+- `DELETE /api/v1/learning/questions/:questionId/options/:optionId` - Delete option (Admins only)
+
 ## Deployment to Render
 
 ### Environment Variables on Render

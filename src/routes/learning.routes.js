@@ -60,12 +60,12 @@ router.delete('/modules/:moduleId/contents/:contentId', requireRole(FACILITY_MAN
 router.post('/modules/:moduleId/quizzes', requireRole(Role.FACILITY_ADMIN), validateId('moduleId'), validate(validator.parseQuiz), controller.createQuiz);
 router.patch('/quizzes/:quizId', requireRole(Role.FACILITY_ADMIN), validateId('quizId'), validate(validator.parseQuizPatch), controller.updateQuiz);
 
-router.get('/modules/:moduleId/mentor-access', requireRole(Role.FACILITY_ADMIN), validateId('moduleId'), controller.getModuleMentorAccess);
-router.post('/modules/:moduleId/mentor-access', requireRole(Role.FACILITY_ADMIN), validateId('moduleId'), validate(validator.parseMentorAccessGrant), controller.grantMentorModuleAccess);
-router.delete('/modules/:moduleId/mentor-access/:mentorId', requireRole(Role.FACILITY_ADMIN), validateId('moduleId'), validateId('mentorId'), controller.revokeModuleMentorAccess);
-router.get('/modules/:moduleId/mentor-permissions', requireRole(Role.FACILITY_ADMIN), validateId('moduleId'), controller.getModuleMentorPermissions);
-router.post('/modules/:moduleId/mentor-permissions', requireRole(Role.FACILITY_ADMIN), validateId('moduleId'), validate(validator.parseMentorPermissionGrant), controller.grantModuleMentorPermission);
-router.delete('/modules/:moduleId/mentor-permissions/:mentorId/:permission', requireRole(Role.FACILITY_ADMIN), validateId('moduleId'), validateId('mentorId'), validatePermission, controller.revokeModuleMentorPermission);
+router.get('/modules/:moduleId/mentor-access', requireRole(FACILITY_MANAGEMENT_ROLES), validateId('moduleId'), controller.getModuleMentorAccess);
+router.post('/modules/:moduleId/mentor-access', requireRole(FACILITY_MANAGEMENT_ROLES), validateId('moduleId'), validate(validator.parseMentorAccessGrant), controller.grantMentorModuleAccess);
+router.delete('/modules/:moduleId/mentor-access/:mentorId', requireRole(FACILITY_MANAGEMENT_ROLES), validateId('moduleId'), validateId('mentorId'), controller.revokeModuleMentorAccess);
+router.get('/modules/:moduleId/mentor-permissions', requireRole(FACILITY_MANAGEMENT_ROLES), validateId('moduleId'), controller.getModuleMentorPermissions);
+router.post('/modules/:moduleId/mentor-permissions', requireRole(FACILITY_MANAGEMENT_ROLES), validateId('moduleId'), validate(validator.parseMentorPermissionGrant), controller.grantModuleMentorPermission);
+router.delete('/modules/:moduleId/mentor-permissions/:mentorId/:permission', requireRole(FACILITY_MANAGEMENT_ROLES), validateId('moduleId'), validateId('mentorId'), validatePermission, controller.revokeModuleMentorPermission);
 router.post('/modules/:moduleId/access', requireRole('mentor'), validateId('moduleId'), validate(validator.parseAccessGrant), controller.grantModuleAccess);
 router.get('/modules/:moduleId/access', requireRole(FACILITY_MANAGEMENT_ROLES), validateId('moduleId'), controller.getModuleAccess);
 router.delete('/modules/:moduleId/access/:menteeId', requireRole([...FACILITY_MANAGEMENT_ROLES, Role.MENTOR]), validateId('moduleId'), validateId('menteeId'), controller.revokeModuleAccess);
@@ -88,7 +88,7 @@ router.get('/quizzes/:quizId/attempts', requireRole('mentee'), validateId('quizI
 
 router.get('/quizzes/:quizId/answer-key', requireRole([Role.FACILITY_ADMIN, Role.MENTOR]), validateId('quizId'), controller.getQuizAnswerKey);
 router.post('/quizzes/:quizId/questions', requireRole(Role.FACILITY_ADMIN), validateId('quizId'), validate(validator.parseQuestion), controller.createQuizQuestion);
-router.get('/quizzes/:quizId/questions', requireRole(Role.FACILITY_ADMIN), validateId('quizId'), controller.listQuizQuestions);
+router.get('/quizzes/:quizId/questions', requireRole([Role.FACILITY_ADMIN, Role.MENTOR]), validateId('quizId'), controller.listQuizQuestions);
 router.put('/quizzes/:quizId/questions/:questionId', requireRole(Role.FACILITY_ADMIN), validateId('quizId'), validateId('questionId'), validate(validator.parseQuestion), controller.updateQuizQuestion);
 router.delete('/quizzes/:quizId/questions/:questionId', requireRole(Role.FACILITY_ADMIN), validateId('quizId'), validateId('questionId'), controller.deleteQuizQuestion);
 

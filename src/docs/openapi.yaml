@@ -1463,6 +1463,90 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/QuizOption'
+    LearningQuizQuestionWrite:
+      type: object
+      required:
+        - prompt
+      properties:
+        prompt:
+          type: string
+          example: Which action is the first priority?
+        questionType:
+          type: string
+          example: single_choice
+        clinicalContext:
+          type: string
+          nullable: true
+          example: Labor ward
+        points:
+          type: number
+          example: 1
+        explanation:
+          type: string
+          nullable: true
+          example: Emergency assessment comes first.
+        orderNumber:
+          type: integer
+          example: 0
+        correctAnswer:
+          type: string
+          enum: [A, B, C, D]
+          example: B
+          description: Letter of the correct choice when using choices A-D.
+        choices:
+          type: object
+          description: A, B, C, and D answer texts. Stored as existing quiz options (A=0, B=1, C=2, D=3).
+          properties:
+            A:
+              type: string
+              example: Delay evaluation
+            B:
+              type: string
+              example: Start emergency assessment
+            C:
+              type: string
+              example: Discharge immediately
+            D:
+              type: string
+              example: Wait for lab results
+          example:
+            A: Delay evaluation
+            B: Start emergency assessment
+            C: Discharge immediately
+            D: Wait for lab results
+        options:
+          type: array
+          description: Alternative to choices. Use label A-D or isCorrect on each option.
+          items:
+            type: object
+            required: [text]
+            properties:
+              text:
+                type: string
+                example: Start emergency assessment
+              isCorrect:
+                type: boolean
+                example: true
+              label:
+                type: string
+                enum: [A, B, C, D]
+                example: B
+              orderNumber:
+                type: integer
+                example: 1
+      example:
+        prompt: Which action is the first priority?
+        questionType: single_choice
+        clinicalContext: Labor ward
+        points: 1
+        explanation: Emergency assessment comes first.
+        orderNumber: 0
+        choices:
+          A: Delay evaluation
+          B: Start emergency assessment
+          C: Discharge immediately
+          D: Wait for lab results
+        correctAnswer: B
     Quiz:
       type: object
       required:
@@ -4444,6 +4528,7 @@ paths:
     post:
       tags: [Learning]
       summary: Create a quiz for a module
+      description: Facility Admin only, limited to modules in the administrator's facility. Mentors cannot create quizzes.
       security:
         - bearerAuth: []
       requestBody:
@@ -4472,6 +4557,72 @@ paths:
                   type: boolean
                 isAuthorized:
                   type: boolean
+                questions:
+                  type: array
+                  description: Optional questions with A-D choices. Existing question and option endpoints remain available.
+                  items:
+                    type: object
+                    required: [prompt]
+                    properties:
+                      prompt:
+                        type: string
+                      questionType:
+                        type: string
+                      clinicalContext:
+                        type: string
+                        nullable: true
+                      points:
+                        type: number
+                      explanation:
+                        type: string
+                        nullable: true
+                      orderNumber:
+                        type: integer
+                      correctAnswer:
+                        type: string
+                        enum: [A, B, C, D]
+                      options:
+                        type: array
+                        items:
+                          type: object
+                          required: [text]
+                          properties:
+                            text:
+                              type: string
+                            isCorrect:
+                              type: boolean
+                            label:
+                              type: string
+                              enum: [A, B, C, D]
+                            orderNumber:
+                              type: integer
+                      choices:
+                        type: object
+                        properties:
+                          A:
+                            type: string
+                          B:
+                            type: string
+                          C:
+                            type: string
+                          D:
+                            type: string
+            example:
+              title: Maternal health knowledge check
+              description: Post-module quiz
+              passScore: 70
+              timeLimitMinutes: 20
+              attemptLimit: 2
+              isPublished: false
+              isAuthorized: false
+              questions:
+                - prompt: Which action is the first priority?
+                  choices:
+                    A: Delay evaluation
+                    B: Start emergency assessment
+                    C: Discharge immediately
+                    D: Wait for lab results
+                  correctAnswer: B
       responses:
         '201':
           $ref: '#/components/responses/LearningCreated'
@@ -4489,6 +4640,7 @@ paths:
     get:
       tags: [Learning]
       summary: Get a quiz for the authenticated mentee
+      description: Mentee only. Use question and option ids from this response when submitting answers. Correct answers are not included.
       security:
         - bearerAuth: []
       responses:
@@ -4505,6 +4657,7 @@ paths:
     patch:
       tags: [Learning]
       summary: Partially update a quiz
+      description: Facility Admin only, limited to quizzes whose module belongs to the administrator's facility.
       security:
         - bearerAuth: []
       requestBody:
@@ -4591,6 +4744,82 @@ paths:
     delete:
       tags: [Learning]
       summary: Revoke a mentor's access to a module
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          $ref: '#/components/responses/LearningAction'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /api/v1/learning/modules/{moduleId}/mentor-permissions:
+    parameters:
+      - $ref: '#/components/parameters/ModuleId'
+    get:
+      tags: [Learning]
+      summary: List mentor permissions for a module
+      description: Available to administrators (System Admin and Facility Admin).
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          $ref: '#/components/responses/LearningList'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    post:
+      tags: [Learning]
+      summary: Grant a mentor permission for a module
+      description: Available to administrators (System Admin and Facility Admin).
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [mentorId, permission]
+              properties:
+                mentorId:
+                  type: integer
+                  minimum: 1
+                permission:
+                  type: string
+                  enum: [learning.resources.view, learning.materials.assign, learning.quiz.answer_key.view]
+      responses:
+        '201':
+          $ref: '#/components/responses/LearningCreated'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /api/v1/learning/modules/{moduleId}/mentor-permissions/{mentorId}/{permission}:
+    parameters:
+      - $ref: '#/components/parameters/ModuleId'
+      - $ref: '#/components/parameters/MentorId'
+      - name: permission
+        in: path
+        required: true
+        schema:
+          type: string
+          enum: [learning.resources.view, learning.materials.assign, learning.quiz.answer_key.view]
+    delete:
+      tags: [Learning]
+      summary: Revoke a mentor permission for a module
+      description: Available to administrators (System Admin and Facility Admin).
       security:
         - bearerAuth: []
       responses:
@@ -4900,12 +5129,33 @@ paths:
           $ref: '#/components/responses/Forbidden'
         '404':
           $ref: '#/components/responses/NotFound'
+  /api/v1/learning/quizzes/{quizId}/answer-key:
+    parameters:
+      - $ref: '#/components/parameters/QuizId'
+    get:
+      tags: [Learning]
+      summary: Get the answer key for a quiz
+      description: Facility Admin for quizzes in their facility. Mentors only if the Facility Admin granted learning.quiz.answer_key.view on the module and the mentor has an active assignment.
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          $ref: '#/components/responses/LearningObject'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
   /api/v1/learning/quizzes/{quizId}/questions:
     parameters:
       - $ref: '#/components/parameters/QuizId'
     get:
       tags: [Learning]
       summary: List questions in a quiz
+      description: Facility Admin for quizzes in their facility. Mentors only if the Facility Admin granted learning.quiz.answer_key.view on the module. Returns question ids and A-D option ids needed to review or submit answers.
       security:
         - bearerAuth: []
       responses:
@@ -4922,6 +5172,7 @@ paths:
     post:
       tags: [Learning]
       summary: Add a question to a quiz
+      description: Facility Admin only. Include choices A-D and correctAnswer, or add options separately.
       security:
         - bearerAuth: []
       requestBody:
@@ -4929,24 +5180,20 @@ paths:
         content:
           application/json:
             schema:
-              type: object
-              required: [prompt]
-              properties:
-                prompt:
-                  type: string
-                questionType:
-                  type: string
-                clinicalContext:
-                  type: string
-                  nullable: true
-                points:
-                  type: number
-                  exclusiveMinimum: 0
-                explanation:
-                  type: string
-                  nullable: true
-                orderNumber:
-                  type: integer
+              $ref: '#/components/schemas/LearningQuizQuestionWrite'
+            example:
+              prompt: Which action is the first priority?
+              questionType: single_choice
+              clinicalContext: Labor ward
+              points: 1
+              explanation: Emergency assessment comes first.
+              orderNumber: 0
+              choices:
+                A: Delay evaluation
+                B: Start emergency assessment
+                C: Discharge immediately
+                D: Wait for lab results
+              correctAnswer: B
       responses:
         '201':
           $ref: '#/components/responses/LearningCreated'
@@ -4965,6 +5212,7 @@ paths:
     put:
       tags: [Learning]
       summary: Replace a quiz question
+      description: Facility Admin only.
       security:
         - bearerAuth: []
       requestBody:
@@ -4972,23 +5220,20 @@ paths:
         content:
           application/json:
             schema:
-              type: object
-              required: [prompt]
-              properties:
-                prompt:
-                  type: string
-                questionType:
-                  type: string
-                clinicalContext:
-                  type: string
-                  nullable: true
-                points:
-                  type: number
-                explanation:
-                  type: string
-                  nullable: true
-                orderNumber:
-                  type: integer
+              $ref: '#/components/schemas/LearningQuizQuestionWrite'
+            example:
+              prompt: Which action is the first priority?
+              questionType: single_choice
+              clinicalContext: Labor ward
+              points: 1
+              explanation: Emergency assessment comes first.
+              orderNumber: 0
+              choices:
+                A: Delay evaluation
+                B: Start emergency assessment
+                C: Discharge immediately
+                D: Wait for lab results
+              correctAnswer: B
       responses:
         '200':
           $ref: '#/components/responses/LearningObject'
@@ -5022,6 +5267,7 @@ paths:
     post:
       tags: [Learning]
       summary: Add an answer option to a quiz question
+      description: Facility Admin only. label A-D maps to existing option order.
       security:
         - bearerAuth: []
       requestBody:
@@ -5036,6 +5282,10 @@ paths:
                   type: string
                 isCorrect:
                   type: boolean
+                label:
+                  type: string
+                  enum: [A, B, C, D]
+                  description: Maps to orderNumber 0-3 using existing option order.
                 orderNumber:
                   type: integer
       responses:

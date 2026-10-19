@@ -346,6 +346,10 @@ test('learning routes expose the required aliases and omit the undefined hint en
     'GET /modules/:moduleId/mentor-access',
     'POST /modules/:moduleId/mentor-access',
     'DELETE /modules/:moduleId/mentor-access/:mentorId',
+    'GET /modules/:moduleId/mentor-permissions',
+    'POST /modules/:moduleId/mentor-permissions',
+    'DELETE /modules/:moduleId/mentor-permissions/:mentorId/:permission',
+    'GET /quizzes/:quizId/answer-key',
     'POST /modules/:moduleId/access',
     'POST /modules/:moduleId/quizzes',
     'PATCH /quizzes/:quizId',
@@ -361,6 +365,65 @@ test('learning routes expose the required aliases and omit the undefined hint en
   ];
   for (const route of expected) assert.ok(registered.includes(route), `${route} should be registered`);
   assert.ok(!registered.some((route) => route.includes('/hint')));
+});
+
+test('facility admins manage quizzes and mentors need answer-key permission to view questions', async () => {
+  const originals = {
+    getQuizById: repository.getQuizById,
+    getModuleById: repository.getModuleById,
+    isModuleInFacilityScope: repository.isModuleInFacilityScope,
+    listQuizQuestions: repository.listQuizQuestions,
+    hasActiveMentorAssignment: repository.hasActiveMentorAssignment,
+    hasModuleMentorPermission: repository.hasModuleMentorPermission,
+    hasModuleMentorAccess: repository.hasModuleMentorAccess,
+  };
+  const quiz = {
+    id: 4,
+    module_id: 3,
+    status: 'published',
+    is_published: true,
+    is_authorized: true,
+    questions: [],
+  };
+  repository.getQuizById = async () => quiz;
+  repository.getModuleById = async () => ({ id: 3, status: 'published', is_published: true, is_authorized: true });
+  repository.isModuleInFacilityScope = async () => true;
+  repository.listQuizQuestions = async () => [{ id: 9, prompt: 'First priority?' }];
+  repository.hasActiveMentorAssignment = async () => true;
+  repository.hasModuleMentorPermission = async ({ permission }) => permission === 'learning.quiz.answer_key.view';
+  repository.hasModuleMentorAccess = async () => false;
+  try {
+    const questions = await service.listQuizQuestions(4, { id: 7, role: 'facility_admin', facility_id: 1 });
+    assert.equal(questions[0].id, 9);
+    await service.listQuizQuestions(4, { id: 8, role: 'mentor' });
+    await assert.rejects(
+      service.createQuiz({ moduleId: 3, title: 'Check', actor: { id: 1, role: 'admin' } }),
+      { statusCode: 403 }
+    );
+    repository.hasModuleMentorPermission = async () => false;
+    await assert.rejects(
+      service.listQuizQuestions(4, { id: 8, role: 'mentor' }),
+      { statusCode: 403 }
+    );
+  } finally {
+    Object.assign(repository, originals);
+  }
+});
+
+test('quiz create can include existing A-D choices without changing option storage', () => {
+  const quiz = validator.parseQuiz({
+    title: 'Check',
+    questions: [{
+      prompt: 'First priority?',
+      choices: { A: 'Wait', B: 'Assess', C: 'Discharge', D: 'Delay' },
+      correctAnswer: 'B',
+    }],
+  });
+  assert.equal(quiz.questions[0].options.length, 4);
+  assert.deepEqual(quiz.questions[0].options.map((option) => option.orderNumber), [0, 1, 2, 3]);
+  assert.equal(quiz.questions[0].options[1].isCorrect, true);
+  assert.equal(validator.parseOption({ text: 'Assess', label: 'B', isCorrect: true }).orderNumber, 1);
+  assert.equal(validator.parseQuiz({ title: 'Empty quiz' }).questions, undefined);
 });
 
 test('learning validators preserve false booleans and reject malformed answer IDs', () => {
@@ -682,3 +745,54 @@ test('learning mentor-access migration creates indexed mentor grants without alt
     await sequelize.close();
   }
 });
+
+test('learning mentor-permissions migration creates indexed permission grants and migrates legacy access', async () => {
+  const { Sequelize, DataTypes } = require('sequelize');
+  const migration = require('../../src/database/migrations/20261018100000-learning-module-mentor-permissions');
+  const sequelize = new Sequelize({ dialect: 'sqlite', storage: ':memory:', logging: false });
+  const queryInterface = sequelize.getQueryInterface();
+  const idColumn = { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true };
+
+  try {
+    await queryInterface.createTable('users', { id: idColumn });
+    await queryInterface.createTable('learning_modules', { id: idColumn, title: DataTypes.STRING });
+    await queryInterface.createTable('learning_module_mentor_access', {
+      id: idColumn,
+      module_id: DataTypes.INTEGER,
+      mentor_id: DataTypes.INTEGER,
+      granted_by: DataTypes.INTEGER,
+      granted_at: DataTypes.DATE,
+      revoked_at: DataTypes.DATE,
+    });
+    await queryInterface.bulkInsert('learning_modules', [{ title: 'Existing module' }]);
+    await queryInterface.bulkInsert('learning_module_mentor_access', [{
+      module_id: 1,
+      mentor_id: 5,
+      granted_by: 2,
+      granted_at: new Date(),
+      revoked_at: null,
+    }]);
+
+    await migration.up(queryInterface, DataTypes);
+
+    const columns = await queryInterface.describeTable('learning_module_mentor_permissions');
+    assert.ok(columns.module_id);
+    assert.ok(columns.mentor_id);
+    assert.ok(columns.permission);
+    assert.ok(columns.granted_by);
+    assert.ok(columns.revoked_by);
+    assert.ok(columns.revoked_at);
+
+    const migrated = await sequelize.query(
+      'SELECT module_id, mentor_id, permission, granted_by FROM learning_module_mentor_permissions WHERE module_id = 1',
+      { type: Sequelize.QueryTypes.SELECT }
+    );
+    assert.equal(migrated.length, 1);
+    assert.equal(migrated[0].mentor_id, 5);
+    assert.equal(migrated[0].permission, 'learning.resources.view');
+    await assert.rejects(migration.down(queryInterface, DataTypes), /irreversible/);
+  } finally {
+    await sequelize.close();
+  }
+});
+

@@ -1,3 +1,4 @@
+
 const { Op } = require('sequelize');
 const models = require('../models');
 const AppError = require('../errors/app-error');
@@ -34,18 +35,31 @@ const listModules = async ({ status, thematicAreaId, createdBy, publishedOnly = 
 };
 
 const listModuleIdsForFacility = async (facilityId) => {
-	if (!facilityId) return [];
+	const adminUsers = await models.User.findAll({
+		where: { role: 'admin' },
+		attributes: ['id'],
+	});
+	const adminIds = adminUsers.map((entry) => entry.id);
+	const adminModules = adminIds.length
+		? await models.LearningModule.findAll({
+			where: { created_by: { [Op.in]: adminIds } },
+			attributes: ['id'],
+		})
+		: [];
+	const adminModuleIds = adminModules.map((entry) => entry.id);
+
+	if (!facilityId) return adminModuleIds;
 	const modules = await models.LearningModule.findAll({
 		where: { thematic_area_id: { [Op.ne]: null } },
 		attributes: ['id', 'thematic_area_id'],
 	});
-	if (!modules.length) return [];
+	if (!modules.length) return adminModuleIds;
 	const thematicAreaIds = [...new Set(modules.map((module) => module.thematic_area_id))];
 	const cycleThematicAreas = await models.CycleThematicArea.findAll({
 		where: { thematic_area_id: { [Op.in]: thematicAreaIds } },
 		attributes: ['cycle_id', 'thematic_area_id'],
 	});
-	if (!cycleThematicAreas.length) return [];
+	if (!cycleThematicAreas.length) return adminModuleIds;
 	const cycleIds = [...new Set(cycleThematicAreas.map((entry) => entry.cycle_id))];
 	const facilityCycles = await models.CycleFacility.findAll({
 		where: { facility_id: facilityId, cycle_id: { [Op.in]: cycleIds } },
@@ -55,14 +69,22 @@ const listModuleIdsForFacility = async (facilityId) => {
 	const scopedThematicAreaIds = new Set(cycleThematicAreas
 		.filter((entry) => facilityCycleIds.has(Number(entry.cycle_id)))
 		.map((entry) => Number(entry.thematic_area_id)));
-	return modules
+	const facilityScopedIds = modules
 		.filter((module) => scopedThematicAreaIds.has(Number(module.thematic_area_id)))
 		.map((module) => module.id);
+	return [...new Set([...adminModuleIds, ...facilityScopedIds])];
 };
 
 const isModuleInFacilityScope = async ({ moduleId, facilityId }) => {
-	const module = await models.LearningModule.findByPk(moduleId, { attributes: ['thematic_area_id'] });
-	if (!module || !module.thematic_area_id || !facilityId) return false;
+	const module = await models.LearningModule.findByPk(moduleId, { attributes: ['thematic_area_id', 'created_by'] });
+	if (!module) return false;
+	if (module.created_by) {
+		const creator = await models.User.findByPk(module.created_by, { attributes: ['role'] });
+		if (creator && String(creator.role).toLowerCase() === 'admin') {
+			return true;
+		}
+	}
+	if (!module.thematic_area_id || !facilityId) return false;
 	return isThematicAreaInFacilityScope({
 		thematicAreaId: module.thematic_area_id,
 		facilityId,
@@ -280,23 +302,52 @@ const grantModuleAccess = async ({ menteeId, moduleId, mentorId }) => {
 };
 
 const grantMentorModuleAccess = async ({ moduleId, mentorId, grantedBy }) => {
-	return grantModuleMentorPermission({
+	const grant = await grantModuleMentorPermission({
 		moduleId,
 		mentorId,
 		permission: LearningPermission.RESOURCES_VIEW,
 		grantedBy,
 	});
+	if (models.LearningModuleMentorAccess) {
+		const [legacy] = await models.LearningModuleMentorAccess.findOrCreate({
+			where: { module_id: moduleId, mentor_id: mentorId },
+			defaults: {
+				module_id: moduleId,
+				mentor_id: mentorId,
+				granted_by: grantedBy,
+				granted_at: new Date(),
+				revoked_at: null,
+			},
+		});
+		if (legacy.revoked_at) {
+			await legacy.update({ revoked_at: null });
+		}
+	}
+	return grant;
 };
 
-const listModuleMentorAccess = async (moduleId) => models.LearningModuleMentorPermission.findAll({
-	where: {
-		module_id: moduleId,
-		permission: LearningPermission.RESOURCES_VIEW,
-		revoked_at: null,
-	},
-	include: [{ model: models.User, as: 'mentor', attributes: ['id', 'full_name', 'email'] }],
-	order: [['id', 'ASC']],
-});
+const listModuleMentorAccess = async (moduleId) => {
+	const permissions = await models.LearningModuleMentorPermission.findAll({
+		where: {
+			module_id: moduleId,
+			permission: LearningPermission.RESOURCES_VIEW,
+			revoked_at: null,
+		},
+		include: [{ model: models.User, as: 'mentor', attributes: ['id', 'full_name', 'email'] }],
+		order: [['id', 'ASC']],
+	});
+	if (permissions.length > 0 || !models.LearningModuleMentorAccess) {
+		return permissions;
+	}
+	return models.LearningModuleMentorAccess.findAll({
+		where: {
+			module_id: moduleId,
+			revoked_at: null,
+		},
+		include: [{ model: models.User, as: 'mentor', attributes: ['id', 'full_name', 'email'] }],
+		order: [['id', 'ASC']],
+	});
+};
 
 const listMentorModuleIds = async (mentorId) => {
 	const grants = await models.LearningModuleMentorPermission.findAll({
@@ -307,25 +358,57 @@ const listMentorModuleIds = async (mentorId) => {
 		},
 		attributes: ['module_id'],
 	});
-	return grants.map((grant) => grant.module_id);
+	const moduleIds = grants.map((grant) => grant.module_id);
+	if (models.LearningModuleMentorAccess) {
+		const legacyGrants = await models.LearningModuleMentorAccess.findAll({
+			where: {
+				mentor_id: mentorId,
+				revoked_at: null,
+			},
+			attributes: ['module_id'],
+		});
+		const legacyIds = legacyGrants.map((grant) => grant.module_id);
+		return [...new Set([...moduleIds, ...legacyIds])];
+	}
+	return moduleIds;
 };
 
-const hasModuleMentorAccess = async ({ mentorId, moduleId }) => Boolean(await models.LearningModuleMentorPermission.findOne({
-	where: {
-		mentor_id: mentorId,
-		module_id: moduleId,
-		permission: LearningPermission.RESOURCES_VIEW,
-		revoked_at: null,
-	},
-	attributes: ['id'],
-}));
+const hasModuleMentorAccess = async ({ mentorId, moduleId }) => {
+	const permissionRecord = await models.LearningModuleMentorPermission.findOne({
+		where: {
+			mentor_id: mentorId,
+			module_id: moduleId,
+			permission: LearningPermission.RESOURCES_VIEW,
+			revoked_at: null,
+		},
+		attributes: ['id'],
+	});
+	if (permissionRecord) return true;
+	if (models.LearningModuleMentorAccess) {
+		const accessRecord = await models.LearningModuleMentorAccess.findOne({
+			where: {
+				mentor_id: mentorId,
+				module_id: moduleId,
+				revoked_at: null,
+			},
+			attributes: ['id'],
+		});
+		return Boolean(accessRecord);
+	}
+	return false;
+};
 
-const hasModuleMentorPermission = async ({ mentorId, moduleId, permission }) => Boolean(
-	await models.LearningModuleMentorPermission.findOne({
+const hasModuleMentorPermission = async ({ mentorId, moduleId, permission }) => {
+	const permissionRecord = await models.LearningModuleMentorPermission.findOne({
 		where: { mentor_id: mentorId, module_id: moduleId, permission, revoked_at: null },
 		attributes: ['id'],
-	})
-);
+	});
+	if (permissionRecord) return true;
+	if (permission === LearningPermission.RESOURCES_VIEW) {
+		return hasModuleMentorAccess({ mentorId, moduleId });
+	}
+	return false;
+};
 
 const grantModuleMentorPermission = async ({ moduleId, mentorId, permission, grantedBy }) => (
 	models.sequelize.transaction(async (transaction) => {
@@ -362,11 +445,19 @@ const revokeModuleMentorPermission = async ({ mentorId, moduleId, permission, re
 };
 
 const revokeModuleMentorAccess = async ({ mentorId, moduleId, revokedBy }) => models.sequelize.transaction(async (transaction) => {
+	const now = new Date();
 	const [count] = await models.LearningModuleMentorPermission.update(
-		{ revoked_by: revokedBy, revoked_at: new Date() },
+		{ revoked_by: revokedBy, revoked_at: now },
 		{ where: { mentor_id: mentorId, module_id: moduleId, revoked_at: null }, transaction }
 	);
-	if (!count) return false;
+	let legacyCount = 0;
+	if (models.LearningModuleMentorAccess) {
+		[legacyCount] = await models.LearningModuleMentorAccess.update(
+			{ revoked_at: now },
+			{ where: { mentor_id: mentorId, module_id: moduleId, revoked_at: null }, transaction }
+		);
+	}
+	if (!count && !legacyCount) return false;
 	await models.LearningModuleProgress.update(
 		{ status: 'access_revoked' },
 		{
@@ -523,16 +614,22 @@ const getQuizById = async (quizId, { includeCorrectAnswers = false, transaction 
 	}],
 });
 
-const createQuiz = async (moduleId, payload, createdBy) => models.Quiz.create({
-	module_id: moduleId,
-	title: payload.title,
-	description: payload.description || null,
-	pass_score: payload.passScore ?? 0,
-	time_limit_minutes: payload.timeLimitMinutes ?? 0,
-	attempt_limit: payload.attemptLimit ?? 1,
-	is_published: payload.isPublished ?? false,
-	is_authorized: payload.isAuthorized ?? false,
-	created_by: createdBy,
+const createQuiz = async (moduleId, payload, createdBy) => models.sequelize.transaction(async (transaction) => {
+	const quiz = await models.Quiz.create({
+		module_id: moduleId,
+		title: payload.title,
+		description: payload.description || null,
+		pass_score: payload.passScore ?? 0,
+		time_limit_minutes: payload.timeLimitMinutes ?? 0,
+		attempt_limit: payload.attemptLimit ?? 1,
+		is_published: payload.isPublished ?? false,
+		is_authorized: payload.isAuthorized ?? false,
+		created_by: createdBy,
+	}, { transaction });
+	for (const question of payload.questions || []) {
+		await createQuizQuestion(quiz.id, question, { transaction });
+	}
+	return getQuizById(quiz.id, { includeCorrectAnswers: true, transaction });
 });
 
 const updateQuiz = async (quizId, payload = {}) => {
@@ -552,8 +649,9 @@ const updateQuiz = async (quizId, payload = {}) => {
 
 const getQuizForLearner = async (quizId) => getQuizById(quizId);
 
-const getQuizQuestion = async (questionId) => models.QuizQuestion.findByPk(questionId, {
-	include: [{ model: models.QuizQuestionOption, as: 'options' }],
+const getQuizQuestion = async (questionId, { transaction } = {}) => models.QuizQuestion.findByPk(questionId, {
+	include: [{ model: models.QuizQuestionOption, as: 'options', separate: true, order: [['order_number', 'ASC'], ['id', 'ASC']] }],
+	transaction,
 });
 
 const listQuizQuestions = async (quizId) => models.QuizQuestion.findAll({
@@ -563,14 +661,15 @@ const listQuizQuestions = async (quizId) => models.QuizQuestion.findAll({
 });
 
 const assertQuizHasNoAttempts = async (quizId) => {
-	if (await models.QuizAttempt.count({ where: { quiz_id: quizId } })) {
+	const questionCount = await models.QuizQuestion.count({ where: { quiz_id: quizId } });
+	if (questionCount > 0 && await models.QuizAttempt.count({ where: { quiz_id: quizId } })) {
 		throw new AppError('Quiz questions cannot be changed after learner attempts exist.', 409, 'CONFLICT');
 	}
 };
 
-const createQuizQuestion = async (quizId, payload) => {
+const createQuizQuestion = async (quizId, payload, { transaction } = {}) => {
 	await assertQuizHasNoAttempts(quizId);
-	return models.QuizQuestion.create({
+	const question = await models.QuizQuestion.create({
 		quiz_id: quizId,
 		prompt: payload.prompt,
 		question_type: payload.questionType,
@@ -578,7 +677,11 @@ const createQuizQuestion = async (quizId, payload) => {
 		points: payload.points,
 		explanation: payload.explanation,
 		order_number: payload.orderNumber,
-	});
+	}, { transaction });
+	for (const option of payload.options || []) {
+		await createQuestionOption(question.id, option, { transaction });
+	}
+	return getQuizQuestion(question.id, { transaction });
 };
 
 const updateQuizQuestion = async (questionId, payload) => {
@@ -604,8 +707,8 @@ const deleteQuizQuestion = async (questionId) => {
 	await question.destroy();
 };
 
-const createQuestionOption = async (questionId, payload) => {
-	const question = await models.QuizQuestion.findByPk(questionId);
+const createQuestionOption = async (questionId, payload, { transaction } = {}) => {
+	const question = await models.QuizQuestion.findByPk(questionId, { transaction });
 	if (!question) throw new AppError('Quiz question not found.', 404, 'NOT_FOUND');
 	await assertQuizHasNoAttempts(question.quiz_id);
 	return models.QuizQuestionOption.create({
@@ -613,7 +716,7 @@ const createQuestionOption = async (questionId, payload) => {
 		text: payload.text,
 		is_correct: payload.isCorrect,
 		order_number: payload.orderNumber,
-	});
+	}, { transaction });
 };
 
 const updateQuestionOption = async (optionId, payload) => {
@@ -680,7 +783,21 @@ const submitQuiz = async ({ quizId, menteeId, answers = [] }) => {
 		const answerRecords = [];
 		for (const answer of answers) {
 			const question = questionMap.get(Number(answer.questionId));
-			if (!question) throw new AppError('An answer references a question outside this quiz.', 400, 'VALIDATION_ERROR');
+			if (!question) {
+				const validIds = Array.from(questionMap.keys());
+				throw new AppError(
+					'An answer references a question outside this quiz.',
+					400,
+					'VALIDATION_ERROR',
+					[{
+						field: 'answers',
+						questionId: answer.questionId,
+						message: validIds.length
+							? `Question ID ${answer.questionId} does not belong to quiz ${quizId}. Valid question IDs are: ${validIds.join(', ')}.`
+							: `Quiz ${quizId} has no questions configured.`
+					}]
+				);
+			}
 			if (answeredIds.has(Number(question.id))) throw new AppError('Each quiz question may only be answered once.', 400, 'VALIDATION_ERROR');
 			answeredIds.add(Number(question.id));
 			const selectedOptionIds = [...new Set([
@@ -689,7 +806,19 @@ const submitQuiz = async ({ quizId, menteeId, answers = [] }) => {
 			].map(Number))];
 			const optionIds = new Set((question.options || []).map((option) => Number(option.id)));
 			if (selectedOptionIds.some((id) => !optionIds.has(id))) {
-				throw new AppError('A selected option does not belong to its question.', 400, 'VALIDATION_ERROR');
+				const invalidOptionIds = selectedOptionIds.filter((id) => !optionIds.has(id));
+				throw new AppError(
+					'A selected option does not belong to its question.',
+					400,
+					'VALIDATION_ERROR',
+					[{
+						field: 'answers',
+						questionId: question.id,
+						invalidOptionIds,
+						validOptionIds: Array.from(optionIds),
+						message: `Selected option(s) [${invalidOptionIds.join(', ')}] do not belong to question ${question.id}.`
+					}]
+				);
 			}
 			const correctOptionIds = (question.options || []).filter((option) => option.is_correct).map((option) => Number(option.id));
 			const isCorrect = selectedOptionIds.length > 0
@@ -752,24 +881,30 @@ const listQuizAttempts = async ({ quizId, menteeId, completedOnly = false }) => 
 
 const hasActiveMentorAssignment = async ({ mentorId, menteeId, moduleId }) => {
 	const mentor = await models.User.findByPk(mentorId, { attributes: ['id', 'role', 'facility_id'] });
-	if (!mentor || mentor.role !== 'mentor' || !mentor.facility_id) return false;
+	if (!mentor || mentor.role !== 'mentor') return false;
 	const where = {
 		mentor_id: mentorId,
-		facility_id: mentor.facility_id,
 		status: { [Op.in]: ACTIVE_ASSIGNMENT_STATUSES },
 		unassigned_at: null,
 	};
+	if (mentor.facility_id) {
+		where.facility_id = mentor.facility_id;
+	}
 	if (menteeId) {
 		const mentee = await models.User.findByPk(menteeId, { attributes: ['id', 'role', 'facility_id'] });
-		if (!mentee || mentee.role !== 'mentee' || Number(mentee.facility_id) !== Number(mentor.facility_id)) {
+		if (!mentee || mentee.role !== 'mentee') {
+			return false;
+		}
+		if (mentor.facility_id && mentee.facility_id && Number(mentee.facility_id) !== Number(mentor.facility_id)) {
 			return false;
 		}
 		where.mentee_id = menteeId;
 	}
 	if (moduleId) {
 		const module = await models.LearningModule.findByPk(moduleId, { attributes: ['thematic_area_id'] });
-		if (!module || !module.thematic_area_id) return false;
-		where.thematic_area_id = module.thematic_area_id;
+		if (module?.thematic_area_id) {
+			where.thematic_area_id = module.thematic_area_id;
+		}
 	}
 	return Boolean(await models.Assignment.findOne({ where, attributes: ['id'] }));
 };

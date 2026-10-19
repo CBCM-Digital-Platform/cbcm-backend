@@ -74,7 +74,7 @@ const parseQuiz = (body = {}) => {
 	if (!Number.isSafeInteger(attemptLimit) || attemptLimit < 0) {
 		throw invalid('attemptLimit must be a non-negative integer.');
 	}
-	return {
+	const quiz = {
 		title,
 		description: typeof body.description === 'string' ? body.description.trim() : null,
 		passScore,
@@ -83,6 +83,9 @@ const parseQuiz = (body = {}) => {
 		isPublished: parseBoolean(body.isPublished ?? body.is_published, false, 'isPublished'),
 		isAuthorized: parseBoolean(body.isAuthorized ?? body.is_authorized, false, 'isAuthorized'),
 	};
+	const questions = parseNestedQuestions(body);
+	if (questions) quiz.questions = questions;
+	return quiz;
 };
 
 const parsePartial = (parser, body, aliases) => {
@@ -118,15 +121,19 @@ const parseContentPatch = (body = {}) => parsePartial(parseContent, body, {
 	durationMinutes: ['durationMinutes', 'duration_minutes'],
 });
 
-const parseQuizPatch = (body = {}) => parsePartial(parseQuiz, body, {
-	title: ['title'],
-	description: ['description'],
-	passScore: ['passScore', 'pass_score'],
-	timeLimitMinutes: ['timeLimitMinutes', 'time_limit_minutes'],
-	attemptLimit: ['attemptLimit', 'attempt_limit'],
-	isPublished: ['isPublished', 'is_published'],
-	isAuthorized: ['isAuthorized', 'is_authorized'],
-});
+const parseQuizPatch = (body = {}) => {
+	const parsed = parsePartial(parseQuiz, body, {
+		title: ['title'],
+		description: ['description'],
+		passScore: ['passScore', 'pass_score'],
+		timeLimitMinutes: ['timeLimitMinutes', 'time_limit_minutes'],
+		attemptLimit: ['attemptLimit', 'attempt_limit'],
+		isPublished: ['isPublished', 'is_published'],
+		isAuthorized: ['isAuthorized', 'is_authorized'],
+	});
+	delete parsed.questions;
+	return parsed;
+};
 
 const parseAccessGrant = (body = {}) => {
 	const menteeId = Number(body.menteeId ?? body.mentee_id ?? body.userId ?? body.user_id ?? null);
@@ -190,6 +197,70 @@ const parseQuizSubmission = (body = {}) => {
 	};
 };
 
+const CHOICE_LABELS = ['A', 'B', 'C', 'D'];
+
+const parseChoiceLabel = (value, field = 'label') => {
+	const label = String(value || '').trim().toUpperCase();
+	const orderNumber = CHOICE_LABELS.indexOf(label);
+	if (orderNumber < 0) throw invalid(`${field} must be one of A, B, C, or D.`);
+	return { label, orderNumber };
+};
+
+const parseCorrectChoiceLabels = (body = {}) => {
+	const raw = body.correctAnswer ?? body.correct_answer ?? body.correctAnswers ?? body.correct_answers
+		?? body.correctOption ?? body.correct_option;
+	if (raw == null || raw === '') return new Set();
+	const values = Array.isArray(raw) ? raw : [raw];
+	return new Set(values.map((value) => parseChoiceLabel(value, 'correctAnswer').label));
+};
+
+const parseOption = (body = {}, fallbackOrderNumber = 0) => {
+	const text = typeof body.text === 'string' ? body.text.trim() : '';
+	if (!text) throw invalid('text is required.');
+	const hasLabel = body.label != null || body.choice != null;
+	const labelInfo = hasLabel ? parseChoiceLabel(body.label ?? body.choice) : null;
+	const orderNumber = Number(body.orderNumber ?? body.order_number ?? labelInfo?.orderNumber ?? fallbackOrderNumber);
+	if (!Number.isSafeInteger(orderNumber) || orderNumber < 0) throw invalid('orderNumber must be a non-negative integer.');
+	return {
+		text,
+		isCorrect: parseBoolean(body.isCorrect ?? body.is_correct, false, 'isCorrect'),
+		orderNumber,
+	};
+};
+
+const parseQuestionOptions = (body = {}) => {
+	if (Array.isArray(body.options)) {
+		return body.options.map((option, index) => parseOption(option || {}, index));
+	}
+	const choices = body.choices ?? body.abcd;
+	if (!choices) return null;
+	const correctLabels = parseCorrectChoiceLabels(body);
+	if (Array.isArray(choices)) {
+		return choices.map((choice, index) => {
+			if (choice && typeof choice === 'object' && !Array.isArray(choice)) {
+				return parseOption(choice, index);
+			}
+			const label = CHOICE_LABELS[index];
+			if (!label) throw invalid('A question can have at most four choices (A, B, C, D).');
+			return parseOption({
+				text: choice,
+				label,
+				isCorrect: correctLabels.has(label),
+			}, index);
+		});
+	}
+	if (typeof choices === 'object') {
+		return CHOICE_LABELS
+			.filter((label) => choices[label] != null || choices[label.toLowerCase()] != null)
+			.map((label) => parseOption({
+				text: String(choices[label] ?? choices[label.toLowerCase()]),
+				label,
+				isCorrect: correctLabels.has(label),
+			}));
+	}
+	throw invalid('choices must be an object or an array.');
+};
+
 const parseQuestion = (body = {}) => {
 	const prompt = typeof body.prompt === 'string' ? body.prompt.trim() : '';
 	if (!prompt) throw invalid('prompt is required.');
@@ -199,7 +270,7 @@ const parseQuestion = (body = {}) => {
 	if (!Number.isFinite(points) || points <= 0) throw invalid('points must be a positive number.');
 	if (!Number.isSafeInteger(orderNumber) || orderNumber < 0) throw invalid('orderNumber must be a non-negative integer.');
 	if (typeof questionType !== 'string' || !questionType.trim()) throw invalid('questionType must be a non-empty string.');
-	return {
+	const question = {
 		prompt,
 		questionType,
 		clinicalContext: body.clinicalContext ?? body.clinical_context ?? null,
@@ -207,18 +278,25 @@ const parseQuestion = (body = {}) => {
 		explanation: body.explanation ?? null,
 		orderNumber,
 	};
+	const options = parseQuestionOptions(body);
+	if (options) {
+		if (options.length < 2) throw invalid('A question must include at least two choices.');
+		if (options.length > CHOICE_LABELS.length) throw invalid('A question can have at most four choices (A, B, C, D).');
+		if (!options.some((option) => option.isCorrect)) {
+			throw invalid('At least one choice must be marked correct.');
+		}
+		question.options = options;
+	}
+	return question;
 };
 
-const parseOption = (body = {}) => {
-	const text = typeof body.text === 'string' ? body.text.trim() : '';
-	if (!text) throw invalid('text is required.');
-	const orderNumber = Number(body.orderNumber ?? body.order_number ?? 0);
-	if (!Number.isSafeInteger(orderNumber) || orderNumber < 0) throw invalid('orderNumber must be a non-negative integer.');
-	return {
-		text,
-		isCorrect: parseBoolean(body.isCorrect ?? body.is_correct, false, 'isCorrect'),
-		orderNumber,
-	};
+const parseNestedQuestions = (body = {}) => {
+	if (body.questions == null) return null;
+	if (!Array.isArray(body.questions)) throw invalid('questions must be an array.');
+	return body.questions.map((question, index) => parseQuestion({
+		...(question || {}),
+		orderNumber: question?.orderNumber ?? question?.order_number ?? index,
+	}));
 };
 
 module.exports = {
