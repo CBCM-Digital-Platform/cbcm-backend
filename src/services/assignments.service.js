@@ -92,14 +92,14 @@ async function createAssignment(payload, actor) {
 	console.log('Mentor found:', mentor ? mentor.id : null);
 	if (!mentor) throw new AppError('Mentor was not found.', 404, 'MENTOR_NOT_FOUND');
 	if (mentor.role !== 'mentor') throw new AppError('Selected user is not a mentor.', 400, 'INVALID_ROLE');
-	if (mentor.status !== 'active') throw new AppError('Mentor account is not active.', 400, 'USER_INACTIVE');
+	if (mentor.status && mentor.status !== 'active') throw new AppError('Mentor account is not active.', 400, 'USER_INACTIVE');
 
 	// Validate mentee
 	const mentee = await User.findByPk(mentee_id);
 	console.log('Mentee found:', mentee ? mentee.id : null);
 	if (!mentee) throw new AppError('Mentee was not found.', 404, 'MENTEE_NOT_FOUND');
 	if (mentee.role !== 'mentee') throw new AppError('Selected user is not a mentee.', 400, 'INVALID_ROLE');
-	if (mentee.status !== 'active') throw new AppError('Mentee account is not active.', 400, 'USER_INACTIVE');
+	if (mentee.status && mentee.status !== 'active') throw new AppError('Mentee account is not active.', 400, 'USER_INACTIVE');
 
 	// Validate facility
 	const facility = await Facility.findByPk(facility_id);
@@ -118,13 +118,13 @@ async function createAssignment(payload, actor) {
 
 	// Validate mentee's facility matches assignment facility
 	console.log('Mentee facility_id:', mentee.facility_id, 'Assignment facility_id:', facility_id);
-	if (mentee.facility_id !== facility_id) {
+	if (mentee.facility_id && mentee.facility_id !== facility_id) {
 		throw new AppError('Mentee must belong to the assignment facility.', 400, 'MENTEE_FACILITY_MISMATCH');
 	}
 
 	// Validate mentor's facility matches assignment facility
 	console.log('Mentor facility_id:', mentor.facility_id, 'Assignment facility_id:', facility_id);
-	if (mentor.facility_id !== facility_id) {
+	if (mentor.facility_id && mentor.facility_id !== facility_id) {
 		throw new AppError('Mentor must belong to the assignment facility.', 400, 'MENTOR_FACILITY_MISMATCH');
 	}
 
