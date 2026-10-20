@@ -40,11 +40,11 @@ async function count(where = {}) {
 async function findWithIncludes(id) {
 	return Assignment.findByPk(id, {
 		include: [
-			{ model: User, as: 'mentor', attributes: ['id', 'full_name', 'email', 'role', 'facility_id'] },
-			{ model: User, as: 'mentee', attributes: ['id', 'full_name', 'email', 'role', 'facility_id'] },
-			{ model: Facility, as: 'facility', attributes: ['id', 'name', 'type', 'level'] },
-			{ model: MentorshipCycle, as: 'cycle', attributes: ['id', 'name', 'status', 'start_date', 'end_date'] },
-			{ model: ThematicArea, as: 'thematicArea', attributes: ['id', 'code', 'name'] },
+			{ model: User, as: 'mentor', attributes: ['id', 'full_name', 'email', 'role', 'facility_id'], required: false },
+			{ model: User, as: 'mentee', attributes: ['id', 'full_name', 'email', 'role', 'facility_id'], required: false },
+			{ model: Facility, as: 'facility', attributes: ['id', 'name', 'type', 'level'], required: false },
+			{ model: MentorshipCycle, as: 'cycle', attributes: ['id', 'name', 'status', 'start_date', 'end_date'], required: false },
+			{ model: ThematicArea, as: 'thematicArea', attributes: ['id', 'code', 'name'], required: false },
 		],
 	});
 }
@@ -53,11 +53,11 @@ async function findManyWithIncludes(where, options = {}) {
 	return Assignment.findAll({
 		where,
 		include: [
-			{ model: User, as: 'mentor', attributes: ['id', 'full_name', 'email', 'role', 'facility_id'] },
-			{ model: User, as: 'mentee', attributes: ['id', 'full_name', 'email', 'role', 'facility_id'] },
-			{ model: Facility, as: 'facility', attributes: ['id', 'name', 'type', 'level'] },
-			{ model: MentorshipCycle, as: 'cycle', attributes: ['id', 'name', 'status', 'start_date', 'end_date'] },
-			{ model: ThematicArea, as: 'thematicArea', attributes: ['id', 'code', 'name'] },
+			{ model: User, as: 'mentor', attributes: ['id', 'full_name', 'email', 'role', 'facility_id'], required: false },
+			{ model: User, as: 'mentee', attributes: ['id', 'full_name', 'email', 'role', 'facility_id'], required: false },
+			{ model: Facility, as: 'facility', attributes: ['id', 'name', 'type', 'level'], required: false },
+			{ model: MentorshipCycle, as: 'cycle', attributes: ['id', 'name', 'status', 'start_date', 'end_date'], required: false },
+			{ model: ThematicArea, as: 'thematicArea', attributes: ['id', 'code', 'name'], required: false },
 		],
 		...options,
 	});
