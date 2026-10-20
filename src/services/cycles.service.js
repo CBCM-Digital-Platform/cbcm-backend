@@ -155,7 +155,7 @@ async function removeFacility(cycleId, facilityId, actor) {
 		throw new AppError('You do not have permission to remove this facility.', 403, 'FORBIDDEN');
 	}
 
-	const removed = await repository.removeFacilityAssignment(cycleId, facilityId);
+	const removed = await sequelize.transaction((transaction) => repository.removeFacilityAssignment(cycleId, facilityId, transaction));
 	if (!removed) throw new AppError('Facility assignment was not found for this cycle.', 404, 'CYCLE_FACILITY_NOT_FOUND');
 	return { cycle_id: Number(cycleId), facility_id: Number(facilityId), removed: true };
 }
@@ -190,7 +190,7 @@ async function assignThematicArea(cycleId, thematicAreaId, actorId) {
 
 async function removeThematicArea(cycleId, thematicAreaId) {
 	await requireCycle(cycleId);
-	const removed = await repository.removeThematicAreaAssignment(cycleId, thematicAreaId);
+	const removed = await sequelize.transaction((transaction) => repository.removeThematicAreaAssignment(cycleId, thematicAreaId, transaction));
 	if (!removed) throw new AppError('Thematic area assignment was not found for this cycle.', 404, 'CYCLE_THEMATIC_AREA_NOT_FOUND');
 	return { cycle_id: Number(cycleId), thematic_area_id: Number(thematicAreaId), removed: true };
 }

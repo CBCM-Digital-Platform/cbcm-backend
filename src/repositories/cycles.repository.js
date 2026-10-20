@@ -39,7 +39,10 @@ function listFacilities(cycleId) {
 }
 
 function findFacilityAssignment(cycleId, facilityId, transaction) {
-	return CycleFacility.findOne({ where: { cycle_id: cycleId, facility_id: facilityId }, transaction });
+	return CycleFacility.findOne({
+		where: { cycle_id: cycleId, facility_id: facilityId },
+		...(transaction && { transaction }),
+	});
 }
 
 function createFacilityAssignment(values, transaction) {
@@ -47,7 +50,10 @@ function createFacilityAssignment(values, transaction) {
 }
 
 function removeFacilityAssignment(cycleId, facilityId, transaction) {
-	return CycleFacility.destroy({ where: { cycle_id: cycleId, facility_id: facilityId }, transaction });
+	return CycleFacility.destroy({
+		where: { cycle_id: cycleId, facility_id: facilityId },
+		...(transaction && { transaction }),
+	});
 }
 
 function listThematicAreas(cycleId) {
@@ -59,7 +65,10 @@ function listThematicAreas(cycleId) {
 }
 
 function findThematicAreaAssignment(cycleId, thematicAreaId, transaction) {
-	return CycleThematicArea.findOne({ where: { cycle_id: cycleId, thematic_area_id: thematicAreaId }, transaction });
+	return CycleThematicArea.findOne({
+		where: { cycle_id: cycleId, thematic_area_id: thematicAreaId },
+		...(transaction && { transaction }),
+	});
 }
 
 function createThematicAreaAssignment(values, transaction) {
@@ -67,7 +76,10 @@ function createThematicAreaAssignment(values, transaction) {
 }
 
 function removeThematicAreaAssignment(cycleId, thematicAreaId, transaction) {
-	return CycleThematicArea.destroy({ where: { cycle_id: cycleId, thematic_area_id: thematicAreaId }, transaction });
+	return CycleThematicArea.destroy({
+		where: { cycle_id: cycleId, thematic_area_id: thematicAreaId },
+		...(transaction && { transaction }),
+	});
 }
 
 module.exports = {

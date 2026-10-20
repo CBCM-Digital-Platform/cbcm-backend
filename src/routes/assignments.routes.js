@@ -12,7 +12,8 @@ const {
 	assignmentIdValidation,
 	updateAssignmentStatusValidation,
 	listAssignmentsValidation,
-	userIdValidation,
+	menteeIdValidation,
+	mentorIdValidation,
 } = require('../validators/assignments.validator');
 const { findMatchesValidation } = require('../validators/matching.validator');
 
@@ -401,7 +402,7 @@ router.post('/:id/unassign', requireRole(FACILITY_MANAGEMENT_ROLES), assignmentI
  *             schema:
  *               $ref: '#/components/schemas/ErrorResponse'
  */
-router.get('/mentees/:menteeId/assignments', userIdValidation, validateRequest, controller.getMenteeAssignments);
+router.get('/mentees/:menteeId/assignments', menteeIdValidation, validateRequest, controller.getMenteeAssignments);
 
 /**
  * @openapi
@@ -451,7 +452,7 @@ router.get('/mentees/:menteeId/assignments', userIdValidation, validateRequest, 
  *             schema:
  *               $ref: '#/components/schemas/ErrorResponse'
  */
-router.get('/mentors/:mentorId/assignments', userIdValidation, validateRequest, controller.getMentorAssignments);
+router.get('/mentors/:mentorId/assignments', mentorIdValidation, validateRequest, controller.getMentorAssignments);
 
 /**
  * @openapi
