@@ -22,8 +22,11 @@ function buildPagination(page = 1, limit = 20) {
 }
 
 async function listAssignments({ page = 1, limit = 20, mentorId, menteeId, facilityId, cycleId, status }, actor) {
+	console.log('Listing assignments with filters:', { page, limit, mentorId, menteeId, facilityId, cycleId, status });
+	console.log('Actor:', actor);
+
 	const where = {};
-	
+
 	// Enforce facility scope for Facility Admin
 	if (actor && actor.role === 'facility_admin') {
 		if (!actor.facility_id) {
@@ -40,20 +43,30 @@ async function listAssignments({ page = 1, limit = 20, mentorId, menteeId, facil
 	if (cycleId) where.cycle_id = cycleId;
 	if (status) where.status = status;
 
-	const pagination = buildPagination(page, limit);
-	const { count, rows } = await repository.findManyWithIncludes(where, {
-		order: [['id', 'ASC']],
-		limit: pagination.limit,
-		offset: pagination.offset,
-	});
+	console.log('Where clause:', where);
 
-	return {
-		items: rows.map(toAssignmentResponse),
-		total: count,
-		page: pagination.page,
-		limit: pagination.limit,
-		totalPages: Math.max(1, Math.ceil(count / pagination.limit)),
-	};
+	const pagination = buildPagination(page, limit);
+	console.log('Pagination:', pagination);
+
+	try {
+		const { count, rows } = await repository.findManyWithIncludes(where, {
+			order: [['id', 'ASC']],
+			limit: pagination.limit,
+			offset: pagination.offset,
+		});
+
+		console.log('Found assignments:', count);
+		return {
+			items: rows.map(toAssignmentResponse),
+			total: count,
+			page: pagination.page,
+			limit: pagination.limit,
+			totalPages: Math.max(1, Math.ceil(count / pagination.limit)),
+		};
+	} catch (error) {
+		console.error('Error in listAssignments:', error);
+		throw error;
+	}
 }
 
 async function getAssignment(id, actor) {
@@ -71,36 +84,46 @@ async function getAssignment(id, actor) {
 async function createAssignment(payload, actor) {
 	const { mentor_id, mentee_id, facility_id, cycle_id, thematic_area_id, priority_score, matching_reason } = payload;
 
+	console.log('Creating assignment with payload:', payload);
+	console.log('Actor:', actor);
+
 	// Validate mentor
 	const mentor = await User.findByPk(mentor_id);
+	console.log('Mentor found:', mentor ? mentor.id : null);
 	if (!mentor) throw new AppError('Mentor was not found.', 404, 'MENTOR_NOT_FOUND');
 	if (mentor.role !== 'mentor') throw new AppError('Selected user is not a mentor.', 400, 'INVALID_ROLE');
 	if (mentor.status !== 'active') throw new AppError('Mentor account is not active.', 400, 'USER_INACTIVE');
 
 	// Validate mentee
 	const mentee = await User.findByPk(mentee_id);
+	console.log('Mentee found:', mentee ? mentee.id : null);
 	if (!mentee) throw new AppError('Mentee was not found.', 404, 'MENTEE_NOT_FOUND');
 	if (mentee.role !== 'mentee') throw new AppError('Selected user is not a mentee.', 400, 'INVALID_ROLE');
 	if (mentee.status !== 'active') throw new AppError('Mentee account is not active.', 400, 'USER_INACTIVE');
 
 	// Validate facility
 	const facility = await Facility.findByPk(facility_id);
+	console.log('Facility found:', facility ? facility.id : null);
 	if (!facility) throw new AppError('Facility was not found.', 404, 'FACILITY_NOT_FOUND');
 
 	// Validate cycle
 	const cycle = await MentorshipCycle.findByPk(cycle_id);
+	console.log('Cycle found:', cycle ? cycle.id : null);
 	if (!cycle) throw new AppError('Mentorship cycle was not found.', 404, 'CYCLE_NOT_FOUND');
 
 	// Validate facility belongs to cycle
 	const cycleFacility = await CycleFacility.findOne({ where: { cycle_id: cycleId, facility_id } });
+	console.log('Cycle facility found:', cycleFacility ? cycleFacility.id : null);
 	if (!cycleFacility) throw new AppError('Facility is not assigned to this cycle.', 400, 'FACILITY_NOT_IN_CYCLE');
 
 	// Validate mentee's facility matches assignment facility
+	console.log('Mentee facility_id:', mentee.facility_id, 'Assignment facility_id:', facility_id);
 	if (mentee.facility_id !== facility_id) {
 		throw new AppError('Mentee must belong to the assignment facility.', 400, 'MENTEE_FACILITY_MISMATCH');
 	}
 
 	// Validate mentor's facility matches assignment facility
+	console.log('Mentor facility_id:', mentor.facility_id, 'Assignment facility_id:', facility_id);
 	if (mentor.facility_id !== facility_id) {
 		throw new AppError('Mentor must belong to the assignment facility.', 400, 'MENTOR_FACILITY_MISMATCH');
 	}
@@ -108,9 +131,11 @@ async function createAssignment(payload, actor) {
 	// Validate thematic area if provided
 	if (thematic_area_id) {
 		const thematicArea = await ThematicArea.findByPk(thematic_area_id);
+		console.log('Thematic area found:', thematicArea ? thematicArea.id : null);
 		if (!thematicArea) throw new AppError('Thematic area was not found.', 404, 'THEMATIC_AREA_NOT_FOUND');
-		
+
 		const cycleThematicArea = await CycleThematicArea.findOne({ where: { cycle_id: cycleId, thematic_area_id } });
+		console.log('Cycle thematic area found:', cycleThematicArea ? cycleThematicArea.id : null);
 		if (!cycleThematicArea) throw new AppError('Thematic area is not assigned to this cycle.', 400, 'THEMATIC_AREA_NOT_IN_CYCLE');
 	}
 
@@ -123,6 +148,7 @@ async function createAssignment(payload, actor) {
 
 	// Check for duplicate active assignment
 	const existing = await repository.findActiveAssignment(mentor_id, mentee_id, cycle_id);
+	console.log('Existing assignment found:', existing ? existing.id : null);
 	if (existing) {
 		throw new AppError('An active assignment already exists for this mentor, mentee, and cycle.', 409, 'ASSIGNMENT_EXISTS');
 	}
@@ -132,7 +158,9 @@ async function createAssignment(payload, actor) {
 	values.assigned_by = actor.id;
 	values.assigned_at = new Date();
 
+	console.log('Creating assignment with values:', values);
 	const assignment = await sequelize.transaction((transaction) => repository.create(values, { transaction }));
+	console.log('Assignment created:', assignment.id);
 	return toAssignmentResponse(assignment);
 }
 
