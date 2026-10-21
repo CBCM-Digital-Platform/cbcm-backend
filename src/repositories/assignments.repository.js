@@ -50,7 +50,7 @@ async function findWithIncludes(id) {
 }
 
 async function findManyWithIncludes(where, options = {}) {
-	return Assignment.findAll({
+	return Assignment.findAndCountAll({
 		where,
 		include: [
 			{ model: User, as: 'mentor', attributes: ['id', 'full_name', 'email', 'role', 'facility_id'], required: false },
@@ -64,11 +64,31 @@ async function findManyWithIncludes(where, options = {}) {
 }
 
 async function findByMenteeId(menteeId, options = {}) {
-	return findManyWithIncludes({ mentee_id: menteeId }, options);
+	return Assignment.findAll({
+		where: { mentee_id: menteeId },
+		include: [
+			{ model: User, as: 'mentor', attributes: ['id', 'full_name', 'email', 'role', 'facility_id'], required: false },
+			{ model: User, as: 'mentee', attributes: ['id', 'full_name', 'email', 'role', 'facility_id'], required: false },
+			{ model: Facility, as: 'facility', attributes: ['id', 'name', 'type', 'level'], required: false },
+			{ model: MentorshipCycle, as: 'cycle', attributes: ['id', 'name', 'status', 'start_date', 'end_date'], required: false },
+			{ model: ThematicArea, as: 'thematicArea', attributes: ['id', 'code', 'name'], required: false },
+		],
+		...options,
+	});
 }
 
 async function findByMentorId(mentorId, options = {}) {
-	return findManyWithIncludes({ mentor_id: mentorId }, options);
+	return Assignment.findAll({
+		where: { mentor_id: mentorId },
+		include: [
+			{ model: User, as: 'mentor', attributes: ['id', 'full_name', 'email', 'role', 'facility_id'], required: false },
+			{ model: User, as: 'mentee', attributes: ['id', 'full_name', 'email', 'role', 'facility_id'], required: false },
+			{ model: Facility, as: 'facility', attributes: ['id', 'name', 'type', 'level'], required: false },
+			{ model: MentorshipCycle, as: 'cycle', attributes: ['id', 'name', 'status', 'start_date', 'end_date'], required: false },
+			{ model: ThematicArea, as: 'thematicArea', attributes: ['id', 'code', 'name'], required: false },
+		],
+		...options,
+	});
 }
 
 async function findActiveAssignment(mentorId, menteeId, cycleId) {
