@@ -1,4 +1,5 @@
 // src/services/assignments.service.js
+// Assignment service for managing mentor-mentee assignments
 const { Assignment, User, Facility, MentorshipCycle, ThematicArea, CycleFacility, CycleThematicArea, sequelize } = require('../models');
 const AppError = require('../errors/app-error');
 const { canAccessFacility, canAccessUser } = require('../constants/roles.constants');
