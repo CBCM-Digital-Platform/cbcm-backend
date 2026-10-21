@@ -36,7 +36,8 @@ const listAssignmentsValidation = [
 	query('status').optional().isIn(Object.values(AssignmentStatus)).withMessage('Invalid assignment status.'),
 ];
 
-const userIdValidation = [param('id').isInt({ min: 1 }).withMessage('Invalid user ID.')];
+const menteeIdValidation = [param('menteeId').isInt({ min: 1 }).withMessage('Invalid mentee ID.')];
+const mentorIdValidation = [param('mentorId').isInt({ min: 1 }).withMessage('Invalid mentor ID.')];
 
 module.exports = {
 	createAssignmentValidation,
@@ -44,5 +45,6 @@ module.exports = {
 	assignmentIdValidation,
 	updateAssignmentStatusValidation,
 	listAssignmentsValidation,
-	userIdValidation,
+	menteeIdValidation,
+	mentorIdValidation,
 };

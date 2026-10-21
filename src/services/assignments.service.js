@@ -21,39 +21,52 @@ function buildPagination(page = 1, limit = 20) {
 	return { page: Number(page), limit: Number(limit), offset: (Number(page) - 1) * Number(limit) };
 }
 
-async function listAssignments({ page = 1, limit = 20, mentorId, menteeId, facilityId, cycleId, status }, actor) {
+async function listAssignments({ page = 1, limit = 20, mentor_id, mentee_id, facility_id, cycle_id, status }, actor) {
+	console.log('Listing assignments with filters:', { page, limit, mentor_id, mentee_id, facility_id, cycle_id, status });
+	console.log('Actor:', actor);
+
 	const where = {};
-	
+
 	// Enforce facility scope for Facility Admin
 	if (actor && actor.role === 'facility_admin') {
 		if (!actor.facility_id) {
 			throw new AppError('Facility administrator must be assigned to a facility.', 403, 'FORBIDDEN');
 		}
 		where.facility_id = actor.facility_id;
-	} else if (facilityId) {
+	} else if (facility_id) {
 		// System Admin can filter by facility if specified
-		where.facility_id = facilityId;
+		where.facility_id = facility_id;
 	}
 
-	if (mentorId) where.mentor_id = mentorId;
-	if (menteeId) where.mentee_id = menteeId;
-	if (cycleId) where.cycle_id = cycleId;
+	if (mentor_id) where.mentor_id = mentor_id;
+	if (mentee_id) where.mentee_id = mentee_id;
+	if (cycle_id) where.cycle_id = cycle_id;
 	if (status) where.status = status;
 
-	const pagination = buildPagination(page, limit);
-	const { count, rows } = await repository.findManyWithIncludes(where, {
-		order: [['id', 'ASC']],
-		limit: pagination.limit,
-		offset: pagination.offset,
-	});
+	console.log('Where clause:', where);
 
-	return {
-		items: rows.map(toAssignmentResponse),
-		total: count,
-		page: pagination.page,
-		limit: pagination.limit,
-		totalPages: Math.max(1, Math.ceil(count / pagination.limit)),
-	};
+	const pagination = buildPagination(page, limit);
+	console.log('Pagination:', pagination);
+
+	try {
+		const { count, rows } = await repository.findManyWithIncludes(where, {
+			order: [['id', 'ASC']],
+			limit: pagination.limit,
+			offset: pagination.offset,
+		});
+
+		console.log('Found assignments:', count);
+		return {
+			items: rows.map(toAssignmentResponse),
+			total: count,
+			page: pagination.page,
+			limit: pagination.limit,
+			totalPages: Math.max(1, Math.ceil(count / pagination.limit)),
+		};
+	} catch (error) {
+		console.error('Error in listAssignments:', error);
+		throw error;
+	}
 }
 
 async function getAssignment(id, actor) {
@@ -71,46 +84,67 @@ async function getAssignment(id, actor) {
 async function createAssignment(payload, actor) {
 	const { mentor_id, mentee_id, facility_id, cycle_id, thematic_area_id, priority_score, matching_reason } = payload;
 
+	console.log('Creating assignment with payload:', payload);
+	console.log('Actor:', actor);
+
 	// Validate mentor
 	const mentor = await User.findByPk(mentor_id);
+	console.log('Mentor found:', mentor ? mentor.id : null);
 	if (!mentor) throw new AppError('Mentor was not found.', 404, 'MENTOR_NOT_FOUND');
 	if (mentor.role !== 'mentor') throw new AppError('Selected user is not a mentor.', 400, 'INVALID_ROLE');
-	if (mentor.status !== 'active') throw new AppError('Mentor account is not active.', 400, 'USER_INACTIVE');
+	if (mentor.status && mentor.status !== 'active') throw new AppError('Mentor account is not active.', 400, 'USER_INACTIVE');
 
 	// Validate mentee
 	const mentee = await User.findByPk(mentee_id);
+	console.log('Mentee found:', mentee ? mentee.id : null);
 	if (!mentee) throw new AppError('Mentee was not found.', 404, 'MENTEE_NOT_FOUND');
 	if (mentee.role !== 'mentee') throw new AppError('Selected user is not a mentee.', 400, 'INVALID_ROLE');
-	if (mentee.status !== 'active') throw new AppError('Mentee account is not active.', 400, 'USER_INACTIVE');
+	if (mentee.status && mentee.status !== 'active') throw new AppError('Mentee account is not active.', 400, 'USER_INACTIVE');
 
 	// Validate facility
 	const facility = await Facility.findByPk(facility_id);
+	console.log('Facility found:', facility ? facility.id : null);
 	if (!facility) throw new AppError('Facility was not found.', 404, 'FACILITY_NOT_FOUND');
 
 	// Validate cycle
 	const cycle = await MentorshipCycle.findByPk(cycle_id);
+	console.log('Cycle found:', cycle ? cycle.id : null);
 	if (!cycle) throw new AppError('Mentorship cycle was not found.', 404, 'CYCLE_NOT_FOUND');
 
 	// Validate facility belongs to cycle
+<<<<<<< HEAD
 	const cycleFacility = await CycleFacility.findOne({ where: { cycle_id, facility_id } });
+=======
+	const cycleFacility = await CycleFacility.findOne({ where: { cycle_id: cycle_id, facility_id } });
+	console.log('Cycle facility found:', cycleFacility ? cycleFacility.id : null);
+>>>>>>> origin/main
 	if (!cycleFacility) throw new AppError('Facility is not assigned to this cycle.', 400, 'FACILITY_NOT_IN_CYCLE');
 
 	// Validate mentee's facility matches assignment facility
-	if (mentee.facility_id !== facility_id) {
+	console.log('Mentee facility_id:', mentee.facility_id, 'Assignment facility_id:', facility_id);
+	if (mentee.facility_id && mentee.facility_id !== facility_id) {
 		throw new AppError('Mentee must belong to the assignment facility.', 400, 'MENTEE_FACILITY_MISMATCH');
 	}
 
 	// Validate mentor's facility matches assignment facility
-	if (mentor.facility_id !== facility_id) {
+	console.log('Mentor facility_id:', mentor.facility_id, 'Assignment facility_id:', facility_id);
+	if (mentor.facility_id && mentor.facility_id !== facility_id) {
 		throw new AppError('Mentor must belong to the assignment facility.', 400, 'MENTOR_FACILITY_MISMATCH');
 	}
 
 	// Validate thematic area if provided
 	if (thematic_area_id) {
 		const thematicArea = await ThematicArea.findByPk(thematic_area_id);
+		console.log('Thematic area found:', thematicArea ? thematicArea.id : null);
 		if (!thematicArea) throw new AppError('Thematic area was not found.', 404, 'THEMATIC_AREA_NOT_FOUND');
+<<<<<<< HEAD
 		
 		const cycleThematicArea = await CycleThematicArea.findOne({ where: { cycle_id, thematic_area_id } });
+=======
+
+		const cycleThematicArea = await CycleThematicArea.findOne({ where: { cycle_id: cycle_id, thematic_area_id } });
+		console.log('Cycle thematic area found:', cycleThematicArea ? cycleThematicArea.id : null);
+>>>>>>> origin/main
 		if (!cycleThematicArea) throw new AppError('Thematic area is not assigned to this cycle.', 400, 'THEMATIC_AREA_NOT_IN_CYCLE');
 	}
 
@@ -123,6 +157,7 @@ async function createAssignment(payload, actor) {
 
 	// Check for duplicate active assignment
 	const existing = await repository.findActiveAssignment(mentor_id, mentee_id, cycle_id);
+	console.log('Existing assignment found:', existing ? existing.id : null);
 	if (existing) {
 		throw new AppError('An active assignment already exists for this mentor, mentee, and cycle.', 409, 'ASSIGNMENT_EXISTS');
 	}
@@ -132,7 +167,9 @@ async function createAssignment(payload, actor) {
 	values.assigned_by = actor.id;
 	values.assigned_at = new Date();
 
+	console.log('Creating assignment with values:', values);
 	const assignment = await sequelize.transaction((transaction) => repository.create(values, { transaction }));
+	console.log('Assignment created:', assignment.id);
 	return toAssignmentResponse(assignment);
 }
 

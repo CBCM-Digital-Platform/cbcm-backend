@@ -12,7 +12,8 @@ const {
 	assignmentIdValidation,
 	updateAssignmentStatusValidation,
 	listAssignmentsValidation,
-	userIdValidation,
+	menteeIdValidation,
+	mentorIdValidation,
 } = require('../validators/assignments.validator');
 const { findMatchesValidation } = require('../validators/matching.validator');
 
@@ -96,54 +97,6 @@ router.get('/', listAssignmentsValidation, validateRequest, controller.list);
 
 /**
  * @openapi
- * /api/v1/assignments/{id}:
- *   get:
- *     summary: Get an assignment
- *     description: Retrieves a specific assignment by ID with full details.
- *     tags: [Assignments]
- *     security:
- *       - bearerAuth: []
- *     parameters:
- *       - in: path
- *         name: id
- *         required: true
- *         schema: { type: integer, minimum: 1 }
- *     responses:
- *       200:
- *         description: Assignment details
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/AssignmentResponse'
- *       400:
- *         description: Invalid assignment ID
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/ErrorResponse'
- *       401:
- *         description: Authentication required
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/ErrorResponse'
- *       403:
- *         description: Facility scope violation
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/ErrorResponse'
- *       404:
- *         description: Assignment not found
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/ErrorResponse'
- */
-router.get('/:id', assignmentIdValidation, validateRequest, controller.getById);
-
-/**
- * @openapi
  * /api/v1/assignments:
  *   post:
  *     summary: Create a mentor-mentee assignment
@@ -196,6 +149,197 @@ router.get('/:id', assignmentIdValidation, validateRequest, controller.getById);
  *               $ref: '#/components/schemas/ErrorResponse'
  */
 router.post('/', requireRole(FACILITY_MANAGEMENT_ROLES), createAssignmentValidation, validateRequest, controller.create);
+
+/**
+ * @openapi
+ * /api/v1/mentees/{menteeId}/assignments:
+ *   get:
+ *     summary: Get a mentee's assignments
+ *     description: Retrieves all assignments for a specific mentee. Mentees can view their own assignments; mentors can view their mentees' assignments; Facility Admins can view assignments within their facility.
+ *     tags: [Assignments]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: menteeId
+ *         required: true
+ *         schema: { type: integer, minimum: 1 }
+ *     responses:
+ *       200:
+ *         description: Mentee's assignments
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: array
+ *               items:
+ *                 $ref: '#/components/schemas/AssignmentResponse'
+ *       400:
+ *         description: Invalid mentee ID
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ *       401:
+ *         description: Authentication required
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ *       403:
+ *         description: Scope violation
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ *       404:
+ *         description: Mentee not found
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ */
+router.get('/mentees/:menteeId/assignments', menteeIdValidation, validateRequest, controller.getMenteeAssignments);
+
+/**
+ * @openapi
+ * /api/v1/mentors/{mentorId}/assignments:
+ *   get:
+ *     summary: Get a mentor's assignments
+ *     description: Retrieves all assignments for a specific mentor. Mentors can view their own assignments; Facility Admins can view assignments within their facility.
+ *     tags: [Assignments]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: mentorId
+ *         required: true
+ *         schema: { type: integer, minimum: 1 }
+ *     responses:
+ *       200:
+ *         description: Mentor's assignments
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: array
+ *               items:
+ *                 $ref: '#/components/schemas/AssignmentResponse'
+ *       400:
+ *         description: Invalid mentor ID
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ *       401:
+ *         description: Authentication required
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ *       403:
+ *         description: Scope violation
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ *       404:
+ *         description: Mentor not found
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ */
+router.get('/mentors/:mentorId/assignments', mentorIdValidation, validateRequest, controller.getMentorAssignments);
+
+/**
+ * @openapi
+ * /api/v1/assignments/matching:
+ *   post:
+ *     summary: Find mentor matches
+ *     description: Suggests available mentors for a mentee based on facility, cycle, and optional thematic area. System Admin can match across the organization; Facility Admin can only match within their facility.
+ *     tags: [Assignments]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             $ref: '#/components/schemas/FindMatchesRequest'
+ *     responses:
+ *       200:
+ *         description: Match suggestions
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/FindMatchesResponse'
+ *       400:
+ *         description: Invalid criteria
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ *       401:
+ *         description: Authentication required
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ *       403:
+ *         description: Administrator role required or facility scope violation
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ */
+router.post('/matching', requireRole(FACILITY_MANAGEMENT_ROLES), findMatchesValidation, validateRequest, matchingController.findMatches);
+
+/**
+ * @openapi
+ * /api/v1/assignments/{id}:
+ *   get:
+ *     summary: Get an assignment
+ *     description: Retrieves a specific assignment by ID with full details.
+ *     tags: [Assignments]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema: { type: integer, minimum: 1 }
+ *     responses:
+ *       200:
+ *         description: Assignment details
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/AssignmentResponse'
+ *       400:
+ *         description: Invalid assignment ID
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ *       401:
+ *         description: Authentication required
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ *       403:
+ *         description: Facility scope violation
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ *       404:
+ *         description: Assignment not found
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ */
+router.get('/:id', assignmentIdValidation, validateRequest, controller.getById);
 
 /**
  * @openapi
@@ -352,148 +496,5 @@ router.patch('/:id/status', requireRole(FACILITY_MANAGEMENT_ROLES), updateAssign
  *               $ref: '#/components/schemas/ErrorResponse'
  */
 router.post('/:id/unassign', requireRole(FACILITY_MANAGEMENT_ROLES), assignmentIdValidation, validateRequest, controller.unassign);
-
-/**
- * @openapi
- * /api/v1/mentees/{menteeId}/assignments:
- *   get:
- *     summary: Get a mentee's assignments
- *     description: Retrieves all assignments for a specific mentee. Mentees can view their own assignments; mentors can view their mentees' assignments; Facility Admins can view assignments within their facility.
- *     tags: [Assignments]
- *     security:
- *       - bearerAuth: []
- *     parameters:
- *       - in: path
- *         name: menteeId
- *         required: true
- *         schema: { type: integer, minimum: 1 }
- *     responses:
- *       200:
- *         description: Mentee's assignments
- *         content:
- *           application/json:
- *             schema:
- *               type: array
- *               items:
- *                 $ref: '#/components/schemas/AssignmentResponse'
- *       400:
- *         description: Invalid mentee ID
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/ErrorResponse'
- *       401:
- *         description: Authentication required
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/ErrorResponse'
- *       403:
- *         description: Scope violation
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/ErrorResponse'
- *       404:
- *         description: Mentee not found
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/ErrorResponse'
- */
-router.get('/mentees/:menteeId/assignments', userIdValidation, validateRequest, controller.getMenteeAssignments);
-
-/**
- * @openapi
- * /api/v1/mentors/{mentorId}/assignments:
- *   get:
- *     summary: Get a mentor's assignments
- *     description: Retrieves all assignments for a specific mentor. Mentors can view their own assignments; Facility Admins can view assignments within their facility.
- *     tags: [Assignments]
- *     security:
- *       - bearerAuth: []
- *     parameters:
- *       - in: path
- *         name: mentorId
- *         required: true
- *         schema: { type: integer, minimum: 1 }
- *     responses:
- *       200:
- *         description: Mentor's assignments
- *         content:
- *           application/json:
- *             schema:
- *               type: array
- *               items:
- *                 $ref: '#/components/schemas/AssignmentResponse'
- *       400:
- *         description: Invalid mentor ID
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/ErrorResponse'
- *       401:
- *         description: Authentication required
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/ErrorResponse'
- *       403:
- *         description: Scope violation
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/ErrorResponse'
- *       404:
- *         description: Mentor not found
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/ErrorResponse'
- */
-router.get('/mentors/:mentorId/assignments', userIdValidation, validateRequest, controller.getMentorAssignments);
-
-/**
- * @openapi
- * /api/v1/assignments/matching:
- *   post:
- *     summary: Find mentor matches
- *     description: Suggests available mentors for a mentee based on facility, cycle, and optional thematic area. System Admin can match across the organization; Facility Admin can only match within their facility.
- *     tags: [Assignments]
- *     security:
- *       - bearerAuth: []
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             $ref: '#/components/schemas/FindMatchesRequest'
- *     responses:
- *       200:
- *         description: Match suggestions
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/FindMatchesResponse'
- *       400:
- *         description: Invalid criteria
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/ErrorResponse'
- *       401:
- *         description: Authentication required
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/ErrorResponse'
- *       403:
- *         description: Administrator role required or facility scope violation
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/ErrorResponse'
- */
-router.post('/matching', requireRole(FACILITY_MANAGEMENT_ROLES), findMatchesValidation, validateRequest, matchingController.findMatches);
 
 module.exports = router;

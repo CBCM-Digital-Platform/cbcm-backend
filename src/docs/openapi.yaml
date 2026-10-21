@@ -5070,6 +5070,145 @@ paths:
     post:
       tags: [Learning]
       summary: Submit answers for a quiz attempt
+      summary: Unassign a mentor-mentee pair
+      description: Cancels an active assignment. System Admin can unassign any assignment; Facility Admin can only unassign within their facility.
+      tags:
+        - Assignments
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Assignment unassigned
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Assignment'
+        '400':
+          description: Assignment already unassigned or cancelled
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Authentication required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Facility scope violation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Assignment not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /api/v1/assignments/mentees/{menteeId}/assignments:
+    parameters:
+      - name: menteeId
+        in: path
+        required: true
+        schema:
+          type: integer
+          minimum: 1
+    get:
+      summary: Get a mentee's assignments
+      description: Retrieves all assignments for a specific mentee. Mentees can view their own assignments; mentors can view their mentees' assignments; Facility Admins can view assignments within their facility.
+      tags:
+        - Assignments
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Mentee's assignments
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Assignment'
+        '400':
+          description: Invalid mentee ID
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Authentication required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Scope violation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Mentee not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /api/v1/assignments/mentors/{mentorId}/assignments:
+    parameters:
+      - name: mentorId
+        in: path
+        required: true
+        schema:
+          type: integer
+          minimum: 1
+    get:
+      summary: Get a mentor's assignments
+      description: Retrieves all assignments for a specific mentor. Mentors can view their own assignments; Facility Admins can view assignments within their facility.
+      tags:
+        - Assignments
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Mentor's assignments
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Assignment'
+        '400':
+          description: Invalid mentor ID
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Authentication required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Scope violation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Mentor not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /api/v1/assignments/matching:
+    post:
+      summary: Find mentor matches
+      description: Suggests available mentors for a mentee based on facility, cycle, and optional thematic area. System Admin can match across the organization; Facility Admin can only match within their facility.
+      tags:
+        - Assignments
       security:
         - bearerAuth: []
       requestBody:
@@ -5258,10 +5397,19 @@ paths:
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
+<<<<<<< HEAD
           $ref: '#/components/responses/Forbidden'
         '404':
           $ref: '#/components/responses/NotFound'
   /api/v1/learning/questions/{questionId}/options:
+=======
+          description: Facility scope violation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /api/v1/progress/mentees/{menteeId}/knowledge-snapshots:
+>>>>>>> origin/main
     parameters:
       - $ref: '#/components/parameters/QuestionId'
     post:
@@ -5298,8 +5446,17 @@ paths:
         '403':
           $ref: '#/components/responses/Forbidden'
         '404':
+<<<<<<< HEAD
           $ref: '#/components/responses/NotFound'
   /api/v1/learning/questions/{questionId}/options/{optionId}:
+=======
+          description: Mentee not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /api/v1/progress/mentees/{menteeId}/competencies:
+>>>>>>> origin/main
     parameters:
       - $ref: '#/components/parameters/QuestionId'
       - $ref: '#/components/parameters/OptionId'
