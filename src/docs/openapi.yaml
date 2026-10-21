@@ -5397,19 +5397,12 @@ paths:
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
-<<<<<<< HEAD
-          $ref: '#/components/responses/Forbidden'
-        '404':
-          $ref: '#/components/responses/NotFound'
-  /api/v1/learning/questions/{questionId}/options:
-=======
           description: Facility scope violation
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
   /api/v1/progress/mentees/{menteeId}/knowledge-snapshots:
->>>>>>> origin/main
     parameters:
       - $ref: '#/components/parameters/QuestionId'
     post:
@@ -5446,17 +5439,12 @@ paths:
         '403':
           $ref: '#/components/responses/Forbidden'
         '404':
-<<<<<<< HEAD
-          $ref: '#/components/responses/NotFound'
-  /api/v1/learning/questions/{questionId}/options/{optionId}:
-=======
           description: Mentee not found
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
   /api/v1/progress/mentees/{menteeId}/competencies:
->>>>>>> origin/main
     parameters:
       - $ref: '#/components/parameters/QuestionId'
       - $ref: '#/components/parameters/OptionId'
