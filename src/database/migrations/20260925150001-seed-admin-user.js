@@ -6,7 +6,7 @@ const bcrypt = require('bcryptjs');
 module.exports = {
   async up(queryInterface, Sequelize) {
     // Check if admin user already exists to avoid duplicates
-    const [existingUsers] = await queryInterface.sequelize.query(
+    const existingUsers = await queryInterface.sequelize.query(
       'SELECT id FROM users WHERE email = :email',
       {
         replacements: { email: 'admin@cbcm.org' },
@@ -14,7 +14,7 @@ module.exports = {
       }
     );
 
-    if (existingUsers.length > 0) {
+    if (Array.isArray(existingUsers) && existingUsers.length > 0) {
       console.log('Admin user already exists, skipping seed');
       return;
     }

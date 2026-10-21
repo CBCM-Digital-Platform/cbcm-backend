@@ -997,6 +997,717 @@ components:
     ConversationDetail:
       allOf:
         - $ref: '#/components/schemas/Conversation'
+        - type: object
+          properties:
+            messages:
+              type: array
+              items:
+                $ref: '#/components/schemas/Message'
+    MessagingContact:
+      type: object
+      required:
+        - id
+        - full_name
+        - role
+        - avatar_url
+      properties:
+        id:
+          type: integer
+          example: 42
+        full_name:
+          type: string
+          example: Alex Mentor
+        role:
+          type: string
+          enum:
+            - mentor
+            - mentee
+        avatar_url:
+          type: string
+          nullable: true
+          example: https://example.org/avatar.png
+    Notification:
+      type: object
+      required:
+        - id
+        - type
+        - title
+        - isRead
+        - createdAt
+      properties:
+        id:
+          type: integer
+          example: 12
+        type:
+          type: string
+          description: Current event types include message_received, learning_module_published, learning_module_assigned, and quiz_result_finalized.
+          example: message_received
+        title:
+          type: string
+          example: New message
+        body:
+          type: string
+          nullable: true
+          example: You received a new message.
+        isRead:
+          type: boolean
+          example: false
+        referenceType:
+          type: string
+          nullable: true
+          description: Type of related record, when applicable.
+          example: conversation
+        referenceId:
+          type: integer
+          nullable: true
+          description: ID of the related record, when applicable.
+          example: 23
+        createdAt:
+          type: string
+          format: date-time
+          example: '2026-10-16T18:30:00.000Z'
+    NotificationListResponse:
+      type: object
+      required:
+        - success
+        - data
+      properties:
+        success:
+          type: boolean
+          example: true
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/Notification'
+    LearningModule:
+      type: object
+      required:
+        - id
+        - title
+        - status
+      properties:
+        id:
+          type: integer
+          example: 1
+        title:
+          type: string
+          example: Infection Prevention in ANC
+        description:
+          type: string
+          nullable: true
+          example: Core learning for antenatal infection prevention.
+        thematicAreaId:
+          type: integer
+          nullable: true
+          example: 3
+        protocolSummary:
+          type: string
+          nullable: true
+          example: Follow clinical protocol before sign-off.
+        status:
+          type: string
+          enum:
+            - draft
+            - published
+            - archived
+          example: published
+        orderNumber:
+          type: integer
+          example: 1
+        isPublished:
+          type: boolean
+          example: true
+        isAuthorized:
+          type: boolean
+          description: Administrator approval, independent of publication.
+          example: true
+        estimatedDurationMinutes:
+          type: integer
+          example: 45
+        createdBy:
+          type: integer
+          nullable: true
+          example: 12
+        updatedBy:
+          type: integer
+          nullable: true
+          example: 12
+        createdAt:
+          type: string
+          format: date-time
+          nullable: true
+        updatedAt:
+          type: string
+          format: date-time
+          nullable: true
+        contents:
+          type: array
+          items:
+            $ref: '#/components/schemas/LearningContentSummary'
+      example:
+        id: 1
+        title: Infection Prevention in ANC
+        description: Core learning for antenatal infection prevention.
+        thematicAreaId: 3
+        protocolSummary: Follow clinical protocol before sign-off.
+        status: published
+        orderNumber: 1
+        isPublished: true
+        isAuthorized: true
+        estimatedDurationMinutes: 45
+        createdBy: 12
+        updatedBy: 12
+        createdAt: '2026-09-04T09:00:00.000Z'
+        updatedAt: '2026-10-02T15:40:00.000Z'
+        contents:
+          - id: 7
+            title: Hand hygiene checklist
+            type: article
+            orderNumber: 1
+            isRequired: true
+    LearningContentSummary:
+      type: object
+      required:
+        - id
+        - title
+        - type
+      properties:
+        id:
+          type: integer
+          example: 1
+        title:
+          type: string
+          example: Hand hygiene checklist
+        type:
+          type: string
+          example: article
+        orderNumber:
+          type: integer
+          example: 1
+        isRequired:
+          type: boolean
+          example: true
+        isPublished:
+          type: boolean
+          example: true
+        isAuthorized:
+          type: boolean
+          example: true
+    LearningContent:
+      type: object
+      required:
+        - id
+        - moduleId
+        - title
+        - type
+      properties:
+        id:
+          type: integer
+          example: 7
+        moduleId:
+          type: integer
+          example: 1
+        title:
+          type: string
+          example: Hand hygiene checklist
+        type:
+          type: string
+          enum:
+            - article
+            - video
+            - pdf
+            - quiz
+          example: article
+        contentText:
+          type: string
+          nullable: true
+          example: Clean hands before and after patient contact.
+        contentUrl:
+          type: string
+          format: uri
+          nullable: true
+          example: https://example.com/hand-hygiene.mp4
+        orderNumber:
+          type: integer
+          example: 1
+        isRequired:
+          type: boolean
+          example: true
+        isPublished:
+          type: boolean
+          example: true
+        isAuthorized:
+          type: boolean
+          example: true
+        durationMinutes:
+          type: integer
+          example: 10
+        createdBy:
+          type: integer
+          nullable: true
+        updatedBy:
+          type: integer
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+          nullable: true
+        updatedAt:
+          type: string
+          format: date-time
+          nullable: true
+    LearningModuleAccess:
+      type: object
+      required:
+        - moduleId
+        - menteeId
+      properties:
+        id:
+          type: integer
+          example: 18
+        moduleId:
+          type: integer
+          example: 1
+        menteeId:
+          type: integer
+          example: 42
+        assignedBy:
+          type: integer
+          nullable: true
+          example: 12
+        assignedAt:
+          type: string
+          format: date-time
+          nullable: true
+        status:
+          type: string
+          enum:
+            - not_started
+            - in_progress
+            - completed
+          example: not_started
+    LearningModuleMentorAccess:
+      type: object
+      required:
+        - moduleId
+        - mentorId
+        - grantedBy
+        - grantedAt
+      properties:
+        id:
+          type: integer
+          example: 24
+        moduleId:
+          type: integer
+          example: 1
+        mentorId:
+          type: integer
+          example: 12
+        grantedBy:
+          type: integer
+          example: 2
+        grantedAt:
+          type: string
+          format: date-time
+        revokedAt:
+          type: string
+          format: date-time
+          nullable: true
+        mentor:
+          type: object
+          nullable: true
+          properties:
+            id:
+              type: integer
+            fullName:
+              type: string
+            email:
+              type: string
+    LearningContentProgress:
+      type: object
+      properties:
+        moduleId:
+          type: integer
+          example: 1
+        contentId:
+          type: integer
+          example: 7
+        status:
+          type: string
+          enum:
+            - pending
+            - completed
+          example: completed
+        completedAt:
+          type: string
+          format: date-time
+          nullable: true
+      example:
+        moduleId: 1
+        contentId: 7
+        status: completed
+        completedAt: '2026-10-10T14:20:00.000Z'
+    LearningModuleProgress:
+      type: object
+      properties:
+        id:
+          type: integer
+          example: 5
+        moduleId:
+          type: integer
+          example: 1
+        menteeId:
+          type: integer
+          example: 42
+        status:
+          type: string
+          enum:
+            - not_started
+            - in_progress
+            - completed
+          example: in_progress
+        completionPercentage:
+          type: number
+          format: float
+          example: 75
+        assignedBy:
+          type: integer
+          nullable: true
+        assignedAt:
+          type: string
+          format: date-time
+          nullable: true
+        completedAt:
+          type: string
+          format: date-time
+          nullable: true
+        startedAt:
+          type: string
+          format: date-time
+          nullable: true
+        lastAccessedAt:
+          type: string
+          format: date-time
+          nullable: true
+        module:
+          allOf:
+            - $ref: '#/components/schemas/LearningModule'
+          nullable: true
+      example:
+        id: 5
+        moduleId: 1
+        menteeId: 42
+        status: in_progress
+        completionPercentage: 75
+        assignedBy: 12
+        assignedAt: '2026-10-08T10:00:00.000Z'
+        startedAt: '2026-10-08T10:00:00.000Z'
+        lastAccessedAt: '2026-10-11T08:30:00.000Z'
+        completedAt: null
+    QuizOption:
+      type: object
+      required:
+        - id
+        - text
+      properties:
+        id:
+          type: integer
+          example: 11
+        text:
+          type: string
+          example: Wash hands before touching the patient.
+        isCorrect:
+          type: boolean
+          example: true
+        orderNumber:
+          type: integer
+          example: 1
+        createdAt:
+          type: string
+          format: date-time
+          nullable: true
+        updatedAt:
+          type: string
+          format: date-time
+          nullable: true
+    QuizQuestion:
+      type: object
+      required:
+        - id
+        - prompt
+      properties:
+        id:
+          type: integer
+          example: 9
+        prompt:
+          type: string
+          example: Which step is most important before examining a patient?
+        questionType:
+          type: string
+          example: single_choice
+        clinicalContext:
+          type: string
+          nullable: true
+          example: ANC consultation room
+        points:
+          type: number
+          example: 2
+        explanation:
+          type: string
+          nullable: true
+          example: Hand hygiene reduces transmission risk.
+        orderNumber:
+          type: integer
+          example: 1
+        options:
+          type: array
+          items:
+            $ref: '#/components/schemas/QuizOption'
+    LearningQuizQuestionWrite:
+      type: object
+      required:
+        - prompt
+      properties:
+        prompt:
+          type: string
+          example: Which action is the first priority?
+        questionType:
+          type: string
+          example: single_choice
+        clinicalContext:
+          type: string
+          nullable: true
+          example: Labor ward
+        points:
+          type: number
+          example: 1
+        explanation:
+          type: string
+          nullable: true
+          example: Emergency assessment comes first.
+        orderNumber:
+          type: integer
+          example: 0
+        correctAnswer:
+          type: string
+          enum: [A, B, C, D]
+          example: B
+          description: Letter of the correct choice when using choices A-D.
+        choices:
+          type: object
+          description: A, B, C, and D answer texts. Stored as existing quiz options (A=0, B=1, C=2, D=3).
+          properties:
+            A:
+              type: string
+              example: Delay evaluation
+            B:
+              type: string
+              example: Start emergency assessment
+            C:
+              type: string
+              example: Discharge immediately
+            D:
+              type: string
+              example: Wait for lab results
+          example:
+            A: Delay evaluation
+            B: Start emergency assessment
+            C: Discharge immediately
+            D: Wait for lab results
+        options:
+          type: array
+          description: Alternative to choices. Use label A-D or isCorrect on each option.
+          items:
+            type: object
+            required: [text]
+            properties:
+              text:
+                type: string
+                example: Start emergency assessment
+              isCorrect:
+                type: boolean
+                example: true
+              label:
+                type: string
+                enum: [A, B, C, D]
+                example: B
+              orderNumber:
+                type: integer
+                example: 1
+      example:
+        prompt: Which action is the first priority?
+        questionType: single_choice
+        clinicalContext: Labor ward
+        points: 1
+        explanation: Emergency assessment comes first.
+        orderNumber: 0
+        choices:
+          A: Delay evaluation
+          B: Start emergency assessment
+          C: Discharge immediately
+          D: Wait for lab results
+        correctAnswer: B
+    Quiz:
+      type: object
+      required:
+        - id
+        - moduleId
+        - title
+      properties:
+        id:
+          type: integer
+          example: 4
+        moduleId:
+          type: integer
+          example: 1
+        title:
+          type: string
+          example: Infection prevention knowledge check
+        description:
+          type: string
+          nullable: true
+          example: Short assessment for the infection prevention module.
+        passScore:
+          type: number
+          example: 70
+        timeLimitMinutes:
+          type: integer
+          example: 15
+        attemptLimit:
+          type: integer
+          example: 1
+        isPublished:
+          type: boolean
+          example: true
+        isAuthorized:
+          type: boolean
+          description: Administrator approval, independent of publication.
+          example: true
+        createdBy:
+          type: integer
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+          nullable: true
+        updatedAt:
+          type: string
+          format: date-time
+          nullable: true
+    QuizAttempt:
+      type: object
+      properties:
+        id:
+          type: integer
+          example: 20
+        quizId:
+          type: integer
+          example: 4
+        menteeId:
+          type: integer
+          example: 42
+        attemptNumber:
+          type: integer
+          example: 1
+        score:
+          type: number
+          example: 80
+        passed:
+          type: boolean
+          example: true
+        status:
+          type: string
+          enum:
+            - in_progress
+            - submitted
+            - completed
+          example: completed
+        startedAt:
+          type: string
+          format: date-time
+          nullable: true
+        completedAt:
+          type: string
+          format: date-time
+          nullable: true
+    QuizAnswerSubmission:
+      type: object
+      required:
+        - questionId
+      properties:
+        questionId:
+          type: integer
+          example: 9
+        selectedOptionId:
+          type: integer
+          nullable: true
+          example: 11
+        selectedOptionIds:
+          type: array
+          nullable: true
+          items:
+            type: integer
+          example:
+            - 11
+            - 12
+    QuizSubmissionRequest:
+      type: object
+      required:
+        - answers
+      properties:
+        answers:
+          type: array
+          items:
+            $ref: '#/components/schemas/QuizAnswerSubmission'
+      example:
+        answers:
+          - questionId: 9
+            selectedOptionId: 11
+          - questionId: 10
+            selectedOptionId: 15
+    QuizResult:
+      type: object
+      properties:
+        id:
+          type: integer
+          example: 20
+        quizId:
+          type: integer
+          example: 4
+        menteeId:
+          type: integer
+          example: 42
+        score:
+          type: number
+          example: 80
+        passed:
+          type: boolean
+          example: true
+        status:
+          type: string
+          example: completed
+        attemptNumber:
+          type: integer
+          example: 1
+        startedAt:
+          type: string
+          format: date-time
+          nullable: true
+        completedAt:
+          type: string
+          format: date-time
+          nullable: true
+      example:
+        id: 20
+        quizId: 4
+        menteeId: 42
+        score: 80
+        passed: true
+        status: completed
+        attemptNumber: 1
+        startedAt: '2026-10-11T09:15:00.000Z'
+        completedAt: '2026-10-11T09:17:30.000Z'
+
     ThematicArea:
       type: object
       properties:
@@ -1390,6 +2101,7 @@ components:
               reason:
                 type: string
                 example: 'Available mentor in facility'
+
   parameters:
     ConversationId:
       name: id
@@ -1404,6 +2116,62 @@ components:
       in: path
       required: true
       description: Positive integer message ID.
+      schema:
+        type: integer
+        minimum: 1
+    LearningId:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: integer
+        minimum: 1
+    ModuleId:
+      name: moduleId
+      in: path
+      required: true
+      schema:
+        type: integer
+        minimum: 1
+    ContentId:
+      name: contentId
+      in: path
+      required: true
+      schema:
+        type: integer
+        minimum: 1
+    QuizId:
+      name: quizId
+      in: path
+      required: true
+      schema:
+        type: integer
+        minimum: 1
+    MentorId:
+      name: mentorId
+      in: path
+      required: true
+      schema:
+        type: integer
+        minimum: 1
+    MenteeId:
+      name: menteeId
+      in: path
+      required: true
+      schema:
+        type: integer
+        minimum: 1
+    QuestionId:
+      name: questionId
+      in: path
+      required: true
+      schema:
+        type: integer
+        minimum: 1
+    OptionId:
+      name: optionId
+      in: path
+      required: true
       schema:
         type: integer
         minimum: 1
@@ -1427,7 +2195,7 @@ components:
           schema:
             $ref: '#/components/schemas/ErrorResponse'
     NotFound:
-      description: Conversation or attachment not found.
+      description: Requested resource not found.
       content:
         application/json:
           schema:
@@ -1438,6 +2206,116 @@ components:
         application/json:
           schema:
             $ref: '#/components/schemas/ErrorResponse'
+    Conflict:
+      description: Requested action conflicts with the current resource state.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    LearningObject:
+      description: Learning resource returned.
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [success, data]
+            properties:
+              success:
+                type: boolean
+                example: true
+              data:
+                type: object
+    LearningList:
+      description: Learning resources returned.
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [success, data]
+            properties:
+              success:
+                type: boolean
+                example: true
+              data:
+                type: array
+                items:
+                  type: object
+    LearningCreated:
+      description: Learning resource created.
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [success, data]
+            properties:
+              success:
+                type: boolean
+                example: true
+              data:
+                type: object
+    LearningAction:
+      description: Learning action completed.
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [success, data]
+            properties:
+              success:
+                type: boolean
+                example: true
+              data:
+                type: object
+    NotificationList:
+      description: Notifications belonging to the authenticated user.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/NotificationListResponse'
+    NotificationItem:
+      description: Notification returned.
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [success, data]
+            properties:
+              success:
+                type: boolean
+                example: true
+              data:
+                $ref: '#/components/schemas/Notification'
+    NotificationAction:
+      description: Notification action completed.
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [success, data]
+            properties:
+              success:
+                type: boolean
+                example: true
+              data:
+                type: object
+    NotificationUnreadCount:
+      description: Unread notification count.
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [success, data]
+            properties:
+              success:
+                type: boolean
+                example: true
+              data:
+                type: object
+                required: [unreadCount]
+                properties:
+                  unreadCount:
+                    type: integer
+                    minimum: 0
 paths:
   /api/v1/users/me:
     get:
@@ -2817,7 +3695,7 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
-  /api/v1/messages/conversations:
+  /messages/conversations:
     get:
       tags:
         - Messaging
@@ -2850,7 +3728,7 @@ paths:
       tags:
         - Messaging
       summary: Create or retrieve a conversation
-      description: The authenticated user is added as a participant automatically. Direct conversations must have exactly two participants, including the current user.
+      description: The authenticated user is added as a participant automatically. Direct conversations must have exactly two participants, including the current user, and are limited to active mentor–mentee assignment pairs. An existing direct conversation between the same participants is returned rather than duplicated.
       requestBody:
         required: true
         content:
@@ -2889,10 +3767,55 @@ paths:
           $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
         '500':
           $ref: '#/components/responses/ServerError'
       security:
         - bearerAuth: []
+  /api/v1/messages/contacts:
+    get:
+      tags: [Messaging]
+      summary: List messaging contacts
+      description: Returns mentors or mentees connected to the authenticated user through active assignments. Email addresses are not included. Only mentors and mentees can use this endpoint.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: q
+          in: query
+          required: false
+          description: Optional case-insensitive name or email search. Matching email addresses are not returned.
+          schema:
+            type: string
+            maxLength: 255
+      responses:
+        '200':
+          description: Contacts returned.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [success, data]
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/MessagingContact'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          description: Only mentors and mentees can access messaging contacts.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          $ref: '#/components/responses/ServerError'
   /api/v1/messages/conversations/{id}:
     parameters:
       - $ref: '#/components/parameters/ConversationId'
@@ -2900,7 +3823,7 @@ paths:
       tags:
         - Messaging
       summary: Load a conversation and its messages
-      description: Returns all messages in ascending send-time order. Access is limited to conversation participants.
+      description: Returns all messages in ascending send-time order. Access is limited to conversation participants; direct conversations also require a current active mentor–mentee assignment.
       responses:
         '200':
           description: Conversation detail returned.
@@ -2934,7 +3857,7 @@ paths:
       tags:
         - Messaging
       summary: Send a message to a conversation
-      description: An optional owned uploaded-file ID may be attached. At most one attachment is supported.
+      description: An optional owned uploaded-file ID may be attached. At most one attachment is supported. Direct conversations require a current active mentor–mentee assignment.
       requestBody:
         required: true
         content:
@@ -2981,6 +3904,7 @@ paths:
       tags:
         - Messaging
       summary: Edit a message sent by the authenticated user
+      description: The sender must be a participant in the conversation; direct conversations also require a current active mentor–mentee assignment.
       requestBody:
         required: true
         content:
@@ -3021,6 +3945,7 @@ paths:
       tags:
         - Messaging
       summary: Permanently delete a message sent by the authenticated user
+      description: The sender must be a participant in the conversation; direct conversations also require a current active mentor–mentee assignment.
       responses:
         '200':
           description: Message deleted.
@@ -3060,6 +3985,7 @@ paths:
       tags:
         - Messaging
       summary: Mark messages in a conversation as read
+      description: The authenticated user must be a participant; direct conversations also require a current active mentor–mentee assignment.
       responses:
         '200':
           description: Read status updated.
@@ -3092,92 +4018,49 @@ paths:
           $ref: '#/components/responses/ServerError'
       security:
         - bearerAuth: []
-  /api/v1/thematic-areas:
+    servers:
+      - url: http://localhost:5000/api/v1
+        description: Local development server
+  /api/v1/notifications:
     get:
-      summary: List thematic areas
-      description: Lists all thematic areas with pagination. All authenticated users can view thematic areas.
-      tags:
-        - Thematic Areas
+      tags: [Notifications]
+      summary: List the authenticated user's notifications
       security:
         - bearerAuth: []
-      parameters:
-        - name: page
-          in: query
-          schema:
-            type: integer
-            minimum: 1
-            default: 1
-        - name: limit
-          in: query
-          schema:
-            type: integer
-            minimum: 1
-            maximum: 100
-            default: 20
       responses:
         '200':
-          description: Paginated thematic areas
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ThematicAreaListResponse'
-        '400':
-          description: Invalid pagination
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
+          $ref: '#/components/responses/NotificationList'
         '401':
-          description: Authentication required
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-    post:
-      summary: Create a thematic area
-      description: System Admin only. Creates a new global thematic area with a unique code.
-      tags:
-        - Thematic Areas
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/ServerError'
+  /api/v1/notifications/unread-count:
+    get:
+      tags: [Notifications]
+      summary: Get the authenticated user's unread notification count
       security:
         - bearerAuth: []
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/CreateThematicAreaRequest'
       responses:
-        '201':
-          description: Thematic area created
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ThematicArea'
-        '400':
-          description: Validation error
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
+        '200':
+          $ref: '#/components/responses/NotificationUnreadCount'
         '401':
-          description: Authentication required
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-        '403':
-          description: System Admin role required
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-        '409':
-          description: Thematic area code already exists
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-  /api/v1/thematic-areas/{id}:
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/ServerError'
+  /api/v1/notifications/read-all:
+    patch:
+      tags: [Notifications]
+      summary: Mark all of the authenticated user's notifications as read
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          $ref: '#/components/responses/NotificationAction'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/ServerError'
+  /api/v1/notifications/{id}/read:
     parameters:
       - name: id
         in: path
@@ -3185,220 +4068,85 @@ paths:
         schema:
           type: integer
           minimum: 1
-    get:
-      summary: Get a thematic area
-      description: Retrieves a specific thematic area by ID. All authenticated users can view thematic areas.
-      tags:
-        - Thematic Areas
-      security:
-        - bearerAuth: []
-      responses:
-        '200':
-          description: Thematic area details
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ThematicArea'
-        '400':
-          description: Invalid thematic area ID
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-        '401':
-          description: Authentication required
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-        '404':
-          description: Thematic area not found
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
     patch:
-      summary: Update a thematic area
-      description: System Admin only. Updates an existing thematic area.
-      tags:
-        - Thematic Areas
+      tags: [Notifications]
+      summary: Mark a notification as read
+      description: Only the notification owner can mark it as read.
       security:
         - bearerAuth: []
-      requestBody:
+      responses:
+        '200':
+          $ref: '#/components/responses/NotificationItem'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/ServerError'
+  /api/v1/notifications/{id}:
+    parameters:
+      - name: id
+        in: path
         required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/UpdateThematicAreaRequest'
-      responses:
-        '200':
-          description: Thematic area updated
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ThematicArea'
-        '400':
-          description: Invalid ID or fields
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-        '401':
-          description: Authentication required
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-        '403':
-          description: System Admin role required
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-        '404':
-          description: Thematic area not found
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-        '409':
-          description: Thematic area code already exists
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
+        schema:
+          type: integer
+          minimum: 1
     delete:
-      summary: Delete a thematic area
-      description: System Admin only. Deletes a thematic area if it is not referenced by cycles or assignments.
-      tags:
-        - Thematic Areas
+      tags: [Notifications]
+      summary: Delete a notification
+      description: Only the notification owner can delete it.
       security:
         - bearerAuth: []
       responses:
         '200':
-          description: Thematic area deleted
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  success:
-                    type: boolean
-                    example: true
-                  data:
-                    type: object
-                    properties:
-                      deleted:
-                        type: boolean
-                        example: true
+          $ref: '#/components/responses/NotificationAction'
         '400':
-          description: Invalid thematic area ID
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
+          $ref: '#/components/responses/BadRequest'
         '401':
-          description: Authentication required
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-        '403':
-          description: System Admin role required
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
+          $ref: '#/components/responses/Unauthorized'
         '404':
-          description: Thematic area not found
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-        '409':
-          description: Thematic area is in use by cycles or assignments
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-  /api/v1/assignments:
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/ServerError'
+  /api/v1/learning/modules:
     get:
-      summary: List mentor-mentee assignments
-      description: Lists assignments with authorized filters and pagination. System Admin sees organization-wide assignments; Facility Admin sees only their facility's assignments.
-      tags:
-        - Assignments
+      tags: [Learning]
+      summary: List learning modules available to the authenticated user
+      description: Results are filtered according to the user's role, publication status, and access grants.
       security:
         - bearerAuth: []
       parameters:
-        - name: page
-          in: query
-          schema:
-            type: integer
-            minimum: 1
-            default: 1
-        - name: limit
-          in: query
-          schema:
-            type: integer
-            minimum: 1
-            maximum: 100
-            default: 20
-        - name: mentor_id
-          in: query
-          schema:
-            type: integer
-        - name: mentee_id
-          in: query
-          schema:
-            type: integer
-        - name: facility_id
-          in: query
-          schema:
-            type: integer
-        - name: cycle_id
-          in: query
-          schema:
-            type: integer
         - name: status
           in: query
           schema:
             type: string
-            enum:
-              - pending_match
-              - assigned
-              - completed
-              - cancelled
-              - unassigned
+            enum: [draft, published, archived]
+        - name: thematicAreaId
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+        - name: publishedOnly
+          in: query
+          schema:
+            type: boolean
+        - name: authorizedOnly
+          in: query
+          schema:
+            type: boolean
       responses:
         '200':
-          description: Paginated assignments
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/AssignmentListResponse'
-        '400':
-          description: Invalid filters
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
+          $ref: '#/components/responses/LearningList'
         '401':
-          description: Authentication required
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-        '403':
-          description: Facility scope violation
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/ServerError'
     post:
-      summary: Create a mentor-mentee assignment
-      description: Manually assigns a mentor to a mentee within a cycle and facility. System Admin can assign across the organization; Facility Admin can only assign within their facility.
-      tags:
-        - Assignments
+      tags: [Learning]
+      summary: Create a learning module
+      description: Available to system and facility administrators.
       security:
         - bearerAuth: []
       requestBody:
@@ -3406,95 +4154,66 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/CreateAssignmentRequest'
+              type: object
+              required: [title]
+              properties:
+                title:
+                  type: string
+                description:
+                  type: string
+                  nullable: true
+                thematicAreaId:
+                  type: integer
+                  nullable: true
+                protocolSummary:
+                  type: string
+                  nullable: true
+                status:
+                  type: string
+                  enum: [draft, published, archived]
+                orderNumber:
+                  type: integer
+                  minimum: 0
+                isPublished:
+                  type: boolean
+                isAuthorized:
+                  type: boolean
+                estimatedDurationMinutes:
+                  type: integer
+                  minimum: 0
       responses:
         '201':
-          description: Assignment created
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Assignment'
+          $ref: '#/components/responses/LearningCreated'
         '400':
-          description: Validation error or business rule violation
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
+          $ref: '#/components/responses/BadRequest'
         '401':
-          description: Authentication required
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
+          $ref: '#/components/responses/Unauthorized'
         '403':
-          description: Administrator role required or facility scope violation
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-        '404':
-          description: User, facility, cycle, or thematic area not found
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-        '409':
-          description: Assignment already exists or reference conflict
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-  /api/v1/assignments/{id}:
+          $ref: '#/components/responses/Forbidden'
+        '500':
+          $ref: '#/components/responses/ServerError'
+  /api/v1/learning/modules/{id}:
     parameters:
-      - name: id
-        in: path
-        required: true
-        schema:
-          type: integer
-          minimum: 1
+      - $ref: '#/components/parameters/LearningId'
     get:
-      summary: Get an assignment
-      description: Retrieves a specific assignment by ID with full details.
-      tags:
-        - Assignments
+      tags: [Learning]
+      summary: Get a learning module
       security:
         - bearerAuth: []
       responses:
         '200':
-          description: Assignment details
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Assignment'
+          $ref: '#/components/responses/LearningObject'
         '400':
-          description: Invalid assignment ID
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
+          $ref: '#/components/responses/BadRequest'
         '401':
-          description: Authentication required
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
+          $ref: '#/components/responses/Unauthorized'
         '403':
-          description: Facility scope violation
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
+          $ref: '#/components/responses/Forbidden'
         '404':
-          description: Assignment not found
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
+          $ref: '#/components/responses/NotFound'
     patch:
-      summary: Update an assignment
-      description: Updates editable assignment fields such as priority score, matching reason, or thematic area.
-      tags:
-        - Assignments
+      tags: [Learning]
+      summary: Partially update a learning module
       security:
         - bearerAuth: []
       requestBody:
@@ -3502,51 +4221,44 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/UpdateAssignmentRequest'
+              type: object
+              properties:
+                title:
+                  type: string
+                description:
+                  type: string
+                  nullable: true
+                thematicAreaId:
+                  type: integer
+                  nullable: true
+                protocolSummary:
+                  type: string
+                  nullable: true
+                status:
+                  type: string
+                  enum: [draft, published, archived]
+                orderNumber:
+                  type: integer
+                isPublished:
+                  type: boolean
+                isAuthorized:
+                  type: boolean
+                estimatedDurationMinutes:
+                  type: integer
       responses:
         '200':
-          description: Assignment updated
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Assignment'
+          $ref: '#/components/responses/LearningObject'
         '400':
-          description: Invalid ID, fields, or reference conflict
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
+          $ref: '#/components/responses/BadRequest'
         '401':
-          description: Authentication required
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
+          $ref: '#/components/responses/Unauthorized'
         '403':
-          description: Facility scope violation
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
+          $ref: '#/components/responses/Forbidden'
         '404':
-          description: Assignment or thematic area not found
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-  /api/v1/assignments/{id}/status:
-    parameters:
-      - name: id
-        in: path
-        required: true
-        schema:
-          type: integer
-          minimum: 1
-    patch:
-      summary: Update assignment status
-      description: Transitions an assignment status. Valid transitions are pending_match to assigned, and assigned to completed or cancelled.
-      tags:
-        - Assignments
+          $ref: '#/components/responses/NotFound'
+    put:
+      tags: [Learning]
+      summary: Replace a learning module's editable fields
       security:
         - bearerAuth: []
       requestBody:
@@ -3554,47 +4266,810 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/UpdateAssignmentStatusRequest'
+              type: object
+              required: [title]
+              properties:
+                title:
+                  type: string
+                description:
+                  type: string
+                  nullable: true
+                thematicAreaId:
+                  type: integer
+                  nullable: true
+                protocolSummary:
+                  type: string
+                  nullable: true
+                status:
+                  type: string
+                orderNumber:
+                  type: integer
+                isPublished:
+                  type: boolean
+                isAuthorized:
+                  type: boolean
+                estimatedDurationMinutes:
+                  type: integer
       responses:
         '200':
-          description: Status updated
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Assignment'
+          $ref: '#/components/responses/LearningObject'
         '400':
-          description: Invalid status or transition
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
+          $ref: '#/components/responses/BadRequest'
         '401':
-          description: Authentication required
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
+          $ref: '#/components/responses/Unauthorized'
         '403':
-          description: Facility scope violation
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
+          $ref: '#/components/responses/Forbidden'
         '404':
-          description: Assignment not found
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-  /api/v1/assignments/{id}/unassign:
+          $ref: '#/components/responses/NotFound'
+    delete:
+      tags: [Learning]
+      summary: Delete a learning module
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          $ref: '#/components/responses/LearningAction'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /api/v1/learning/modules/{moduleId}/contents:
     parameters:
-      - name: id
-        in: path
-        required: true
-        schema:
-          type: integer
-          minimum: 1
+      - $ref: '#/components/parameters/ModuleId'
+    get:
+      tags: [Learning]
+      summary: List content in a learning module
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          $ref: '#/components/responses/LearningList'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
     post:
+      tags: [Learning]
+      summary: Add content to a learning module
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [title]
+              properties:
+                title:
+                  type: string
+                type:
+                  type: string
+                  enum: [article, video, pdf, quiz]
+                contentText:
+                  type: string
+                  nullable: true
+                contentUrl:
+                  type: string
+                  format: uri
+                  nullable: true
+                orderNumber:
+                  type: integer
+                  minimum: 0
+                isRequired:
+                  type: boolean
+                isPublished:
+                  type: boolean
+                isAuthorized:
+                  type: boolean
+                durationMinutes:
+                  type: integer
+                  minimum: 0
+      responses:
+        '201':
+          $ref: '#/components/responses/LearningCreated'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /api/v1/learning/modules/{moduleId}/contents/{contentId}:
+    parameters:
+      - $ref: '#/components/parameters/ModuleId'
+      - $ref: '#/components/parameters/ContentId'
+    get:
+      tags: [Learning]
+      summary: Get learning content
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          $ref: '#/components/responses/LearningObject'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    patch:
+      tags: [Learning]
+      summary: Partially update learning content
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                title:
+                  type: string
+                type:
+                  type: string
+                  enum: [article, video, pdf, quiz]
+                contentText:
+                  type: string
+                  nullable: true
+                contentUrl:
+                  type: string
+                  format: uri
+                  nullable: true
+                orderNumber:
+                  type: integer
+                isRequired:
+                  type: boolean
+                isPublished:
+                  type: boolean
+                isAuthorized:
+                  type: boolean
+                durationMinutes:
+                  type: integer
+      responses:
+        '200':
+          $ref: '#/components/responses/LearningObject'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    put:
+      tags: [Learning]
+      summary: Replace learning content fields
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [title]
+              properties:
+                title:
+                  type: string
+                type:
+                  type: string
+                contentText:
+                  type: string
+                  nullable: true
+                contentUrl:
+                  type: string
+                  format: uri
+                  nullable: true
+                orderNumber:
+                  type: integer
+                isRequired:
+                  type: boolean
+                isPublished:
+                  type: boolean
+                isAuthorized:
+                  type: boolean
+                durationMinutes:
+                  type: integer
+      responses:
+        '200':
+          $ref: '#/components/responses/LearningObject'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    delete:
+      tags: [Learning]
+      summary: Delete learning content
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          $ref: '#/components/responses/LearningAction'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /api/v1/learning/modules/{moduleId}/quizzes:
+    parameters:
+      - $ref: '#/components/parameters/ModuleId'
+    get:
+      tags: [Learning]
+      summary: Get the quiz for a module
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          $ref: '#/components/responses/LearningObject'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    post:
+      tags: [Learning]
+      summary: Create a quiz for a module
+      description: Facility Admin only, limited to modules in the administrator's facility. Mentors cannot create quizzes.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [title]
+              properties:
+                title:
+                  type: string
+                description:
+                  type: string
+                  nullable: true
+                passScore:
+                  type: number
+                  minimum: 0
+                timeLimitMinutes:
+                  type: integer
+                  minimum: 0
+                attemptLimit:
+                  type: integer
+                  minimum: 0
+                isPublished:
+                  type: boolean
+                isAuthorized:
+                  type: boolean
+                questions:
+                  type: array
+                  description: Optional questions with A-D choices. Existing question and option endpoints remain available.
+                  items:
+                    type: object
+                    required: [prompt]
+                    properties:
+                      prompt:
+                        type: string
+                      questionType:
+                        type: string
+                      clinicalContext:
+                        type: string
+                        nullable: true
+                      points:
+                        type: number
+                      explanation:
+                        type: string
+                        nullable: true
+                      orderNumber:
+                        type: integer
+                      correctAnswer:
+                        type: string
+                        enum: [A, B, C, D]
+                      options:
+                        type: array
+                        items:
+                          type: object
+                          required: [text]
+                          properties:
+                            text:
+                              type: string
+                            isCorrect:
+                              type: boolean
+                            label:
+                              type: string
+                              enum: [A, B, C, D]
+                            orderNumber:
+                              type: integer
+                      choices:
+                        type: object
+                        properties:
+                          A:
+                            type: string
+                          B:
+                            type: string
+                          C:
+                            type: string
+                          D:
+                            type: string
+            example:
+              title: Maternal health knowledge check
+              description: Post-module quiz
+              passScore: 70
+              timeLimitMinutes: 20
+              attemptLimit: 2
+              isPublished: false
+              isAuthorized: false
+              questions:
+                - prompt: Which action is the first priority?
+                  choices:
+                    A: Delay evaluation
+                    B: Start emergency assessment
+                    C: Discharge immediately
+                    D: Wait for lab results
+                  correctAnswer: B
+      responses:
+        '201':
+          $ref: '#/components/responses/LearningCreated'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /api/v1/learning/quizzes/{quizId}:
+    parameters:
+      - $ref: '#/components/parameters/QuizId'
+    get:
+      tags: [Learning]
+      summary: Get a quiz for the authenticated mentee
+      description: Mentee only. Use question and option ids from this response when submitting answers. Correct answers are not included.
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          $ref: '#/components/responses/LearningObject'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    patch:
+      tags: [Learning]
+      summary: Partially update a quiz
+      description: Facility Admin only, limited to quizzes whose module belongs to the administrator's facility.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                title:
+                  type: string
+                description:
+                  type: string
+                  nullable: true
+                passScore:
+                  type: number
+                timeLimitMinutes:
+                  type: integer
+                attemptLimit:
+                  type: integer
+                isPublished:
+                  type: boolean
+                isAuthorized:
+                  type: boolean
+      responses:
+        '200':
+          $ref: '#/components/responses/LearningObject'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /api/v1/learning/modules/{moduleId}/mentor-access:
+    parameters:
+      - $ref: '#/components/parameters/ModuleId'
+    get:
+      tags: [Learning]
+      summary: List mentors authorized for a module
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          $ref: '#/components/responses/LearningList'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    post:
+      tags: [Learning]
+      summary: Grant a mentor access to a module
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [mentorId]
+              properties:
+                mentorId:
+                  type: integer
+                  minimum: 1
+      responses:
+        '201':
+          $ref: '#/components/responses/LearningCreated'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /api/v1/learning/modules/{moduleId}/mentor-access/{mentorId}:
+    parameters:
+      - $ref: '#/components/parameters/ModuleId'
+      - $ref: '#/components/parameters/MentorId'
+    delete:
+      tags: [Learning]
+      summary: Revoke a mentor's access to a module
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          $ref: '#/components/responses/LearningAction'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /api/v1/learning/modules/{moduleId}/mentor-permissions:
+    parameters:
+      - $ref: '#/components/parameters/ModuleId'
+    get:
+      tags: [Learning]
+      summary: List mentor permissions for a module
+      description: Available to administrators (System Admin and Facility Admin).
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          $ref: '#/components/responses/LearningList'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    post:
+      tags: [Learning]
+      summary: Grant a mentor permission for a module
+      description: Available to administrators (System Admin and Facility Admin).
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [mentorId, permission]
+              properties:
+                mentorId:
+                  type: integer
+                  minimum: 1
+                permission:
+                  type: string
+                  enum: [learning.resources.view, learning.materials.assign, learning.quiz.answer_key.view]
+      responses:
+        '201':
+          $ref: '#/components/responses/LearningCreated'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /api/v1/learning/modules/{moduleId}/mentor-permissions/{mentorId}/{permission}:
+    parameters:
+      - $ref: '#/components/parameters/ModuleId'
+      - $ref: '#/components/parameters/MentorId'
+      - name: permission
+        in: path
+        required: true
+        schema:
+          type: string
+          enum: [learning.resources.view, learning.materials.assign, learning.quiz.answer_key.view]
+    delete:
+      tags: [Learning]
+      summary: Revoke a mentor permission for a module
+      description: Available to administrators (System Admin and Facility Admin).
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          $ref: '#/components/responses/LearningAction'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /api/v1/learning/modules/{moduleId}/access:
+    parameters:
+      - $ref: '#/components/parameters/ModuleId'
+    get:
+      tags: [Learning]
+      summary: List mentee access grants for a module
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          $ref: '#/components/responses/LearningList'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    post:
+      tags: [Learning]
+      summary: Grant a mentee access to a module
+      description: Available to mentors.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [menteeId]
+              properties:
+                menteeId:
+                  type: integer
+                  minimum: 1
+      responses:
+        '201':
+          $ref: '#/components/responses/LearningCreated'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /api/v1/learning/modules/{moduleId}/access/{menteeId}:
+    parameters:
+      - $ref: '#/components/parameters/ModuleId'
+      - $ref: '#/components/parameters/MenteeId'
+    delete:
+      tags: [Learning]
+      summary: Revoke a mentee's access to a module
+      description: Available to module administrators and the mentor who granted the access.
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          $ref: '#/components/responses/LearningAction'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /api/v1/learning/mentees/{menteeId}/modules:
+    parameters:
+      - $ref: '#/components/parameters/MenteeId'
+    get:
+      tags: [Learning]
+      summary: List modules assigned to a mentee
+      description: Available to administrators and mentors with access to the mentee.
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          $ref: '#/components/responses/LearningList'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /api/v1/learning/my/modules:
+    get:
+      tags: [Learning]
+      summary: List modules assigned to the authenticated mentee
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          $ref: '#/components/responses/LearningList'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /api/v1/learning/my/modules/{moduleId}:
+    parameters:
+      - $ref: '#/components/parameters/ModuleId'
+    get:
+      tags: [Learning]
+      summary: Get the authenticated mentee's module progress
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          $ref: '#/components/responses/LearningObject'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /api/v1/learning/my/modules/{moduleId}/progress:
+    parameters:
+      - $ref: '#/components/parameters/ModuleId'
+    get:
+      tags: [Learning]
+      summary: Get the authenticated mentee's module progress
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          $ref: '#/components/responses/LearningObject'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /api/v1/learning/my/modules/{moduleId}/contents/progress:
+    parameters:
+      - $ref: '#/components/parameters/ModuleId'
+    get:
+      tags: [Learning]
+      summary: Get content completion progress for a module
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          $ref: '#/components/responses/LearningList'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /api/v1/learning/my/modules/{moduleId}/contents/{contentId}/complete:
+    parameters:
+      - $ref: '#/components/parameters/ModuleId'
+      - $ref: '#/components/parameters/ContentId'
+    post:
+      tags: [Learning]
+      summary: Mark module content as completed
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          $ref: '#/components/responses/LearningObject'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /api/v1/learning/my/modules/{moduleId}/confirm-completion:
+    parameters:
+      - $ref: '#/components/parameters/ModuleId'
+    post:
+      tags: [Learning]
+      summary: Confirm completion of a learning module
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          $ref: '#/components/responses/LearningObject'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /api/v1/learning/modules/{moduleId}/quiz:
+    parameters:
+      - $ref: '#/components/parameters/ModuleId'
+    get:
+      tags: [Learning]
+      summary: Get the quiz for a module
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          $ref: '#/components/responses/LearningObject'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /api/v1/learning/quizzes/{quizId}/start:
+    parameters:
+      - $ref: '#/components/parameters/QuizId'
+    post:
+      tags: [Learning]
+      summary: Start a quiz attempt
+      security:
+        - bearerAuth: []
+      responses:
+        '201':
+          $ref: '#/components/responses/LearningCreated'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+  /api/v1/learning/quizzes/{quizId}/submit:
+    parameters:
+      - $ref: '#/components/parameters/QuizId'
+    post:
+      tags: [Learning]
+      summary: Submit answers for a quiz attempt
       summary: Unassign a mentor-mentee pair
       description: Cancels an active assignment. System Admin can unassign any assignment; Facility Admin can only unassign within their facility.
       tags:
@@ -3741,100 +5216,102 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/FindMatchesRequest'
+              $ref: '#/components/schemas/QuizSubmissionRequest'
       responses:
         '200':
-          description: Match suggestions
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/FindMatchesResponse'
+          $ref: '#/components/responses/LearningObject'
         '400':
-          description: Invalid criteria
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
+          $ref: '#/components/responses/BadRequest'
         '401':
-          description: Authentication required
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
+          $ref: '#/components/responses/Unauthorized'
         '403':
-          description: Administrator role required or facility scope violation
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-  /api/v1/progress/knowledge-snapshots:
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+  /api/v1/learning/quizzes/{quizId}/results:
+    parameters:
+      - $ref: '#/components/parameters/QuizId'
     get:
-      summary: List knowledge-score snapshots
-      description: Lists snapshots with authorized filters and pagination. System Admin sees organization-wide snapshots; Facility Admin sees only their facility's snapshots.
-      tags:
-        - Progress
+      tags: [Learning]
+      summary: Get the authenticated mentee's quiz results
       security:
         - bearerAuth: []
-      parameters:
-        - name: page
-          in: query
-          schema:
-            type: integer
-            minimum: 1
-            default: 1
-        - name: limit
-          in: query
-          schema:
-            type: integer
-            minimum: 1
-            maximum: 100
-            default: 20
-        - name: mentee_id
-          in: query
-          schema:
-            type: integer
-        - name: facility_id
-          in: query
-          schema:
-            type: integer
-        - name: cycle_id
-          in: query
-          schema:
-            type: integer
-        - name: thematic_area_id
-          in: query
-          schema:
-            type: integer
       responses:
         '200':
-          description: Paginated snapshots
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/SnapshotListResponse'
+          $ref: '#/components/responses/LearningList'
         '400':
-          description: Invalid filters
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
+          $ref: '#/components/responses/BadRequest'
         '401':
-          description: Authentication required
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
+          $ref: '#/components/responses/Unauthorized'
         '403':
-          description: Facility scope violation
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /api/v1/learning/quizzes/{quizId}/attempts:
+    parameters:
+      - $ref: '#/components/parameters/QuizId'
+    get:
+      tags: [Learning]
+      summary: List the authenticated mentee's quiz attempts
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          $ref: '#/components/responses/LearningList'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /api/v1/learning/quizzes/{quizId}/answer-key:
+    parameters:
+      - $ref: '#/components/parameters/QuizId'
+    get:
+      tags: [Learning]
+      summary: Get the answer key for a quiz
+      description: Facility Admin for quizzes in their facility. Mentors only if the Facility Admin granted learning.quiz.answer_key.view on the module and the mentor has an active assignment.
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          $ref: '#/components/responses/LearningObject'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /api/v1/learning/quizzes/{quizId}/questions:
+    parameters:
+      - $ref: '#/components/parameters/QuizId'
+    get:
+      tags: [Learning]
+      summary: List questions in a quiz
+      description: Facility Admin for quizzes in their facility. Mentors only if the Facility Admin granted learning.quiz.answer_key.view on the module. Returns question ids and A-D option ids needed to review or submit answers.
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          $ref: '#/components/responses/LearningList'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
     post:
-      summary: Create a knowledge-score snapshot
-      description: Records a new knowledge-score snapshot for a mentee. System Admin can create organization-wide; Facility Admin can only create within their facility.
-      tags:
-        - Progress
+      tags: [Learning]
+      summary: Add a question to a quiz
+      description: Facility Admin only. Include choices A-D and correctAnswer, or add options separately.
       security:
         - bearerAuth: []
       requestBody:
@@ -3842,224 +5319,193 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/CreateSnapshotRequest'
+              $ref: '#/components/schemas/LearningQuizQuestionWrite'
+            example:
+              prompt: Which action is the first priority?
+              questionType: single_choice
+              clinicalContext: Labor ward
+              points: 1
+              explanation: Emergency assessment comes first.
+              orderNumber: 0
+              choices:
+                A: Delay evaluation
+                B: Start emergency assessment
+                C: Discharge immediately
+                D: Wait for lab results
+              correctAnswer: B
       responses:
         '201':
-          description: Snapshot created
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/SnapshotResponse'
+          $ref: '#/components/responses/LearningCreated'
         '400':
-          description: Validation error or business rule violation
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
+          $ref: '#/components/responses/BadRequest'
         '401':
-          description: Authentication required
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
+          $ref: '#/components/responses/Unauthorized'
         '403':
-          description: Administrator role required or facility scope violation
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
+          $ref: '#/components/responses/Forbidden'
         '404':
-          description: Mentee, facility, cycle, or thematic area not found
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-  /api/v1/progress/knowledge-snapshots/{id}:
+          $ref: '#/components/responses/NotFound'
+  /api/v1/learning/quizzes/{quizId}/questions/{questionId}:
     parameters:
-      - name: id
-        in: path
+      - $ref: '#/components/parameters/QuizId'
+      - $ref: '#/components/parameters/QuestionId'
+    put:
+      tags: [Learning]
+      summary: Replace a quiz question
+      description: Facility Admin only.
+      security:
+        - bearerAuth: []
+      requestBody:
         required: true
-        schema:
-          type: integer
-          minimum: 1
-    get:
-      summary: Get a knowledge-score snapshot
-      description: Retrieves a specific snapshot by ID.
-      tags:
-        - Progress
-      security:
-        - bearerAuth: []
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LearningQuizQuestionWrite'
+            example:
+              prompt: Which action is the first priority?
+              questionType: single_choice
+              clinicalContext: Labor ward
+              points: 1
+              explanation: Emergency assessment comes first.
+              orderNumber: 0
+              choices:
+                A: Delay evaluation
+                B: Start emergency assessment
+                C: Discharge immediately
+                D: Wait for lab results
+              correctAnswer: B
       responses:
         '200':
-          description: Snapshot details
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/SnapshotResponse'
+          $ref: '#/components/responses/LearningObject'
         '400':
-          description: Invalid snapshot ID
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
+          $ref: '#/components/responses/BadRequest'
         '401':
-          description: Authentication required
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
+          $ref: '#/components/responses/Unauthorized'
         '403':
-          description: Facility scope violation
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
+          $ref: '#/components/responses/Forbidden'
         '404':
-          description: Snapshot not found
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-  /api/v1/progress/summary:
-    get:
-      summary: Get progress summary
-      description: Returns aggregated progress metrics including average score and competency distribution. System Admin sees organization-wide summary; Facility Admin sees only their facility's summary.
-      tags:
-        - Progress
+          $ref: '#/components/responses/NotFound'
+    delete:
+      tags: [Learning]
+      summary: Delete a quiz question
       security:
         - bearerAuth: []
-      parameters:
-        - name: facility_id
-          in: query
-          schema:
-            type: integer
-        - name: cycle_id
-          in: query
-          schema:
-            type: integer
-        - name: thematic_area_id
-          in: query
-          schema:
-            type: integer
       responses:
         '200':
-          description: Progress summary
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ProgressSummaryResponse'
+          $ref: '#/components/responses/LearningAction'
         '400':
-          description: Invalid filters
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
+          $ref: '#/components/responses/BadRequest'
         '401':
-          description: Authentication required
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
+          $ref: '#/components/responses/Unauthorized'
         '403':
+<<<<<<< HEAD
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /api/v1/learning/questions/{questionId}/options:
+=======
           description: Facility scope violation
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
   /api/v1/progress/mentees/{menteeId}/knowledge-snapshots:
+>>>>>>> origin/main
     parameters:
-      - name: menteeId
-        in: path
-        required: true
-        schema:
-          type: integer
-          minimum: 1
-    get:
-      summary: Get a mentee's knowledge-score snapshots
-      description: Retrieves all snapshots for a specific mentee in chronological order. Mentees can view their own snapshots; Facility Admins can view snapshots within their facility.
-      tags:
-        - Progress
+      - $ref: '#/components/parameters/QuestionId'
+    post:
+      tags: [Learning]
+      summary: Add an answer option to a quiz question
+      description: Facility Admin only. label A-D maps to existing option order.
       security:
         - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [text]
+              properties:
+                text:
+                  type: string
+                isCorrect:
+                  type: boolean
+                label:
+                  type: string
+                  enum: [A, B, C, D]
+                  description: Maps to orderNumber 0-3 using existing option order.
+                orderNumber:
+                  type: integer
       responses:
-        '200':
-          description: Mentee's snapshots
-          content:
-            application/json:
-              schema:
-                type: array
-                items:
-                  $ref: '#/components/schemas/SnapshotResponse'
+        '201':
+          $ref: '#/components/responses/LearningCreated'
         '400':
-          description: Invalid mentee ID
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
+          $ref: '#/components/responses/BadRequest'
         '401':
-          description: Authentication required
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
+          $ref: '#/components/responses/Unauthorized'
         '403':
-          description: Scope violation
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
+          $ref: '#/components/responses/Forbidden'
         '404':
+<<<<<<< HEAD
+          $ref: '#/components/responses/NotFound'
+  /api/v1/learning/questions/{questionId}/options/{optionId}:
+=======
           description: Mentee not found
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
   /api/v1/progress/mentees/{menteeId}/competencies:
+>>>>>>> origin/main
     parameters:
-      - name: menteeId
-        in: path
+      - $ref: '#/components/parameters/QuestionId'
+      - $ref: '#/components/parameters/OptionId'
+    put:
+      tags: [Learning]
+      summary: Replace an answer option
+      security:
+        - bearerAuth: []
+      requestBody:
         required: true
-        schema:
-          type: integer
-          minimum: 1
-    get:
-      summary: Get a mentee's competency breakdown
-      description: Returns the latest competency scores by thematic area for a specific mentee. Mentees can view their own breakdown; Facility Admins can view breakdown within their facility.
-      tags:
-        - Progress
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [text]
+              properties:
+                text:
+                  type: string
+                isCorrect:
+                  type: boolean
+                orderNumber:
+                  type: integer
+      responses:
+        '200':
+          $ref: '#/components/responses/LearningObject'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    delete:
+      tags: [Learning]
+      summary: Delete an answer option
       security:
         - bearerAuth: []
       responses:
         '200':
-          description: Mentee's competency breakdown
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/MenteeCompetencyBreakdownResponse'
+          $ref: '#/components/responses/LearningAction'
         '400':
-          description: Invalid mentee ID
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
+          $ref: '#/components/responses/BadRequest'
         '401':
-          description: Authentication required
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
+          $ref: '#/components/responses/Unauthorized'
         '403':
-          description: Scope violation
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
+          $ref: '#/components/responses/Forbidden'
         '404':
-          description: Mentee not found
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
+          $ref: '#/components/responses/NotFound'
 tags:
   - name: Auth
     description: Authentication and session management
@@ -4079,3 +5525,7 @@ tags:
     description: Mentor-mentee assignment management
   - name: Progress
     description: Knowledge-score snapshots and progress tracking
+  - name: Learning
+    description: Learning modules, content, access, progress, and quizzes.
+  - name: Notifications
+    description: Notifications belonging to the authenticated user.

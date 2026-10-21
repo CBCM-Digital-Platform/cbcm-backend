@@ -43,72 +43,8 @@ function rejectUnexpectedFields(allowedFields) {
 
 router.use(authenticate);
 
-/**
- * @openapi
- * /api/v1/users/me:
- *   get:
- *     summary: Get current user's profile
- *     description: Returns the authenticated user's safe profile fields only.
- *     tags: [Users]
- *     security:
- *       - bearerAuth: []
- *     responses:
- *       200:
- *         description: Safe profile returned
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/UserProfileResponse'
- *       401:
- *         description: Missing or invalid access token
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/ErrorResponse'
- */
 router.get('/me', usersController.getCurrentUser);
 
-/**
- * @openapi
- * /api/v1/users/me:
- *   patch:
- *     summary: Update current user's editable profile fields
- *     description: Only full_name, phone, highest_qualification, training_status, and avatar_url are editable. Role, status, facility, and credential fields cannot be changed here.
- *     tags: [Users]
- *     security:
- *       - bearerAuth: []
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             $ref: '#/components/schemas/UpdateProfileRequest'
- *     responses:
- *       200:
- *         description: Updated safe profile
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/UserProfileResponse'
- *       400:
- *         description: Profile validation error
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/ErrorResponse'
- *       401:
- *         description: Missing or invalid access token
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/ErrorResponse'
- *       404:
- *         description: User not found
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/ErrorResponse'
- */
 router.patch(
   '/me',
   rejectUnexpectedFields(['full_name', 'phone', 'highest_qualification', 'training_status', 'avatar_url']),
@@ -117,66 +53,8 @@ router.patch(
   usersController.updateCurrentUser
 );
 
-/**
- * @openapi
- * /api/v1/users/me/preferences:
- *   get:
- *     summary: Get current user's preferences
- *     description: Reads preferences for the authenticated user only and returns null when none have been saved.
- *     tags: [Users]
- *     security:
- *       - bearerAuth: []
- *     responses:
- *       200:
- *         description: Preferences returned
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/PreferencesResponse'
- *       401:
- *         description: Missing or invalid access token
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/ErrorResponse'
- */
 router.get('/me/preferences', usersController.getCurrentUserPreferences);
 
-/**
- * @openapi
- * /api/v1/users/me/preferences:
- *   patch:
- *     summary: Update current user's preferences
- *     description: Updates or creates preferences for the authenticated user only.
- *     tags: [Users]
- *     security:
- *       - bearerAuth: []
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             $ref: '#/components/schemas/UpdateUserPreferencesRequest'
- *     responses:
- *       200:
- *         description: Preferences updated
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/PreferencesResponse'
- *       400:
- *         description: Preference validation error
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/ErrorResponse'
- *       401:
- *         description: Missing or invalid access token
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/ErrorResponse'
- */
 router.patch(
   '/me/preferences',
   rejectUnexpectedFields(['language', 'theme', 'notifications_enabled']),
@@ -189,8 +67,8 @@ router.patch(
  * @openapi
  * /api/v1/users:
  *   get:
- *     summary: List users (administrator only)
- *     description: Returns safe profile fields with pagination. Only administrators may list users.
+ *     summary: List users (system or facility administrator)
+ *     description: Returns safe profile fields with pagination. Facility administrators can only list users within their facility.
  *     tags: [Users]
  *     security:
  *       - bearerAuth: []
@@ -227,7 +105,7 @@ router.patch(
  *             schema:
  *               $ref: '#/components/schemas/ErrorResponse'
  *       403:
- *         description: Administrator role required
+ *         description: System administrator or facility administrator role required
  *         content:
  *           application/json:
  *             schema:
@@ -239,8 +117,8 @@ router.get('/', requireRole(FACILITY_MANAGEMENT_ROLES), listUsersValidation, val
  * @openapi
  * /api/v1/users/{id}:
  *   get:
- *     summary: Get a user by ID (administrator only)
- *     description: Returns a safe user profile; password and credential secrets are never included.
+ *     summary: Get a user by ID (system or facility administrator)
+ *     description: Returns a safe user profile; facility administrators can only access users within their facility. Password and credential secrets are never included.
  *     tags: [Users]
  *     security:
  *       - bearerAuth: []
@@ -269,7 +147,7 @@ router.get('/', requireRole(FACILITY_MANAGEMENT_ROLES), listUsersValidation, val
  *             schema:
  *               $ref: '#/components/schemas/ErrorResponse'
  *       403:
- *         description: Administrator role required
+ *         description: System administrator or facility administrator with access to the user required
  *         content:
  *           application/json:
  *             schema:
@@ -283,59 +161,6 @@ router.get('/', requireRole(FACILITY_MANAGEMENT_ROLES), listUsersValidation, val
  */
 router.get('/:id', requireRole(FACILITY_MANAGEMENT_ROLES), userIdValidation, validateRequest, usersController.getUserById);
 
-/**
- * @openapi
- * /api/v1/users:
- *   post:
- *     summary: Provision a user (administrator only)
- *     description: Public self-registration is not supported. An administrator provisions a user with an allowed role and temporary password; password change is required by default.
- *     tags: [Users]
- *     security:
- *       - bearerAuth: []
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             $ref: '#/components/schemas/CreateUserRequest'
- *     responses:
- *       201:
- *         description: User provisioned; password hash is never returned
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/UserProfileResponse'
- *       400:
- *         description: Validation error
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/ErrorResponse'
- *       401:
- *         description: Missing or invalid access token
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/ErrorResponse'
- *       403:
- *         description: Administrator role required
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/ErrorResponse'
- *       404:
- *         description: Facility not found
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/ErrorResponse'
- *       409:
- *         description: Email already exists
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/ErrorResponse'
- */
 router.post(
   '/',
   requireRole(FACILITY_MANAGEMENT_ROLES),
@@ -349,8 +174,8 @@ router.post(
  * @openapi
  * /api/v1/users/{id}/status:
  *   patch:
- *     summary: Change a user's status (administrator only)
- *     description: Deactivating or suspending a user revokes their refresh tokens and invalidates existing access tokens.
+ *     summary: Change a user's status (system or facility administrator)
+ *     description: Deactivating or suspending a user revokes their refresh tokens and invalidates existing access tokens. Facility administrators can only manage users within their facility.
  *     tags: [Users]
  *     security:
  *       - bearerAuth: []
@@ -385,7 +210,7 @@ router.post(
  *             schema:
  *               $ref: '#/components/schemas/ErrorResponse'
  *       403:
- *         description: Administrator role required
+ *         description: System administrator or facility administrator with access to the user required
  *         content:
  *           application/json:
  *             schema:

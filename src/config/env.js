@@ -22,6 +22,11 @@ const env = {
   BREVO_SENDER_EMAIL: process.env.BREVO_SENDER_EMAIL || '',
   BREVO_SENDER_NAME: process.env.BREVO_SENDER_NAME || '',
   CORS_ORIGIN: process.env.CORS_ORIGIN || '*',
+  JITSI_PUBLIC_MODE: process.env.JITSI_PUBLIC_MODE === 'true' && process.env.NODE_ENV !== 'production',
+  JITSI_DOMAIN: process.env.JITSI_DOMAIN || '',
+  JITSI_APP_ID: process.env.JITSI_APP_ID || '',
+  JITSI_SECRET: process.env.JITSI_SECRET || '',
+  JITSI_TOKEN_EXPIRY: process.env.JITSI_TOKEN_EXPIRY || '1h',
 };
 
 module.exports = env;

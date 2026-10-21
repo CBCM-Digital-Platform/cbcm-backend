@@ -12,6 +12,14 @@ const validate = (parser) => (req, res, next) => {
 		return next(error);
 	}
 };
+const validateQuery = (parser) => (req, res, next) => {
+	try {
+		req.messagingInput = parser(req.query);
+		return next();
+	} catch (error) {
+		return next(error);
+	}
+};
 const validateId = (req, res, next) => {
 	try {
 		req.params.id = validator.parseId(req.params.id, 'id');
@@ -30,6 +38,7 @@ const validateMessageId = (req, res, next) => {
 };
 
 router.use(authenticate);
+router.get('/contacts', validateQuery(validator.parseContactsQuery), controller.listContacts);
 router.get('/conversations', controller.listConversations);
 router.get('/conversations/:id', validateId, controller.getConversation);
 router.post('/conversations', validate(validator.parseCreateConversation), controller.createConversation);

@@ -1,2 +1,25 @@
 // src/dtos/response/session.response.dto.js
-module.exports = {};
+module.exports = {
+	id: null,
+	assignment_id: null,
+	mentor_id: null,
+	mentee_id: null,
+	facility_id: null,
+	mode: null,
+	scheduled_at: null,
+	started_at: null,
+	ended_at: null,
+	duration_minutes: null,
+	clinical_setting: null,
+	session_goals: null,
+	preparation_notes: null,
+	status: null,
+	cancellation_reason: null,
+	jitsi_room_enabled: null,
+	created_at: null,
+	updated_at: null,
+	assignment: null,
+	mentor: null,
+	mentee: null,
+	facility: null,
+};

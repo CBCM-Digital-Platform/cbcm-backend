@@ -10,6 +10,14 @@ const parseId = (value, field = 'id') => {
 	return id;
 };
 
+const parseContactsQuery = (query = {}) => {
+	if (query.q !== undefined && typeof query.q !== 'string') {
+		throw invalid('q must be a string.');
+	}
+
+	return { q: query.q?.trim() || null };
+};
+
 const parseCreateConversation = (body = {}) => {
 	const type = body.type ?? 'direct';
 	if (!['direct', 'group'].includes(type)) {
@@ -53,4 +61,4 @@ const parseEditMessage = (body = {}) => {
 	return { content: body.content.trim() };
 };
 
-module.exports = { parseId, parseCreateConversation, parseSendMessage, parseEditMessage };
+module.exports = { parseId, parseContactsQuery, parseCreateConversation, parseSendMessage, parseEditMessage };

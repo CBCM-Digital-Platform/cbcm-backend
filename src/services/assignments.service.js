@@ -112,8 +112,12 @@ async function createAssignment(payload, actor) {
 	if (!cycle) throw new AppError('Mentorship cycle was not found.', 404, 'CYCLE_NOT_FOUND');
 
 	// Validate facility belongs to cycle
+<<<<<<< HEAD
+	const cycleFacility = await CycleFacility.findOne({ where: { cycle_id, facility_id } });
+=======
 	const cycleFacility = await CycleFacility.findOne({ where: { cycle_id: cycle_id, facility_id } });
 	console.log('Cycle facility found:', cycleFacility ? cycleFacility.id : null);
+>>>>>>> origin/main
 	if (!cycleFacility) throw new AppError('Facility is not assigned to this cycle.', 400, 'FACILITY_NOT_IN_CYCLE');
 
 	// Validate mentee's facility matches assignment facility
@@ -133,9 +137,14 @@ async function createAssignment(payload, actor) {
 		const thematicArea = await ThematicArea.findByPk(thematic_area_id);
 		console.log('Thematic area found:', thematicArea ? thematicArea.id : null);
 		if (!thematicArea) throw new AppError('Thematic area was not found.', 404, 'THEMATIC_AREA_NOT_FOUND');
+<<<<<<< HEAD
+		
+		const cycleThematicArea = await CycleThematicArea.findOne({ where: { cycle_id, thematic_area_id } });
+=======
 
 		const cycleThematicArea = await CycleThematicArea.findOne({ where: { cycle_id: cycle_id, thematic_area_id } });
 		console.log('Cycle thematic area found:', cycleThematicArea ? cycleThematicArea.id : null);
+>>>>>>> origin/main
 		if (!cycleThematicArea) throw new AppError('Thematic area is not assigned to this cycle.', 400, 'THEMATIC_AREA_NOT_IN_CYCLE');
 	}
 
