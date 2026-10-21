@@ -5070,10 +5070,37 @@ paths:
     post:
       tags: [Learning]
       summary: Submit answers for a quiz attempt
+      description: Submits quiz answers for an active attempt and returns the result.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SubmitQuizRequest'
+      responses:
+        '200':
+          description: Quiz result
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/QuizResultResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /api/v1/assignments/{id}/unassign:
+    parameters:
+      - $ref: '#/components/parameters/AssignmentId'
+    post:
+      tags: [Assignments]
       summary: Unassign a mentor-mentee pair
       description: Cancels an active assignment. System Admin can unassign any assignment; Facility Admin can only unassign within their facility.
-      tags:
-        - Assignments
       security:
         - bearerAuth: []
       responses:
