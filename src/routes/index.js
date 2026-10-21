@@ -10,6 +10,7 @@ const notificationsRoutes = require('./notifications.routes');
 const thematicAreasRoutes = require('./thematic-areas.routes');
 const assignmentsRoutes = require('./assignments.routes');
 const progressRoutes = require('./progress.routes');
+const sessionsRoutes = require('./sessions.routes');
 
 const router = express.Router();
 router.use('/auth', authRoutes);
@@ -22,5 +23,6 @@ router.use('/notifications', notificationsRoutes);
 router.use('/thematic-areas', thematicAreasRoutes);
 router.use('/assignments', assignmentsRoutes);
 router.use('/progress', progressRoutes);
+router.use('/sessions', sessionsRoutes);
 
 module.exports = router;
