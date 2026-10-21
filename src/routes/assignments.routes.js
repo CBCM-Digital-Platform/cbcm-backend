@@ -152,7 +152,7 @@ router.post('/', requireRole(FACILITY_MANAGEMENT_ROLES), createAssignmentValidat
 
 /**
  * @openapi
- * /api/v1/mentees/{menteeId}/assignments:
+ * /api/v1/assignments/mentees/{menteeId}/assignments:
  *   get:
  *     summary: Get a mentee's assignments
  *     description: Retrieves all assignments for a specific mentee. Mentees can view their own assignments; mentors can view their mentees' assignments; Facility Admins can view assignments within their facility.
@@ -202,7 +202,7 @@ router.get('/mentees/:menteeId/assignments', menteeIdValidation, validateRequest
 
 /**
  * @openapi
- * /api/v1/mentors/{mentorId}/assignments:
+ * /api/v1/assignments/mentors/{mentorId}/assignments:
  *   get:
  *     summary: Get a mentor's assignments
  *     description: Retrieves all assignments for a specific mentor. Mentors can view their own assignments; Facility Admins can view assignments within their facility.
