@@ -3632,7 +3632,7 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
-  /api/v1/mentees/{menteeId}/assignments:
+  /api/v1/assignments/mentees/{menteeId}/assignments:
     parameters:
       - name: menteeId
         in: path
@@ -3680,7 +3680,7 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
-  /api/v1/mentors/{mentorId}/assignments:
+  /api/v1/assignments/mentors/{mentorId}/assignments:
     parameters:
       - name: mentorId
         in: path
@@ -3966,7 +3966,7 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
-  /api/v1/mentees/{menteeId}/knowledge-snapshots:
+  /api/v1/progress/mentees/{menteeId}/knowledge-snapshots:
     parameters:
       - name: menteeId
         in: path
@@ -4014,7 +4014,7 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
-  /api/v1/mentees/{menteeId}/competencies:
+  /api/v1/progress/mentees/{menteeId}/competencies:
     parameters:
       - name: menteeId
         in: path

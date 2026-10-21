@@ -234,7 +234,7 @@ router.get('/summary', summaryValidation, validateRequest, controller.getSummary
 
 /**
  * @openapi
- * /api/v1/mentees/{menteeId}/progress/knowledge-snapshots:
+ * /api/v1/progress/mentees/{menteeId}/knowledge-snapshots:
  *   get:
  *     summary: Get a mentee's knowledge-score snapshots
  *     description: Retrieves all snapshots for a specific mentee in chronological order. Mentees can view their own snapshots; Facility Admins can view snapshots within their facility.
@@ -284,7 +284,7 @@ router.get('/mentees/:menteeId/knowledge-snapshots', userIdValidation, validateR
 
 /**
  * @openapi
- * /api/v1/mentees/{menteeId}/progress/competencies:
+ * /api/v1/progress/mentees/{menteeId}/competencies:
  *   get:
  *     summary: Get a mentee's competency breakdown
  *     description: Returns the latest competency scores by thematic area for a specific mentee. Mentees can view their own breakdown; Facility Admins can view breakdown within their facility.
