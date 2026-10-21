@@ -21,8 +21,8 @@ function buildPagination(page = 1, limit = 20) {
 	return { page: Number(page), limit: Number(limit), offset: (Number(page) - 1) * Number(limit) };
 }
 
-async function listAssignments({ page = 1, limit = 20, mentorId, menteeId, facilityId, cycleId, status }, actor) {
-	console.log('Listing assignments with filters:', { page, limit, mentorId, menteeId, facilityId, cycleId, status });
+async function listAssignments({ page = 1, limit = 20, mentor_id, mentee_id, facility_id, cycle_id, status }, actor) {
+	console.log('Listing assignments with filters:', { page, limit, mentor_id, mentee_id, facility_id, cycle_id, status });
 	console.log('Actor:', actor);
 
 	const where = {};
@@ -33,14 +33,14 @@ async function listAssignments({ page = 1, limit = 20, mentorId, menteeId, facil
 			throw new AppError('Facility administrator must be assigned to a facility.', 403, 'FORBIDDEN');
 		}
 		where.facility_id = actor.facility_id;
-	} else if (facilityId) {
+	} else if (facility_id) {
 		// System Admin can filter by facility if specified
-		where.facility_id = facilityId;
+		where.facility_id = facility_id;
 	}
 
-	if (mentorId) where.mentor_id = mentorId;
-	if (menteeId) where.mentee_id = menteeId;
-	if (cycleId) where.cycle_id = cycleId;
+	if (mentor_id) where.mentor_id = mentor_id;
+	if (mentee_id) where.mentee_id = mentee_id;
+	if (cycle_id) where.cycle_id = cycle_id;
 	if (status) where.status = status;
 
 	console.log('Where clause:', where);
