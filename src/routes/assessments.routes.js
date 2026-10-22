@@ -1,2 +1,410 @@
 // src/routes/assessments.routes.js
-module.exports = {};
+const express = require('express');
+const { validationResult } = require('express-validator');
+const controller = require('../controllers/assessments.controller');
+const authenticate = require('../middlewares/auth/authenticate.middleware');
+const {
+	createAssessmentValidation,
+	updateAssessmentValidation,
+	assessmentIdValidation,
+	setCriteriaScoreValidation,
+	setChecklistItemsValidation,
+	addEvidenceValidation,
+	reviewAssessmentValidation,
+	listAssessmentsValidation,
+} = require('../validators/assessments.validator');
+
+const router = express.Router();
+
+function validateRequest(req, res, next) {
+	const errors = validationResult(req);
+	if (!errors.isEmpty()) {
+		return res.status(400).json({
+			success: false,
+			error: {
+				code: 'VALIDATION_ERROR',
+				message: 'Request validation failed.',
+				details: errors.array().map((error) => error.msg),
+			},
+		});
+	}
+	return next();
+}
+
+router.use(authenticate);
+
+/**
+ * @openapi
+ * /api/v1/assessments:
+ *   get:
+ *     summary: List assessments
+ *     description: Lists assessments with authorized filters and pagination. Mentors see their mentees' assessments; Mentees see their own; Facility Admins see their facility's assessments.
+ *     tags: [Assessments]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: page
+ *         schema: { type: integer, minimum: 1, default: 1 }
+ *       - in: query
+ *         name: limit
+ *         schema: { type: integer, minimum: 1, maximum: 100, default: 20 }
+ *       - in: query
+ *         name: mentee_id
+ *         schema: { type: integer }
+ *       - in: query
+ *         name: mentor_id
+ *         schema: { type: integer }
+ *       - in: query
+ *         name: facility_id
+ *         schema: { type: integer }
+ *       - in: query
+ *         name: cycle_id
+ *         schema: { type: integer }
+ *       - in: query
+ *         name: thematic_area_id
+ *         schema: { type: integer }
+ *       - in: query
+ *         name: status
+ *         schema: { type: string, enum: [draft, in_review, finalized, reviewed] }
+ *     responses:
+ *       200:
+ *         description: Paginated assessments
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 data:
+ *                   type: array
+ *                   items:
+ *                     type: object
+ *                 meta:
+ *                   type: object
+ *       400:
+ *         description: Invalid filters
+ *       401:
+ *         description: Authentication required
+ *       403:
+ *         description: Authorization failed
+ */
+router.get('/', listAssessmentsValidation, validateRequest, controller.list);
+
+/**
+ * @openapi
+ * /api/v1/assessments/{id}:
+ *   get:
+ *     summary: Get an assessment
+ *     description: Retrieves a specific assessment by ID with criteria scores, checklist items, and evidence.
+ *     tags: [Assessments]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema: { type: integer, minimum: 1 }
+ *     responses:
+ *       200:
+ *         description: Assessment details
+ *       400:
+ *         description: Invalid assessment ID
+ *       401:
+ *         description: Authentication required
+ *       403:
+ *         description: Authorization failed
+ *       404:
+ *         description: Assessment not found
+ */
+router.get('/:id', assessmentIdValidation, validateRequest, controller.getById);
+
+/**
+ * @openapi
+ * /api/v1/assessments:
+ *   post:
+ *     summary: Create an assessment
+ *     description: Creates a new draft assessment for a mentee-mentor pair. Requires an active assignment.
+ *     tags: [Assessments]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - mentee_id
+ *               - mentor_id
+ *               - facility_id
+ *               - cycle_id
+ *             properties:
+ *               mentee_id:
+ *                 type: integer
+ *               mentor_id:
+ *                 type: integer
+ *               facility_id:
+ *                 type: integer
+ *               cycle_id:
+ *                 type: integer
+ *               thematic_area_id:
+ *                 type: integer
+ *               prerequisites_met:
+ *                 type: boolean
+ *     responses:
+ *       201:
+ *         description: Assessment created
+ *       400:
+ *         description: Validation error or business rule violation
+ *       401:
+ *         description: Authentication required
+ *       403:
+ *         description: Authorization failed
+ *       404:
+ *         description: Related entity not found
+ */
+router.post('/', createAssessmentValidation, validateRequest, controller.create);
+
+/**
+ * @openapi
+ * /api/v1/assessments/{id}:
+ *   patch:
+ *     summary: Update an assessment
+ *     description: Updates draft or in-review assessment fields (feedback, prerequisites_met).
+ *     tags: [Assessments]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema: { type: integer, minimum: 1 }
+ *     requestBody:
+ *       required: false
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               feedback:
+ *                 type: string
+ *               prerequisites_met:
+ *                 type: boolean
+ *     responses:
+ *       200:
+ *         description: Assessment updated
+ *       400:
+ *         description: Invalid status or validation error
+ *       401:
+ *         description: Authentication required
+ *       403:
+ *         description: Authorization failed
+ *       404:
+ *         description: Assessment not found
+ */
+router.patch('/:id', updateAssessmentValidation, validateRequest, controller.update);
+
+/**
+ * @openapi
+ * /api/v1/assessments/{id}/finalize:
+ *   post:
+ *     summary: Finalize an assessment
+ *     description: Finalizes a draft or in-review assessment. Calculates aggregate score from criteria scores.
+ *     tags: [Assessments]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema: { type: integer, minimum: 1 }
+ *     responses:
+ *       200:
+ *         description: Assessment finalized
+ *       400:
+ *         description: Invalid status transition or incomplete assessment
+ *       401:
+ *         description: Authentication required
+ *       403:
+ *         description: Authorization failed
+ *       404:
+ *         description: Assessment not found
+ */
+router.post('/:id/finalize', assessmentIdValidation, validateRequest, controller.finalize);
+
+/**
+ * @openapi
+ * /api/v1/assessments/{id}/review:
+ *   post:
+ *     summary: Review an assessment
+ *     description: Reviews a finalized assessment. Admins only.
+ *     tags: [Assessments]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema: { type: integer, minimum: 1 }
+ *     requestBody:
+ *       required: false
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               feedback:
+ *                 type: string
+ *               aggregate_score:
+ *                 type: number
+ *     responses:
+ *       200:
+ *         description: Assessment reviewed
+ *       400:
+ *         description: Invalid status transition
+ *       401:
+ *         description: Authentication required
+ *       403:
+ *         description: Authorization failed
+ *       404:
+ *         description: Assessment not found
+ */
+router.post('/:id/review', reviewAssessmentValidation, validateRequest, controller.review);
+
+/**
+ * @openapi
+ * /api/v1/assessments/{id}/criteria-scores:
+ *   post:
+ *     summary: Set assessment criteria scores
+ *     description: Sets or updates criteria scores for an assessment. Moves assessment to in_review status.
+ *     tags: [Assessments]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema: { type: integer, minimum: 1 }
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - criteria_scores
+ *             properties:
+ *               criteria_scores:
+ *                 type: array
+ *                 items:
+ *                   type: object
+ *                   properties:
+ *                     criterion:
+ *                       type: string
+ *                     score:
+ *                       type: number
+ *     responses:
+ *       200:
+ *         description: Criteria scores set
+ *       400:
+ *         description: Invalid status or validation error
+ *       401:
+ *         description: Authentication required
+ *       403:
+ *         description: Authorization failed
+ *       404:
+ *         description: Assessment not found
+ */
+router.post('/:id/criteria-scores', setCriteriaScoreValidation, validateRequest, controller.setCriteriaScore);
+
+/**
+ * @openapi
+ * /api/v1/assessments/{id}/checklist-items:
+ *   post:
+ *     summary: Set assessment checklist items
+ *     description: Sets or updates checklist items for an assessment.
+ *     tags: [Assessments]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema: { type: integer, minimum: 1 }
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - checklist_items
+ *             properties:
+ *               checklist_items:
+ *                 type: array
+ *                 items:
+ *                   type: object
+ *                   properties:
+ *                     item:
+ *                       type: string
+ *                     checked:
+ *                       type: boolean
+ *     responses:
+ *       200:
+ *         description: Checklist items set
+ *       400:
+ *         description: Invalid status or validation error
+ *       401:
+ *         description: Authentication required
+ *       403:
+ *         description: Authorization failed
+ *       404:
+ *         description: Assessment not found
+ */
+router.post('/:id/checklist-items', setChecklistItemsValidation, validateRequest, controller.setChecklistItems);
+
+/**
+ * @openapi
+ * /api/v1/assessments/{id}/evidence:
+ *   post:
+ *     summary: Add evidence to an assessment
+ *     description: Adds evidence (file reference) to an assessment.
+ *     tags: [Assessments]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema: { type: integer, minimum: 1 }
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - title
+ *               - file_id
+ *             properties:
+ *               title:
+ *                 type: string
+ *               file_id:
+ *                 type: integer
+ *     responses:
+ *       201:
+ *         description: Evidence added
+ *       400:
+ *         description: Invalid status or validation error
+ *       401:
+ *         description: Authentication required
+ *       403:
+ *         description: Authorization failed
+ *       404:
+ *         description: Assessment not found
+ */
+router.post('/:id/evidence', addEvidenceValidation, validateRequest, controller.addEvidence);
+
+module.exports = router;
