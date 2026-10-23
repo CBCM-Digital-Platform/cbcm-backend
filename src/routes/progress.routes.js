@@ -11,6 +11,8 @@ const {
 	listSnapshotsValidation,
 	summaryValidation,
 	userIdValidation,
+	trendsValidation,
+	menteeTrendsValidation,
 } = require('../validators/progress.validator');
 
 const router = express.Router();
@@ -329,5 +331,112 @@ router.get('/mentees/:menteeId/knowledge-snapshots', userIdValidation, validateR
  *               $ref: '#/components/schemas/ErrorResponse'
  */
 router.get('/mentees/:menteeId/competencies', userIdValidation, validateRequest, controller.getMenteeCompetencyBreakdown);
+
+/**
+ * @openapi
+ * /api/v1/progress/trends:
+ *   get:
+ *     summary: Get progress trends
+ *     description: Returns historical progress trends grouped by date. System Admin sees organization-wide trends; Facility Admin sees only their facility's trends.
+ *     tags: [Progress]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: facility_id
+ *         schema: { type: integer }
+ *       - in: query
+ *         name: cycle_id
+ *         schema: { type: integer }
+ *       - in: query
+ *         name: thematic_area_id
+ *         schema: { type: integer }
+ *       - in: query
+ *         name: start_date
+ *         schema: { type: string, format: date }
+ *       - in: query
+ *         name: end_date
+ *         schema: { type: string, format: date }
+ *     responses:
+ *       200:
+ *         description: Progress trends
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ProgressTrendsResponse'
+ *       400:
+ *         description: Invalid filters
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ *       401:
+ *         description: Authentication required
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ *       403:
+ *         description: Facility scope violation
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ */
+router.get('/trends', trendsValidation, validateRequest, controller.getTrends);
+
+/**
+ * @openapi
+ * /api/v1/progress/mentees/{menteeId}/trends:
+ *   get:
+ *     summary: Get a mentee's progress trends
+ *     description: Returns historical progress trends for a specific mentee grouped by thematic area and date. Mentees can view their own trends; Facility Admins can view trends within their facility.
+ *     tags: [Progress]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: menteeId
+ *         required: true
+ *         schema: { type: integer, minimum: 1 }
+ *       - in: query
+ *         name: start_date
+ *         schema: { type: string, format: date }
+ *       - in: query
+ *         name: end_date
+ *         schema: { type: string, format: date }
+ *     responses:
+ *       200:
+ *         description: Mentee's progress trends
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/MenteeProgressTrendsResponse'
+ *       400:
+ *         description: Invalid mentee ID or date filters
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ *       401:
+ *         description: Authentication required
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ *       403:
+ *         description: Scope violation
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ *       404:
+ *         description: Mentee not found
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ */
+router.get('/mentees/:menteeId/trends', userIdValidation, menteeTrendsValidation, validateRequest, controller.getMenteeTrends);
 
 module.exports = router;

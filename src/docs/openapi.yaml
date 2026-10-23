@@ -2034,6 +2034,69 @@ components:
                 type: string
                 format: date-time
                 example: '2026-10-15T10:30:00.000Z'
+    ProgressTrendsResponse:
+      type: object
+      properties:
+        trends:
+          type: array
+          items:
+            type: object
+            properties:
+              date:
+                type: string
+                format: date
+                example: '2026-10-15'
+              average_score:
+                type: number
+                example: 78.5
+              snapshot_count:
+                type: integer
+                example: 10
+        total_snapshots:
+          type: integer
+          example: 150
+        date_range:
+          type: object
+          properties:
+            start:
+              type: string
+              format: date-time
+              nullable: true
+              example: '2026-10-01T00:00:00.000Z'
+            end:
+              type: string
+              format: date-time
+              nullable: true
+              example: '2026-10-31T23:59:59.999Z'
+    MenteeProgressTrendsResponse:
+      type: object
+      properties:
+        mentee_id:
+          type: integer
+          example: 25
+        trends:
+          type: array
+          items:
+            type: object
+            properties:
+              thematic_area_id:
+                type: integer
+                nullable: true
+                example: 1
+              date:
+                type: string
+                format: date
+                example: '2026-10-15'
+              score:
+                type: number
+                example: 85.5
+              competency_level:
+                type: string
+                nullable: true
+                example: 'proficient'
+        total_snapshots:
+          type: integer
+          example: 20
     FindMatchesRequest:
       type: object
       required:
