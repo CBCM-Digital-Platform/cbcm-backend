@@ -11,6 +11,9 @@ const thematicAreasRoutes = require('./thematic-areas.routes');
 const assignmentsRoutes = require('./assignments.routes');
 const progressRoutes = require('./progress.routes');
 const sessionsRoutes = require('./sessions.routes');
+const settingsRoutes = require('./settings.routes');
+const uploadsRoutes = require('./uploads.routes');
+const resourcesRoutes = require('./resources.routes');
 
 const router = express.Router();
 router.use('/auth', authRoutes);
@@ -24,5 +27,8 @@ router.use('/thematic-areas', thematicAreasRoutes);
 router.use('/assignments', assignmentsRoutes);
 router.use('/progress', progressRoutes);
 router.use('/sessions', sessionsRoutes);
+router.use('/settings', settingsRoutes);
+router.use('/uploads', uploadsRoutes);
+router.use('/resources', resourcesRoutes);
 
 module.exports = router;
