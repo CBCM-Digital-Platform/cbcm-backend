@@ -7,6 +7,7 @@ const CycleStatus = require('../enums/cycle-status.enum');
 const AssignmentStatus = require('../enums/assignment-status.enum');
 const repository = require('../repositories/assessments.repository');
 const assignmentsRepository = require('../repositories/assignments.repository');
+const progressService = require('./progress.service');
 const Role = require('../enums/role.enum');
 
 const ASSESSMENT_FIELDS = ['mentee_id', 'mentor_id', 'facility_id', 'cycle_id', 'thematic_area_id', 'status', 'aggregate_score', 'feedback', 'prerequisites_met', 'finalized_at'];
@@ -280,6 +281,16 @@ async function finalizeAssessment(id, actor) {
 	});
 
 	const updated = await repository.findById(id);
+
+	// Create progress snapshot after successful finalization
+	try {
+		await progressService.createSnapshotFromAssessment(updated, actor);
+	} catch (error) {
+		// Log error but don't fail the finalization
+		// The assessment is already finalized successfully
+		console.error(`Failed to create progress snapshot for assessment ${id}:`, error.message);
+	}
+
 	return toAssessmentResponse(updated);
 }
 

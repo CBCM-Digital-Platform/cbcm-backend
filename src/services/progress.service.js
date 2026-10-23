@@ -200,10 +200,47 @@ async function getMenteeCompetencyBreakdown(menteeId, actor) {
 	};
 }
 
+async function createSnapshotFromAssessment(assessment, actor) {
+	const { id: assessmentId, mentee_id, facility_id, cycle_id, thematic_area_id, aggregate_score, finalized_at } = assessment;
+
+	// Idempotency check: look for existing snapshot for same mentee/cycle/thematic_area
+	// created within 1 minute of this assessment finalization
+	const existingSnapshot = await repository.findOne({
+		mentee_id,
+		facility_id,
+		cycle_id,
+		thematic_area_id,
+	});
+
+	if (existingSnapshot && finalized_at) {
+		const timeDiff = Math.abs(new Date(existingSnapshot.recorded_at) - new Date(finalized_at));
+		// If snapshot exists within 1 minute of finalization, consider it a duplicate
+		if (timeDiff < 60000) {
+			return toSnapshotResponse(existingSnapshot);
+		}
+	}
+
+	// Create new snapshot directly (assessment already validated related entities)
+	const snapshotPayload = {
+		mentee_id,
+		facility_id,
+		cycle_id,
+		thematic_area_id,
+		score: aggregate_score,
+		competency_level: null, // Business rule not defined - will be set when ranges are established
+		triggered_by: actor.id,
+		recorded_at: new Date(),
+	};
+
+	const snapshot = await repository.create(snapshotPayload);
+	return toSnapshotResponse(snapshot);
+}
+
 module.exports = {
 	listSnapshots,
 	getSnapshot,
 	createSnapshot,
+	createSnapshotFromAssessment,
 	getMenteeSnapshots,
 	getProgressSummary,
 	getMenteeCompetencyBreakdown,
