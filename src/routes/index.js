@@ -12,6 +12,8 @@ const assignmentsRoutes = require('./assignments.routes');
 const progressRoutes = require('./progress.routes');
 const sessionsRoutes = require('./sessions.routes');
 const assessmentsRoutes = require('./assessments.routes');
+const activityLogsRoutes = require('./activity-logs.routes');
+const analyticsRoutes = require('./analytics.routes');
 
 const router = express.Router();
 router.use('/auth', authRoutes);
@@ -26,5 +28,7 @@ router.use('/assignments', assignmentsRoutes);
 router.use('/progress', progressRoutes);
 router.use('/sessions', sessionsRoutes);
 router.use('/assessments', assessmentsRoutes);
+router.use('/activity-logs', activityLogsRoutes);
+router.use('/analytics', analyticsRoutes);
 
 module.exports = router;

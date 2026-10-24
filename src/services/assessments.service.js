@@ -9,6 +9,7 @@ const repository = require('../repositories/assessments.repository');
 const assignmentsRepository = require('../repositories/assignments.repository');
 const progressService = require('./progress.service');
 const Role = require('../enums/role.enum');
+const { logActivity } = require('../utils/activity-logger.util');
 
 const ASSESSMENT_FIELDS = ['mentee_id', 'mentor_id', 'facility_id', 'cycle_id', 'thematic_area_id', 'status', 'aggregate_score', 'feedback', 'prerequisites_met', 'finalized_at'];
 
@@ -290,6 +291,17 @@ async function finalizeAssessment(id, actor) {
 		// The assessment is already finalized successfully
 		console.error(`Failed to create progress snapshot for assessment ${id}:`, error.message);
 	}
+
+	// Log the assessment finalization
+	await logActivity({
+		actorId: actor.id,
+		action: 'assessment.finalized',
+		entityType: 'assessment',
+		entityId: id,
+		facilityId: assessment.facility_id,
+		outcome: 'success',
+		metadata: { aggregate_score: aggregateScore },
+	});
 
 	return toAssessmentResponse(updated);
 }
