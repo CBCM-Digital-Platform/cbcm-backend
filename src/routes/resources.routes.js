@@ -21,6 +21,7 @@ router.use(authenticate);
 router.post('/', requireRole(FACILITY_MANAGEMENT_ROLES), controller.create);
 router.get('/', controller.list);
 router.get('/:id', validateId, controller.getById);
+router.get('/:id/content', validateId, controller.download);
 router.patch('/:id', requireRole(FACILITY_MANAGEMENT_ROLES), validateId, controller.update);
 router.delete('/:id', requireRole(FACILITY_MANAGEMENT_ROLES), validateId, controller.remove);
 

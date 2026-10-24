@@ -1,5 +1,6 @@
 const { Op } = require('sequelize');
 const { sequelize } = require('../models');
+const storage = require('../providers/storage.provider');
 const models = require('../models');
 const AppError = require('../errors/app-error');
 const Role = require('../enums/role.enum');
@@ -409,11 +410,29 @@ async function deleteResource(id, actor) {
 	return { id, deleted: true };
 }
 
+async function openResourceFile(id, actor) {
+	const resource = await getResource(id, actor);
+	if (!resource?.file_id) {
+		throw new AppError('This resource has no uploaded file.', 404, 'FILE_NOT_FOUND');
+	}
+	const file = await models.UploadedFile.findByPk(resource.file_id);
+	if (!file) {
+		throw new AppError('Referenced file does not exist.', 404, 'FILE_NOT_FOUND');
+	}
+	const opened = await storage.getStorageProvider().open(file.storage_key);
+	return {
+		mimeType: file.mime_type,
+		sizeBytes: opened.sizeBytes || Number(file.size_bytes || 0),
+		stream: opened.stream,
+	};
+}
+
 module.exports = {
 	createResource,
 	getResource,
 	listResources,
 	updateResource,
 	deleteResource,
+	openResourceFile,
 	isModulePublishedAndAuthorized,
 };

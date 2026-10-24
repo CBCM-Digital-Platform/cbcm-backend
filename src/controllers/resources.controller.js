@@ -52,10 +52,24 @@ async function remove(req, res) {
 	}
 }
 
+async function download(req, res, next) {
+	try {
+		const file = await service.openResourceFile(Number(req.params.id), req.user);
+		res.setHeader('Content-Type', file.mimeType || 'application/octet-stream');
+		res.setHeader('Content-Length', String(file.sizeBytes || 0));
+		res.setHeader('Content-Disposition', 'inline');
+		file.stream.on('error', next);
+		return file.stream.pipe(res);
+	} catch (error) {
+		return controllerError(res, error, 'Unable to download the resource file.');
+	}
+}
+
 module.exports = {
 	create,
 	list,
 	getById,
 	update,
 	remove,
+	download,
 };

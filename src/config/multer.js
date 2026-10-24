@@ -1,3 +1,6 @@
+const fs = require('node:fs');
+const os = require('node:os');
+const crypto = require('node:crypto');
 const path = require('node:path');
 const multer = require('multer');
 const env = require('./env');
@@ -62,15 +65,22 @@ function inspectUploadedFile(file, { maxBytes = env.UPLOAD_MAX_BYTES } = {}) {
 	if (!file) {
 		throw new AppError('A file is required.', 400, 'FILE_REQUIRED');
 	}
-	const body = file.buffer;
+	let body = file.buffer;
+	let size = file.size;
 	if (!Buffer.isBuffer(body) && !(body instanceof Uint8Array)) {
-		throw new AppError('A file is required.', 400, 'FILE_REQUIRED');
+		if (!file.path) {
+			throw new AppError('A file is required.', 400, 'FILE_REQUIRED');
+		}
+		const stats = fs.statSync(file.path);
+		size = stats.size;
+		body = fs.readFileSync(file.path);
+		try { fs.unlinkSync(file.path); } catch (_) {}
 	}
 	const buffer = Buffer.from(body);
-	if (!buffer.length || Number(file.size || 0) === 0) {
+	if (!buffer.length || Number(size || 0) === 0) {
 		throw new AppError('The uploaded file is empty.', 400, 'FILE_EMPTY');
 	}
-	if (buffer.length > maxBytes || Number(file.size || 0) > maxBytes) {
+	if (buffer.length > maxBytes || Number(size || 0) > maxBytes) {
 		throw new AppError('The uploaded file exceeds the maximum allowed size.', 400, 'FILE_TOO_LARGE');
 	}
 
@@ -126,7 +136,10 @@ function mapMulterError(error) {
 }
 
 const resourceUpload = multer({
-	storage: multer.memoryStorage(),
+	storage: multer.diskStorage({
+		destination: (_req, _file, cb) => cb(null, os.tmpdir()),
+		filename: (_req, _file, cb) => cb(null, `upload-${crypto.randomUUID()}`),
+	}),
 	limits: {
 		fileSize: env.UPLOAD_MAX_BYTES,
 		files: 1,

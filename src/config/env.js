@@ -39,7 +39,7 @@ const env = {
   JITSI_TOKEN_EXPIRY: process.env.JITSI_TOKEN_EXPIRY || '1h',
   STORAGE_PROVIDER: String(process.env.STORAGE_PROVIDER || 'local').trim().toLowerCase() || 'local',
   LOCAL_STORAGE_DIR: String(process.env.LOCAL_STORAGE_DIR || path.join(process.cwd(), 'uploads')).trim() || path.join(process.cwd(), 'uploads'),
-  UPLOAD_MAX_BYTES: parsePositiveInteger(process.env.UPLOAD_MAX_BYTES, 50 * 1024 * 1024, 'UPLOAD_MAX_BYTES'),
+  UPLOAD_MAX_BYTES: parsePositiveInteger(process.env.UPLOAD_MAX_BYTES, 500 * 1024 * 1024, 'UPLOAD_MAX_BYTES'),
   S3_BUCKET: String(process.env.S3_BUCKET || '').trim(),
   S3_REGION: String(process.env.S3_REGION || process.env.AWS_REGION || '').trim(),
   S3_KEY_PREFIX: String(process.env.S3_KEY_PREFIX || '').trim(),
