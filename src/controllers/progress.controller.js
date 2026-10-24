@@ -54,6 +54,22 @@ async function getMenteeCompetencyBreakdown(req, res) {
 	}
 }
 
+async function getTrends(req, res) {
+	try {
+		return successResponse(res, 200, await service.getProgressTrends(matchedData(req, { locations: ['query'] }), req.user));
+	} catch (error) {
+		return controllerError(res, error, 'Unable to load progress trends.');
+	}
+}
+
+async function getMenteeTrends(req, res) {
+	try {
+		return successResponse(res, 200, await service.getMenteeProgressTrends(Number(req.params.menteeId), matchedData(req, { locations: ['query'] }), req.user));
+	} catch (error) {
+		return controllerError(res, error, 'Unable to load mentee progress trends.');
+	}
+}
+
 module.exports = {
 	list,
 	getById,
@@ -61,4 +77,6 @@ module.exports = {
 	getMenteeSnapshots,
 	getSummary,
 	getMenteeCompetencyBreakdown,
+	getTrends,
+	getMenteeTrends,
 };

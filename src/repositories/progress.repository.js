@@ -60,6 +60,10 @@ async function findMenteeProgressHistory(menteeId, options = {}) {
 	return findMany({ mentee_id: menteeId }, { order: [['recorded_at', 'ASC']], ...options });
 }
 
+async function findTrends(where, options = {}) {
+	return findMany(where, { order: [['recorded_at', 'ASC']], ...options });
+}
+
 module.exports = {
 	findAll,
 	findById,
@@ -75,4 +79,5 @@ module.exports = {
 	findByThematicArea,
 	findLatestByMentee,
 	findMenteeProgressHistory,
+	findTrends,
 };

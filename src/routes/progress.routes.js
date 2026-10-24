@@ -11,6 +11,8 @@ const {
 	listSnapshotsValidation,
 	summaryValidation,
 	userIdValidation,
+	trendsValidation,
+	menteeTrendsValidation,
 } = require('../validators/progress.validator');
 
 const router = express.Router();
@@ -329,5 +331,9 @@ router.get('/mentees/:menteeId/knowledge-snapshots', userIdValidation, validateR
  *               $ref: '#/components/schemas/ErrorResponse'
  */
 router.get('/mentees/:menteeId/competencies', userIdValidation, validateRequest, controller.getMenteeCompetencyBreakdown);
+
+router.get('/trends', trendsValidation, validateRequest, controller.getTrends);
+
+router.get('/mentees/:menteeId/trends', userIdValidation, menteeTrendsValidation, validateRequest, controller.getMenteeTrends);
 
 module.exports = router;

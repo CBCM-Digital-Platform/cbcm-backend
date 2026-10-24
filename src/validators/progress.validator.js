@@ -29,10 +29,25 @@ const summaryValidation = [
 
 const userIdValidation = [param('menteeId').isInt({ min: 1 }).withMessage('Invalid mentee ID.')];
 
+const trendsValidation = [
+	query('facility_id').optional().isInt({ min: 1 }).withMessage('Facility ID must be a positive integer.'),
+	query('cycle_id').optional().isInt({ min: 1 }).withMessage('Cycle ID must be a positive integer.'),
+	query('thematic_area_id').optional().isInt({ min: 1 }).withMessage('Thematic area ID must be a positive integer.'),
+	query('start_date').optional().isISO8601().withMessage('Start date must be a valid ISO 8601 date.'),
+	query('end_date').optional().isISO8601().withMessage('End date must be a valid ISO 8601 date.'),
+];
+
+const menteeTrendsValidation = [
+	query('start_date').optional().isISO8601().withMessage('Start date must be a valid ISO 8601 date.'),
+	query('end_date').optional().isISO8601().withMessage('End date must be a valid ISO 8601 date.'),
+];
+
 module.exports = {
 	createSnapshotValidation,
 	snapshotIdValidation,
 	listSnapshotsValidation,
 	summaryValidation,
 	userIdValidation,
+	trendsValidation,
+	menteeTrendsValidation,
 };

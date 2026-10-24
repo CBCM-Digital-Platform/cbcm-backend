@@ -1,5 +1,6 @@
 // src/services/progress.service.js
 const { sequelize } = require('../models');
+const { Op } = require('sequelize');
 const AppError = require('../errors/app-error');
 const { canAccessFacility, canAccessUser } = require('../constants/roles.constants');
 const repository = require('../repositories/progress.repository');
@@ -200,12 +201,166 @@ async function getMenteeCompetencyBreakdown(menteeId, actor) {
 	};
 }
 
+async function createSnapshotFromAssessment(assessment, actor) {
+	const { id: assessmentId, mentee_id, facility_id, cycle_id, thematic_area_id, aggregate_score, finalized_at } = assessment;
+
+	// Idempotency check: look for existing snapshot for same mentee/cycle/thematic_area
+	// created within 1 minute of this assessment finalization
+	const existingSnapshot = await repository.findOne({
+		mentee_id,
+		facility_id,
+		cycle_id,
+		thematic_area_id,
+	});
+
+	if (existingSnapshot && finalized_at) {
+		const timeDiff = Math.abs(new Date(existingSnapshot.recorded_at) - new Date(finalized_at));
+		// If snapshot exists within 1 minute of finalization, consider it a duplicate
+		if (timeDiff < 60000) {
+			return toSnapshotResponse(existingSnapshot);
+		}
+	}
+
+	// Create new snapshot directly (assessment already validated related entities)
+	const snapshotPayload = {
+		mentee_id,
+		facility_id,
+		cycle_id,
+		thematic_area_id,
+		score: aggregate_score,
+		competency_level: null, // Business rule not defined - will be set when ranges are established
+		triggered_by: actor.id,
+		recorded_at: new Date(),
+	};
+
+	const snapshot = await repository.create(snapshotPayload);
+	return toSnapshotResponse(snapshot);
+}
+
+async function getProgressTrends({ facilityId, cycleId, thematicAreaId, startDate, endDate }, actor) {
+	const where = {};
+
+	// Enforce facility scope for Facility Admin
+	if (actor && actor.role === 'facility_admin') {
+		if (!actor.facility_id) {
+			throw new AppError('Facility administrator must be assigned to a facility.', 403, 'FORBIDDEN');
+		}
+		where.facility_id = actor.facility_id;
+	} else if (facilityId) {
+		where.facility_id = facilityId;
+	}
+
+	if (cycleId) where.cycle_id = cycleId;
+	if (thematicAreaId) where.thematic_area_id = thematicAreaId;
+
+	// Date range filtering
+	if (startDate) {
+		where.recorded_at = { ...where.recorded_at, [Op.gte]: new Date(startDate) };
+	}
+	if (endDate) {
+		where.recorded_at = { ...where.recorded_at, [Op.lte]: new Date(endDate) };
+	}
+
+	const snapshots = await repository.findTrends(where);
+
+	// Group by date and calculate averages
+	const trendsByDate = new Map();
+	snapshots.forEach((s) => {
+		const dateKey = new Date(s.recorded_at).toISOString().split('T')[0];
+		if (!trendsByDate.has(dateKey)) {
+			trendsByDate.set(dateKey, { date: dateKey, totalScore: 0, count: 0, snapshots: [] });
+		}
+		const trend = trendsByDate.get(dateKey);
+		trend.totalScore += s.score || 0;
+		trend.count += 1;
+		trend.snapshots.push(s);
+	});
+
+	const trends = Array.from(trendsByDate.values())
+		.map((t) => ({
+			date: t.date,
+			average_score: t.count > 0 ? Math.round((t.totalScore / t.count) * 100) / 100 : 0,
+			snapshot_count: t.count,
+		}))
+		.sort((a, b) => a.date.localeCompare(b.date));
+
+	return {
+		trends,
+		total_snapshots: snapshots.length,
+		date_range: {
+			start: snapshots.length > 0 ? snapshots[0].recorded_at : null,
+			end: snapshots.length > 0 ? snapshots[snapshots.length - 1].recorded_at : null,
+		},
+	};
+}
+
+async function getMenteeProgressTrends(menteeId, { startDate, endDate }, actor) {
+	const { User } = require('../models');
+	const mentee = await User.findByPk(menteeId);
+	if (!mentee) throw new AppError('Mentee was not found.', 404, 'MENTEE_NOT_FOUND');
+
+	// Enforce scope: mentees can view their own trends
+	if (actor) {
+		if (actor.role === 'mentee' && actor.id !== menteeId) {
+			throw new AppError('You can only view your own progress trends.', 403, 'FORBIDDEN');
+		}
+		if (actor.role === 'facility_admin' && !canAccessUser(actor, mentee)) {
+			throw new AppError('You can only view progress trends for mentees within your facility.', 403, 'FORBIDDEN');
+		}
+	}
+
+	const where = { mentee_id: menteeId };
+
+	// Date range filtering
+	if (startDate) {
+		where.recorded_at = { ...where.recorded_at, [Op.gte]: new Date(startDate) };
+	}
+	if (endDate) {
+		where.recorded_at = { ...where.recorded_at, [Op.lte]: new Date(endDate) };
+	}
+
+	const snapshots = await repository.findTrends(where);
+
+	// Group by thematic area and date
+	const trendsByThematicArea = new Map();
+	snapshots.forEach((s) => {
+		const areaKey = s.thematic_area_id || 'overall';
+		const dateKey = new Date(s.recorded_at).toISOString().split('T')[0];
+		const key = `${areaKey}|${dateKey}`;
+
+		if (!trendsByThematicArea.has(key)) {
+			trendsByThematicArea.set(key, {
+				thematic_area_id: s.thematic_area_id,
+				date: dateKey,
+				score: s.score,
+				competency_level: s.competency_level,
+			});
+		}
+	});
+
+	const trends = Array.from(trendsByThematicArea.values()).sort((a, b) => {
+		if (a.thematic_area_id !== b.thematic_area_id) {
+			return (a.thematic_area_id || 0) - (b.thematic_area_id || 0);
+		}
+		return a.date.localeCompare(b.date);
+	});
+
+	return {
+		mentee_id: menteeId,
+		trends,
+		total_snapshots: snapshots.length,
+	};
+}
+
 module.exports = {
 	listSnapshots,
 	getSnapshot,
 	createSnapshot,
+	createSnapshotFromAssessment,
 	getMenteeSnapshots,
 	getProgressSummary,
 	getMenteeCompetencyBreakdown,
+	getProgressTrends,
+	getMenteeProgressTrends,
 	toSnapshotResponse,
 };

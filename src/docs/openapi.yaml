@@ -2304,6 +2304,69 @@ components:
                 type: string
                 format: date-time
                 example: '2026-10-15T10:30:00.000Z'
+    ProgressTrendsResponse:
+      type: object
+      properties:
+        trends:
+          type: array
+          items:
+            type: object
+            properties:
+              date:
+                type: string
+                format: date
+                example: '2026-10-15'
+              average_score:
+                type: number
+                example: 78.5
+              snapshot_count:
+                type: integer
+                example: 10
+        total_snapshots:
+          type: integer
+          example: 150
+        date_range:
+          type: object
+          properties:
+            start:
+              type: string
+              format: date-time
+              nullable: true
+              example: '2026-10-01T00:00:00.000Z'
+            end:
+              type: string
+              format: date-time
+              nullable: true
+              example: '2026-10-31T23:59:59.999Z'
+    MenteeProgressTrendsResponse:
+      type: object
+      properties:
+        mentee_id:
+          type: integer
+          example: 25
+        trends:
+          type: array
+          items:
+            type: object
+            properties:
+              thematic_area_id:
+                type: integer
+                nullable: true
+                example: 1
+              date:
+                type: string
+                format: date
+                example: '2026-10-15'
+              score:
+                type: number
+                example: 85.5
+              competency_level:
+                type: string
+                nullable: true
+                example: 'proficient'
+        total_snapshots:
+          type: integer
+          example: 20
     FindMatchesRequest:
       type: object
       required:
@@ -5340,6 +5403,10 @@ paths:
     post:
       tags: [Learning]
       summary: Submit answers for a quiz attempt
+<<<<<<< HEAD
+=======
+      description: Submits quiz answers for an active attempt and returns the result.
+>>>>>>> origin/main
       security:
         - bearerAuth: []
       requestBody:
@@ -5347,10 +5414,21 @@ paths:
         content:
           application/json:
             schema:
+<<<<<<< HEAD
               $ref: '#/components/schemas/QuizSubmissionRequest'
       responses:
         '200':
           $ref: '#/components/responses/LearningObject'
+=======
+              $ref: '#/components/schemas/SubmitQuizRequest'
+      responses:
+        '200':
+          description: Quiz result
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/QuizResultResponse'
+>>>>>>> origin/main
         '400':
           $ref: '#/components/responses/BadRequest'
         '401':
@@ -5359,6 +5437,7 @@ paths:
           $ref: '#/components/responses/Forbidden'
         '404':
           $ref: '#/components/responses/NotFound'
+<<<<<<< HEAD
         '409':
           $ref: '#/components/responses/Conflict'
   /api/v1/assignments/{id}/unassign:
@@ -5370,10 +5449,15 @@ paths:
           type: integer
           minimum: 1
     post:
+=======
+  /api/v1/assignments/{id}/unassign:
+    parameters:
+      - $ref: '#/components/parameters/AssignmentId'
+    post:
+      tags: [Assignments]
+>>>>>>> origin/main
       summary: Unassign a mentor-mentee pair
       description: Cancels an active assignment. System Admin can unassign any assignment; Facility Admin can only unassign within their facility.
-      tags:
-        - Assignments
       security:
         - bearerAuth: []
       responses:
@@ -5708,36 +5792,55 @@ paths:
       tags: [Learning]
       summary: Add an answer option to a quiz question
       description: Facility Admin only. label A-D maps to existing option order.
+          description: Facility scope violation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /api/v1/progress/mentees/{menteeId}/knowledge-snapshots:
+    get:
+      summary: Get a mentee's knowledge-score snapshots
+      description: Retrieves all snapshots for a specific mentee in chronological order. Mentees can view their own snapshots; Facility Admins can view snapshots within their facility.
+      tags:
+        - Progress
       security:
         - bearerAuth: []
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              required: [text]
-              properties:
-                text:
-                  type: string
-                isCorrect:
-                  type: boolean
-                label:
-                  type: string
-                  enum: [A, B, C, D]
-                  description: Maps to orderNumber 0-3 using existing option order.
-                orderNumber:
-                  type: integer
+      parameters:
+        - in: path
+          name: menteeId
+          required: true
+          schema:
+            type: integer
+            minimum: 1
       responses:
-        '201':
-          $ref: '#/components/responses/LearningCreated'
+        '200':
+          description: Mentee's snapshots
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/SnapshotResponse'
         '400':
-          $ref: '#/components/responses/BadRequest'
+          description: Invalid mentee ID
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
         '401':
-          $ref: '#/components/responses/Unauthorized'
+          description: Authentication required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
         '403':
-          $ref: '#/components/responses/Forbidden'
+          description: Scope violation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
         '404':
+<<<<<<< HEAD
           $ref: '#/components/responses/NotFound'
   /api/v1/learning/questions/{questionId}/options/{optionId}:
     parameters:
@@ -5746,48 +5849,167 @@ paths:
     put:
       tags: [Learning]
       summary: Replace an answer option
+=======
+          description: Mentee not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /api/v1/progress/mentees/{menteeId}/competencies:
+    get:
+      summary: Get a mentee's competency breakdown
+      description: Returns the latest competency scores by thematic area for a specific mentee. Mentees can view their own breakdown; Facility Admins can view breakdown within their facility.
+      tags:
+        - Progress
+>>>>>>> origin/main
       security:
         - bearerAuth: []
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              required: [text]
-              properties:
-                text:
-                  type: string
-                isCorrect:
-                  type: boolean
-                orderNumber:
-                  type: integer
+      parameters:
+        - in: path
+          name: menteeId
+          required: true
+          schema:
+            type: integer
+            minimum: 1
       responses:
         '200':
-          $ref: '#/components/responses/LearningObject'
+          description: Mentee's competency breakdown
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MenteeCompetencyBreakdownResponse'
         '400':
-          $ref: '#/components/responses/BadRequest'
+          description: Invalid mentee ID
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
         '401':
-          $ref: '#/components/responses/Unauthorized'
+          description: Authentication required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
         '403':
-          $ref: '#/components/responses/Forbidden'
+          description: Scope violation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
         '404':
-          $ref: '#/components/responses/NotFound'
-    delete:
-      tags: [Learning]
-      summary: Delete an answer option
+          description: Mentee not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /api/v1/progress/trends:
+    get:
+      summary: Get progress trends
+      description: Returns historical progress trends grouped by date. System Admin sees organization-wide trends; Facility Admin sees only their facility's trends.
+      tags:
+        - Progress
       security:
         - bearerAuth: []
+      parameters:
+        - in: query
+          name: facility_id
+          schema:
+            type: integer
+        - in: query
+          name: cycle_id
+          schema:
+            type: integer
+        - in: query
+          name: thematic_area_id
+          schema:
+            type: integer
+        - in: query
+          name: start_date
+          schema:
+            type: string
+            format: date
+        - in: query
+          name: end_date
+          schema:
+            type: string
+            format: date
       responses:
         '200':
-          $ref: '#/components/responses/LearningAction'
+          description: Progress trends
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProgressTrendsResponse'
         '400':
-          $ref: '#/components/responses/BadRequest'
+          description: Invalid filters
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
         '401':
-          $ref: '#/components/responses/Unauthorized'
+          description: Authentication required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
         '403':
-          $ref: '#/components/responses/Forbidden'
+          description: Facility scope violation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /api/v1/progress/mentees/{menteeId}/trends:
+    get:
+      summary: Get a mentee's progress trends
+      description: Returns historical progress trends for a specific mentee grouped by thematic area and date. Mentees can view their own trends; Facility Admins can view trends within their facility.
+      tags:
+        - Progress
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: menteeId
+          required: true
+          schema:
+            type: integer
+            minimum: 1
+        - in: query
+          name: start_date
+          schema:
+            type: string
+            format: date
+        - in: query
+          name: end_date
+          schema:
+            type: string
+            format: date
+      responses:
+        '200':
+          description: Mentee's progress trends
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MenteeProgressTrendsResponse'
+        '400':
+          description: Invalid mentee ID or date filters
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Authentication required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Scope violation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
         '404':
+<<<<<<< HEAD
           $ref: '#/components/responses/NotFound'
   /api/v1/progress/mentees/{menteeId}/knowledge-snapshots:
     parameters:
@@ -5832,11 +6054,14 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
         '404':
+=======
+>>>>>>> origin/main
           description: Mentee not found
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
+<<<<<<< HEAD
   /api/v1/progress/mentees/{menteeId}/competencies:
     parameters:
       - name: menteeId
@@ -6601,6 +6826,8 @@ paths:
           $ref: '#/components/responses/Forbidden'
         '404':
           $ref: '#/components/responses/NotFound'
+=======
+>>>>>>> origin/main
 tags:
   - name: Auth
     description: Authentication and session management
