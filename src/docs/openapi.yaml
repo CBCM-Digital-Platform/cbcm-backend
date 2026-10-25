@@ -2558,6 +2558,33 @@ components:
                   unreadCount:
                     type: integer
                     minimum: 0
+tags:
+  - name: Auth
+    description: Authentication and session management
+  - name: Users
+    description: User management and profiles
+  - name: Facilities
+    description: Facility management
+  - name: Mentorship Cycles
+    description: Mentorship cycle management
+  - name: Cycle Configuration
+    description: Cycle facility and thematic area configuration
+  - name: Messaging
+    description: Messaging and conversations
+  - name: Thematic Areas
+    description: Global thematic area management (System Admin only)
+  - name: Assignments
+    description: Mentor-mentee assignment management
+  - name: Progress
+    description: Knowledge-score snapshots and progress tracking
+  - name: Activity Logs
+    description: Audit and activity logging
+  - name: Analytics
+    description: Dashboard metrics and analytics
+  - name: Learning
+    description: Learning modules, content, access, progress, and quizzes.
+  - name: Notifications
+    description: Notifications belonging to the authenticated user.
 paths:
   /api/v1/users/me:
     get:
@@ -5877,33 +5904,6 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
-tags:
-  - name: Auth
-    description: Authentication and session management
-  - name: Users
-    description: User management and profiles
-  - name: Facilities
-    description: Facility management
-  - name: Mentorship Cycles
-    description: Mentorship cycle management
-  - name: Cycle Configuration
-    description: Cycle facility and thematic area configuration
-  - name: Messaging
-    description: Messaging and conversations
-  - name: Thematic Areas
-    description: Global thematic area management (System Admin only)
-  - name: Assignments
-    description: Mentor-mentee assignment management
-  - name: Progress
-    description: Knowledge-score snapshots and progress tracking
-  - name: Activity Logs
-    description: Audit and activity logging
-  - name: Analytics
-    description: Dashboard metrics and analytics
-  - name: Learning
-    description: Learning modules, content, access, progress, and quizzes.
-  - name: Notifications
-    description: Notifications belonging to the authenticated user.
   /api/v1/activity-logs:
     get:
       summary: List activity logs
