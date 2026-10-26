@@ -3,6 +3,8 @@ module.exports = (sequelize, DataTypes) => sequelize.define('FAQ', {
 	category: { type: DataTypes.STRING },
 	question: { type: DataTypes.TEXT },
 	answer: { type: DataTypes.TEXT },
+	target_audience: { type: DataTypes.STRING },
+	facility_id: { type: DataTypes.INTEGER },
 	created_by: { type: DataTypes.INTEGER },
 	updated_by: { type: DataTypes.INTEGER },
 	created_at: { type: DataTypes.DATE },

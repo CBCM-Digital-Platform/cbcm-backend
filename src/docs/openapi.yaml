@@ -940,6 +940,190 @@ components:
         sizeBytes:
           type: integer
           nullable: true
+    UploadedFile:
+      type: object
+      properties:
+        id:
+          type: integer
+          example: 12
+        ownerId:
+          type: integer
+          example: 7
+        context:
+          type: string
+          example: resource
+        mimeType:
+          type: string
+          example: application/pdf
+        sizeBytes:
+          type: integer
+          example: 20480
+        createdAt:
+          type: string
+          format: date-time
+          nullable: true
+    Resource:
+      type: object
+      properties:
+        id:
+          type: integer
+          example: 1
+        title:
+          type: string
+          example: Clinical Guidelines for Malaria
+        type:
+          type: string
+          enum: [pdf, audio, video]
+          example: pdf
+        thematicAreaId:
+          type: integer
+          nullable: true
+        thematic_area_id:
+          type: integer
+          nullable: true
+        moduleId:
+          type: integer
+          nullable: true
+        module_id:
+          type: integer
+          nullable: true
+        fileId:
+          type: integer
+          nullable: true
+        file_id:
+          type: integer
+          nullable: true
+        url:
+          type: string
+          nullable: true
+        createdBy:
+          type: integer
+          nullable: true
+        created_by:
+          type: integer
+          nullable: true
+        updatedBy:
+          type: integer
+          nullable: true
+        updated_by:
+          type: integer
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+          nullable: true
+        updatedAt:
+          type: string
+          format: date-time
+          nullable: true
+        updated_at:
+          type: string
+          format: date-time
+          nullable: true
+        module:
+          type: object
+          nullable: true
+          properties:
+            id:
+              type: integer
+            title:
+              type: string
+            thematicAreaId:
+              type: integer
+            status:
+              type: string
+            isPublished:
+              type: boolean
+            isAuthorized:
+              type: boolean
+        thematicArea:
+          type: object
+          nullable: true
+          properties:
+            id:
+              type: integer
+            code:
+              type: string
+            name:
+              type: string
+        file:
+          type: object
+          nullable: true
+          properties:
+            id:
+              type: integer
+            mimeType:
+              type: string
+            sizeBytes:
+              type: integer
+            createdAt:
+              type: string
+              format: date-time
+    CreateResourceRequest:
+      type: object
+      required: [title, type, thematic_area_id, module_id, file_id]
+      properties:
+        title:
+          type: string
+          example: Malaria Case Management Manual
+        type:
+          type: string
+          enum: [pdf, audio, video]
+          example: pdf
+        thematic_area_id:
+          type: integer
+          example: 2
+        module_id:
+          type: integer
+          example: 3
+        file_id:
+          type: integer
+          example: 12
+        url:
+          type: string
+          nullable: true
+    UpdateResourceRequest:
+      type: object
+      properties:
+        title:
+          type: string
+        type:
+          type: string
+          enum: [pdf, audio, video]
+        thematic_area_id:
+          type: integer
+        module_id:
+          type: integer
+        file_id:
+          type: integer
+        url:
+          type: string
+          nullable: true
+    ResourceListResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/Resource'
+        meta:
+          type: object
+          properties:
+            page:
+              type: integer
+            limit:
+              type: integer
+            total:
+              type: integer
+            totalPages:
+              type: integer
     Message:
       type: object
       properties:
@@ -1066,6 +1250,92 @@ components:
           type: string
           format: date-time
           example: '2026-10-16T18:30:00.000Z'
+    FAQ:
+      type: object
+      required:
+        - id
+        - question
+        - answer
+      properties:
+        id:
+          type: integer
+          example: 1
+        category:
+          type: string
+          nullable: true
+          example: General
+        question:
+          type: string
+          example: How do I reset my password?
+        answer:
+          type: string
+          example: You can reset your password by clicking the Forgot Password link on the login page.
+        target_audience:
+          type: string
+          nullable: true
+          description: Comma-separated roles (e.g., "mentor,mentee" or "all")
+          example: all
+        facility_id:
+          type: integer
+          nullable: true
+          description: Facility ID for facility-scoped content, null for system-wide
+          example: null
+        created_by:
+          type: integer
+          example: 1
+        updated_by:
+          type: integer
+          nullable: true
+          example: 1
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+    UserGuide:
+      type: object
+      required:
+        - id
+        - title
+        - content
+      properties:
+        id:
+          type: integer
+          example: 1
+        title:
+          type: string
+          example: Getting Started with CBCM
+        content:
+          type: string
+          example: This guide will help you get started with the CBCM platform.
+        attachment_file_id:
+          type: integer
+          nullable: true
+          example: 42
+        target_audience:
+          type: string
+          nullable: true
+          description: Comma-separated roles (e.g., "mentor,mentee" or "all")
+          example: mentor
+        facility_id:
+          type: integer
+          nullable: true
+          description: Facility ID for facility-scoped content, null for system-wide
+          example: null
+        created_by:
+          type: integer
+          example: 1
+        updated_by:
+          type: integer
+          nullable: true
+          example: 1
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
     NotificationListResponse:
       type: object
       required:
@@ -5347,14 +5617,10 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/SubmitQuizRequest'
+              $ref: '#/components/schemas/QuizSubmissionRequest'
       responses:
         '200':
-          description: Quiz result
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/QuizResultResponse'
+          $ref: '#/components/responses/LearningObject'
         '400':
           $ref: '#/components/responses/BadRequest'
         '401':
@@ -5363,6 +5629,8 @@ paths:
           $ref: '#/components/responses/Forbidden'
         '404':
           $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
   /api/v1/assignments/{id}/unassign:
     parameters:
       - $ref: '#/components/parameters/AssignmentId'
@@ -5403,6 +5671,7 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
+
   /api/v1/assignments/mentees/{menteeId}/assignments:
     parameters:
       - name: menteeId
@@ -5693,6 +5962,16 @@ paths:
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /api/v1/learning/questions/{questionId}/options:
+    parameters:
+      - $ref: '#/components/parameters/QuestionId'
+    post:
+      tags: [Learning]
+      summary: Add an answer option to a quiz question
+      description: Facility Admin only. label A-D maps to existing option order.
           description: Facility scope violation
           content:
             application/json:
@@ -5741,11 +6020,34 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
         '404':
-          description: Mentee not found
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
+          $ref: '#/components/responses/NotFound'
+  /api/v1/learning/questions/{questionId}/options/{optionId}:
+    parameters:
+      - $ref: '#/components/parameters/QuestionId'
+      - $ref: '#/components/parameters/OptionId'
+    put:
+      tags: [Learning]
+      summary: Replace an answer option
+      description: Facility Admin only.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LearningOptionWrite'
+      responses:
+        '200':
+          $ref: '#/components/responses/LearningObject'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
   /api/v1/progress/mentees/{menteeId}/competencies:
     get:
       summary: Get a mentee's competency breakdown
@@ -5882,6 +6184,54 @@ paths:
                 $ref: '#/components/schemas/MenteeProgressTrendsResponse'
         '400':
           description: Invalid mentee ID or date filters
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Authentication required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Scope violation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Mentee not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /api/v1/progress/mentees/{menteeId}/knowledge-snapshots:
+    get:
+      summary: Get a mentee's knowledge-score snapshots
+      description: Retrieves all snapshots for a specific mentee in chronological order. Mentees can view their own snapshots; Facility Admins can view snapshots within their facility.
+      tags:
+        - Progress
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: menteeId
+          required: true
+          schema:
+            type: integer
+            minimum: 1
+      responses:
+        '200':
+          description: Mentee's snapshots
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/SnapshotResponse'
+        '400':
+          description: Invalid mentee ID
           content:
             application/json:
               schema:
@@ -6106,3 +6456,750 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
+
+  /api/v1/settings/faqs:
+    get:
+      tags: [Settings]
+      summary: List FAQs
+      description: Retrieve FAQs visible to the authenticated user's role.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+        - name: category
+          in: query
+          schema:
+            type: string
+      responses:
+        '200':
+          description: List of FAQs
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/FAQ'
+                  meta:
+                    type: object
+                    properties:
+                      page:
+                        type: integer
+                      limit:
+                        type: integer
+                      total:
+                        type: integer
+                      totalPages:
+                        type: integer
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+    post:
+      tags: [Settings]
+      summary: Create FAQ
+      description: Create a new FAQ. System Admin and Facility Admin only.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [question, answer]
+              properties:
+                category:
+                  type: string
+                question:
+                  type: string
+                answer:
+                  type: string
+                target_audience:
+                  type: string
+                  description: Comma-separated roles (e.g., "mentor,mentee" or "all")
+      responses:
+        '201':
+          description: FAQ created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    $ref: '#/components/schemas/FAQ'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /api/v1/settings/faqs/{id}:
+    get:
+      tags: [Settings]
+      summary: Get FAQ by ID
+      description: Retrieve a single FAQ if visible to the user's role.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+            minimum: 1
+      responses:
+        '200':
+          description: FAQ details
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    $ref: '#/components/schemas/FAQ'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    patch:
+      tags: [Settings]
+      summary: Update FAQ
+      description: Update an existing FAQ. System Admin and Facility Admin only, subject to facility scope.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+            minimum: 1
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                category:
+                  type: string
+                question:
+                  type: string
+                answer:
+                  type: string
+                target_audience:
+                  type: string
+      responses:
+        '200':
+          description: FAQ updated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    $ref: '#/components/schemas/FAQ'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    delete:
+      tags: [Settings]
+      summary: Delete FAQ
+      description: Delete an FAQ. System Admin and Facility Admin only, subject to facility scope.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+            minimum: 1
+      responses:
+        '200':
+          description: FAQ deleted
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: object
+                    properties:
+                      message:
+                        type: string
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /api/v1/settings/guides:
+    get:
+      tags: [Settings]
+      summary: List Guides
+      description: Retrieve guides visible to the authenticated user's role.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+      responses:
+        '200':
+          description: List of guides
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/UserGuide'
+                  meta:
+                    type: object
+                    properties:
+                      page:
+                        type: integer
+                      limit:
+                        type: integer
+                      total:
+                        type: integer
+                      totalPages:
+                        type: integer
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+    post:
+      tags: [Settings]
+      summary: Create Guide
+      description: Create a new guide. System Admin and Facility Admin only.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [title, content]
+              properties:
+                title:
+                  type: string
+                content:
+                  type: string
+                attachment_file_id:
+                  type: integer
+                  minimum: 1
+                target_audience:
+                  type: string
+                  description: Comma-separated roles (e.g., "mentor,mentee" or "all")
+      responses:
+        '201':
+          description: Guide created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    $ref: '#/components/schemas/UserGuide'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /api/v1/settings/guides/{id}:
+    get:
+      tags: [Settings]
+      summary: Get Guide by ID
+      description: Retrieve a single guide if visible to the user's role.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+            minimum: 1
+      responses:
+        '200':
+          description: Guide details
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    $ref: '#/components/schemas/UserGuide'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    patch:
+      tags: [Settings]
+      summary: Update Guide
+      description: Update an existing guide. System Admin and Facility Admin only, subject to facility scope.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+            minimum: 1
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                title:
+                  type: string
+                content:
+                  type: string
+                attachment_file_id:
+                  type: integer
+                  minimum: 1
+                target_audience:
+                  type: string
+      responses:
+        '200':
+          description: Guide updated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    $ref: '#/components/schemas/UserGuide'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    delete:
+      tags: [Settings]
+      summary: Delete Guide
+      description: Delete a guide. System Admin and Facility Admin only, subject to facility scope.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+            minimum: 1
+      responses:
+        '200':
+          description: Guide deleted
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: object
+                    properties:
+                      message:
+                        type: string
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /api/v1/uploads:
+    post:
+      tags: [Uploads]
+      summary: Upload a PDF, audio, or video file
+      description: System Admin and Facility Admin only. Send multipart/form-data with the file in the "file" field. Optional context defaults to resource. The original filename is not used as a storage key.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file]
+              properties:
+                file:
+                  type: string
+                  format: binary
+                context:
+                  type: string
+                  example: resource
+      responses:
+        '201':
+          description: File metadata stored
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    $ref: '#/components/schemas/UploadedFile'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /api/v1/uploads/{id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: integer
+          minimum: 1
+    get:
+      tags: [Uploads]
+      summary: Get uploaded file metadata
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: File metadata
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    $ref: '#/components/schemas/UploadedFile'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    delete:
+      tags: [Uploads]
+      summary: Delete an uploaded file
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: File deleted
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: object
+                    properties:
+                      id:
+                        type: integer
+                      deleted:
+                        type: boolean
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /api/v1/uploads/{id}/content:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: integer
+          minimum: 1
+    get:
+      tags: [Uploads]
+      summary: Download uploaded file bytes
+      description: Streams the private stored object. Does not return a public URL.
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: File contents
+          content:
+            application/octet-stream:
+              schema:
+                type: string
+                format: binary
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /api/v1/resources:
+    post:
+      tags: [Resources]
+      summary: Create a learning resource
+      description: System Admin and Facility Admin only. Validates module, thematic area, file, and MIME matching.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateResourceRequest'
+      responses:
+        '201':
+          description: Resource created successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    $ref: '#/components/schemas/Resource'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    get:
+      tags: [Resources]
+      summary: List authorized learning resources
+      description: Returns paginated resources authorized for the current user's role and facility/learning scope.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 20
+        - name: thematic_area_id
+          in: query
+          schema:
+            type: integer
+        - name: module_id
+          in: query
+          schema:
+            type: integer
+        - name: type
+          in: query
+          schema:
+            type: string
+            enum: [pdf, audio, video]
+      responses:
+        '200':
+          description: Authorized resources listed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResourceListResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /api/v1/resources/{id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: integer
+          minimum: 1
+    get:
+      tags: [Resources]
+      summary: Get learning resource details
+      description: Returns safe resource metadata and module/thematic-area details where authorized. Never returns storage keys or private URLs.
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Resource metadata
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    $ref: '#/components/schemas/Resource'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    patch:
+      tags: [Resources]
+      summary: Update a learning resource
+      description: System Admin and Facility Admin only. Revalidates metadata, associations, and facility scope.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateResourceRequest'
+      responses:
+        '200':
+          description: Resource updated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    $ref: '#/components/schemas/Resource'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    delete:
+      tags: [Resources]
+      summary: Delete a learning resource record
+      description: Deletes the resource record only. Does not delete the uploaded file or storage object.
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Resource deleted
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: object
+                    properties:
+                      id:
+                        type: integer
+                      deleted:
+                        type: boolean
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+tags:
+  - name: Auth
+    description: Authentication and session management
+  - name: Users
+    description: User management and profiles
+  - name: Facilities
+    description: Facility management
+  - name: Mentorship Cycles
+    description: Mentorship cycle management
+  - name: Cycle Configuration
+    description: Cycle facility and thematic area configuration
+  - name: Messaging
+    description: Messaging and conversations
+  - name: Thematic Areas
+    description: Global thematic area management (System Admin only)
+  - name: Assignments
+    description: Mentor-mentee assignment management
+  - name: Progress
+    description: Knowledge-score snapshots and progress tracking
+  - name: Learning
+    description: Learning modules, content, access, progress, and quizzes.
+  - name: Notifications
+    description: Notifications belonging to the authenticated user.
+  - name: Settings
+    description: FAQ and User Guide management for settings.
+  - name: Uploads
+    description: Authenticated PDF, audio, and video uploads for facility administrators.
+  - name: Resources
+    description: Authenticated learning resources CRUD and library management.

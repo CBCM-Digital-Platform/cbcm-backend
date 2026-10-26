@@ -1,4 +1,14 @@
 require('dotenv').config();
+const path = require('node:path');
+
+function parsePositiveInteger(raw, fallback, name) {
+  if (raw === undefined || raw === null || raw === '') return fallback;
+  const value = Number(raw);
+  if (!Number.isSafeInteger(value) || value <= 0) {
+    throw new Error(`${name} must be a positive integer.`);
+  }
+  return value;
+}
 
 const env = {
   NODE_ENV: process.env.NODE_ENV || 'development',
@@ -27,6 +37,14 @@ const env = {
   JITSI_APP_ID: process.env.JITSI_APP_ID || '',
   JITSI_SECRET: process.env.JITSI_SECRET || '',
   JITSI_TOKEN_EXPIRY: process.env.JITSI_TOKEN_EXPIRY || '1h',
+  STORAGE_PROVIDER: String(process.env.STORAGE_PROVIDER || 'local').trim().toLowerCase() || 'local',
+  LOCAL_STORAGE_DIR: String(process.env.LOCAL_STORAGE_DIR || path.join(process.cwd(), 'uploads')).trim() || path.join(process.cwd(), 'uploads'),
+  UPLOAD_MAX_BYTES: parsePositiveInteger(process.env.UPLOAD_MAX_BYTES, 500 * 1024 * 1024, 'UPLOAD_MAX_BYTES'),
+  S3_BUCKET: String(process.env.S3_BUCKET || '').trim(),
+  S3_REGION: String(process.env.S3_REGION || process.env.AWS_REGION || '').trim(),
+  S3_KEY_PREFIX: String(process.env.S3_KEY_PREFIX || '').trim(),
+  AWS_ACCESS_KEY_ID: String(process.env.AWS_ACCESS_KEY_ID || '').trim(),
+  AWS_SECRET_ACCESS_KEY: String(process.env.AWS_SECRET_ACCESS_KEY || '').trim(),
 };
 
 module.exports = env;

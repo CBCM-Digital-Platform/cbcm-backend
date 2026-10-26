@@ -4,6 +4,7 @@ module.exports = (sequelize, DataTypes) => sequelize.define('UserGuide', {
 	content: { type: DataTypes.TEXT },
 	attachment_file_id: { type: DataTypes.INTEGER },
 	target_audience: { type: DataTypes.STRING },
+	facility_id: { type: DataTypes.INTEGER },
 	created_by: { type: DataTypes.INTEGER },
 	updated_by: { type: DataTypes.INTEGER },
 	created_at: { type: DataTypes.DATE },
