@@ -5972,11 +5972,25 @@ paths:
       tags: [Learning]
       summary: Add an answer option to a quiz question
       description: Facility Admin only. label A-D maps to existing option order.
-          description: Facility scope violation
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LearningOptionWrite'
+      responses:
+        '201':
+          $ref: '#/components/responses/LearningCreated'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
   /api/v1/progress/mentees/{menteeId}/knowledge-snapshots:
     get:
       summary: Get a mentee's knowledge-score snapshots
@@ -6184,54 +6198,6 @@ paths:
                 $ref: '#/components/schemas/MenteeProgressTrendsResponse'
         '400':
           description: Invalid mentee ID or date filters
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-        '401':
-          description: Authentication required
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-        '403':
-          description: Scope violation
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-        '404':
-          description: Mentee not found
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-  /api/v1/progress/mentees/{menteeId}/knowledge-snapshots:
-    get:
-      summary: Get a mentee's knowledge-score snapshots
-      description: Retrieves all snapshots for a specific mentee in chronological order. Mentees can view their own snapshots; Facility Admins can view snapshots within their facility.
-      tags:
-        - Progress
-      security:
-        - bearerAuth: []
-      parameters:
-        - in: path
-          name: menteeId
-          required: true
-          schema:
-            type: integer
-            minimum: 1
-      responses:
-        '200':
-          description: Mentee's snapshots
-          content:
-            application/json:
-              schema:
-                type: array
-                items:
-                  $ref: '#/components/schemas/SnapshotResponse'
-        '400':
-          description: Invalid mentee ID
           content:
             application/json:
               schema:
@@ -7174,32 +7140,4 @@ paths:
           $ref: '#/components/responses/Forbidden'
         '404':
           $ref: '#/components/responses/NotFound'
-tags:
-  - name: Auth
-    description: Authentication and session management
-  - name: Users
-    description: User management and profiles
-  - name: Facilities
-    description: Facility management
-  - name: Mentorship Cycles
-    description: Mentorship cycle management
-  - name: Cycle Configuration
-    description: Cycle facility and thematic area configuration
-  - name: Messaging
-    description: Messaging and conversations
-  - name: Thematic Areas
-    description: Global thematic area management (System Admin only)
-  - name: Assignments
-    description: Mentor-mentee assignment management
-  - name: Progress
-    description: Knowledge-score snapshots and progress tracking
-  - name: Learning
-    description: Learning modules, content, access, progress, and quizzes.
-  - name: Notifications
-    description: Notifications belonging to the authenticated user.
-  - name: Settings
-    description: FAQ and User Guide management for settings.
-  - name: Uploads
-    description: Authenticated PDF, audio, and video uploads for facility administrators.
-  - name: Resources
     description: Authenticated learning resources CRUD and library management.
