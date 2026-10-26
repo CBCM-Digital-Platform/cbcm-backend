@@ -184,6 +184,7 @@ test('assessment service calculates aggregate score on finalization', async () =
 	const originals = {
 		findById: repository.findById,
 		findAll: models.AssessmentCriteriaScore.findAll,
+		findAllChecklist: models.AssessmentChecklistItem.findAll,
 		update: repository.update,
 		transaction: models.sequelize.transaction,
 		AssessmentUpdate: models.Assessment.update,
@@ -195,6 +196,7 @@ test('assessment service calculates aggregate score on finalization', async () =
 		{ assessment_id: 1, criterion: 'Skill 2', score: 90 },
 		{ assessment_id: 1, criterion: 'Skill 3', score: 85 },
 	];
+	models.AssessmentChecklistItem.findAll = async () => [];
 	let updatePayload;
 	models.Assessment.update = async (data, options) => {
 		updatePayload = data;
@@ -210,6 +212,7 @@ test('assessment service calculates aggregate score on finalization', async () =
 	} finally {
 		repository.findById = originals.findById;
 		models.AssessmentCriteriaScore.findAll = originals.findAll;
+		models.AssessmentChecklistItem.findAll = originals.findAllChecklist;
 		repository.update = originals.update;
 		models.sequelize.transaction = originals.transaction;
 		models.Assessment.update = originals.AssessmentUpdate;
@@ -220,10 +223,12 @@ test('assessment service requires prerequisites met for finalization', async () 
 	const originals = {
 		findById: repository.findById,
 		findAll: models.AssessmentCriteriaScore.findAll,
+		findAllChecklist: models.AssessmentChecklistItem.findAll,
 	};
 
 	repository.findById = async (id) => ({ id, mentee_id: 1, mentor_id: 2, facility_id: 1, status: 'in_review', prerequisites_met: false });
 	models.AssessmentCriteriaScore.findAll = async () => [{ assessment_id: 1, criterion: 'Skill 1', score: 80 }];
+	models.AssessmentChecklistItem.findAll = async () => [];
 
 	try {
 		await assert.rejects(
@@ -233,6 +238,7 @@ test('assessment service requires prerequisites met for finalization', async () 
 	} finally {
 		repository.findById = originals.findById;
 		models.AssessmentCriteriaScore.findAll = originals.findAll;
+		models.AssessmentChecklistItem.findAll = originals.findAllChecklist;
 	}
 });
 
@@ -389,6 +395,7 @@ test('assessment finalization triggers progress snapshot creation', async () => 
 	const originals = {
 		findById: repository.findById,
 		findAll: models.AssessmentCriteriaScore.findAll,
+		findAllChecklist: models.AssessmentChecklistItem.findAll,
 		update: repository.update,
 		transaction: models.sequelize.transaction,
 		createSnapshotFromAssessment: progressService.createSnapshotFromAssessment,
@@ -401,9 +408,10 @@ test('assessment finalization triggers progress snapshot creation', async () => 
 		if (findByIdCallCount === 1) {
 			return { id, mentee_id: 1, mentor_id: 2, facility_id: 1, cycle_id: 10, thematic_area_id: 15, status: 'in_review', prerequisites_met: true };
 		}
-		return { id, mentee_id: 1, mentor_id: 2, facility_id: 1, cycle_id: 10, thematic_area_id: 15, status: 'finalized', aggregate_score: 80, finalized_at: new Date() };
+		return { id, mentee_id: 1, mentor_id: 2, facility_id: 1, cycle_id: 10, thematic_area_id: 15, status: 'finalized', aggregate_score: 80, practical_passed: null, finalized_at: new Date() };
 	};
 	models.AssessmentCriteriaScore.findAll = async () => [{ assessment_id: 1, criterion: 'Skill 1', score: 80 }];
+	models.AssessmentChecklistItem.findAll = async () => [];
 	let updatePayload;
 	models.Assessment.update = async (data, options) => {
 		updatePayload = data;
@@ -430,6 +438,7 @@ test('assessment finalization triggers progress snapshot creation', async () => 
 	} finally {
 		repository.findById = originals.findById;
 		models.AssessmentCriteriaScore.findAll = originals.findAll;
+		models.AssessmentChecklistItem.findAll = originals.findAllChecklist;
 		repository.update = originals.update;
 		models.sequelize.transaction = originals.transaction;
 		progressService.createSnapshotFromAssessment = originals.createSnapshotFromAssessment;
@@ -465,6 +474,7 @@ test('failed snapshot creation does not fail assessment finalization', async () 
 	const originals = {
 		findById: repository.findById,
 		findAll: models.AssessmentCriteriaScore.findAll,
+		findAllChecklist: models.AssessmentChecklistItem.findAll,
 		update: repository.update,
 		transaction: models.sequelize.transaction,
 		createSnapshotFromAssessment: progressService.createSnapshotFromAssessment,
@@ -477,9 +487,10 @@ test('failed snapshot creation does not fail assessment finalization', async () 
 		if (findByIdCallCount === 1) {
 			return { id, mentee_id: 1, mentor_id: 2, facility_id: 1, cycle_id: 10, thematic_area_id: 15, status: 'in_review', prerequisites_met: true };
 		}
-		return { id, mentee_id: 1, mentor_id: 2, facility_id: 1, cycle_id: 10, thematic_area_id: 15, status: 'finalized', aggregate_score: 80, finalized_at: new Date() };
+		return { id, mentee_id: 1, mentor_id: 2, facility_id: 1, cycle_id: 10, thematic_area_id: 15, status: 'finalized', aggregate_score: 80, practical_passed: null, finalized_at: new Date() };
 	};
 	models.AssessmentCriteriaScore.findAll = async () => [{ assessment_id: 1, criterion: 'Skill 1', score: 80 }];
+	models.AssessmentChecklistItem.findAll = async () => [];
 	let updatePayload;
 	models.Assessment.update = async (data, options) => {
 		updatePayload = data;
@@ -497,6 +508,7 @@ test('failed snapshot creation does not fail assessment finalization', async () 
 	} finally {
 		repository.findById = originals.findById;
 		models.AssessmentCriteriaScore.findAll = originals.findAll;
+		models.AssessmentChecklistItem.findAll = originals.findAllChecklist;
 		repository.update = originals.update;
 		models.sequelize.transaction = originals.transaction;
 		progressService.createSnapshotFromAssessment = originals.createSnapshotFromAssessment;
@@ -524,36 +536,136 @@ test('assessment service prevents mentees from finalizing assessments', async ()
 	}
 });
 
-test('assessment finalization fails when criteria scores are missing', async () => {
+test('practical checklist scoring validates score range 0-4', async () => {
 	const originals = {
 		findById: repository.findById,
-		findAll: models.AssessmentCriteriaScore.findAll,
+		destroy: models.AssessmentChecklistItem.destroy,
+		create: models.AssessmentChecklistItem.create,
+		transaction: models.sequelize.transaction,
 	};
 
-	repository.findById = async (id) => ({ id, mentee_id: 1, mentor_id: 2, facility_id: 1, status: 'in_review', prerequisites_met: true });
-	models.AssessmentCriteriaScore.findAll = async () => [];
+	repository.findById = async (id) => ({ id, mentee_id: 1, mentor_id: 2, facility_id: 1, status: 'draft' });
+	models.AssessmentChecklistItem.destroy = async () => {};
+	models.AssessmentChecklistItem.create = async () => {};
+	models.sequelize.transaction = async (callback) => callback({});
 
 	try {
 		await assert.rejects(
-			service.finalizeAssessment(1, { id: 2, role: 'mentor' }),
+			service.setChecklistItems(1, { checklist_items: [{ item: 'Item 1', checked: true, score: 5 }] }, { id: 2, role: 'mentor' }),
+			{ statusCode: 400 }
+		);
+
+		await assert.rejects(
+			service.setChecklistItems(1, { checklist_items: [{ item: 'Item 1', checked: true, score: -1 }] }, { id: 2, role: 'mentor' }),
 			{ statusCode: 400 }
 		);
 	} finally {
 		repository.findById = originals.findById;
-		models.AssessmentCriteriaScore.findAll = originals.findAll;
+		models.AssessmentChecklistItem.destroy = originals.destroy;
+		models.AssessmentChecklistItem.create = originals.create;
+		models.sequelize.transaction = originals.transaction;
 	}
 });
 
-test('assessment finalization fails when criteria scores have null values', async () => {
+test('practical assessment passes when all required items score 3 or 4', async () => {
 	const originals = {
 		findById: repository.findById,
-		findAll: models.AssessmentCriteriaScore.findAll,
+		findAllCriteria: models.AssessmentCriteriaScore.findAll,
+		findAllChecklist: models.AssessmentChecklistItem.findAll,
+		update: repository.update,
+		transaction: models.sequelize.transaction,
+		AssessmentUpdate: models.Assessment.update,
+	};
+
+	let findByIdCallCount = 0;
+	repository.findById = async (id) => {
+		findByIdCallCount++;
+		if (findByIdCallCount === 1) {
+			return { id, mentee_id: 1, mentor_id: 2, facility_id: 1, status: 'in_review', prerequisites_met: true };
+		}
+		return { id, mentee_id: 1, mentor_id: 2, facility_id: 1, status: 'finalized', aggregate_score: 85, practical_passed: true, finalized_at: new Date() };
+	};
+	models.AssessmentCriteriaScore.findAll = async () => [{ assessment_id: 1, criterion: 'Skill 1', score: 80 }];
+	models.AssessmentChecklistItem.findAll = async () => [
+		{ assessment_id: 1, item: 'Item 1', checked: true, score: 3, required: true },
+		{ assessment_id: 1, item: 'Item 2', checked: true, score: 4, required: true },
+	];
+	let updatePayload;
+	models.Assessment.update = async (data, options) => {
+		updatePayload = data;
+		return [1];
+	};
+	models.sequelize.transaction = async (callback) => callback({});
+
+	try {
+		const result = await service.finalizeAssessment(1, { id: 2, role: 'mentor' });
+		assert.strictEqual(updatePayload.practical_passed, true);
+		assert.strictEqual(updatePayload.status, 'finalized');
+	} finally {
+		repository.findById = originals.findById;
+		models.AssessmentCriteriaScore.findAll = originals.findAllCriteria;
+		models.AssessmentChecklistItem.findAll = originals.findAllChecklist;
+		repository.update = originals.update;
+		models.sequelize.transaction = originals.transaction;
+		models.Assessment.update = originals.AssessmentUpdate;
+	}
+});
+
+test('practical assessment fails when any required item scores 0, 1, or 2', async () => {
+	const originals = {
+		findById: repository.findById,
+		findAllCriteria: models.AssessmentCriteriaScore.findAll,
+		findAllChecklist: models.AssessmentChecklistItem.findAll,
+		update: repository.update,
+		transaction: models.sequelize.transaction,
+		AssessmentUpdate: models.Assessment.update,
+	};
+
+	let findByIdCallCount = 0;
+	repository.findById = async (id) => {
+		findByIdCallCount++;
+		if (findByIdCallCount === 1) {
+			return { id, mentee_id: 1, mentor_id: 2, facility_id: 1, status: 'in_review', prerequisites_met: true };
+		}
+		return { id, mentee_id: 1, mentor_id: 2, facility_id: 1, status: 'finalized', aggregate_score: 85, practical_passed: false, finalized_at: new Date() };
+	};
+	models.AssessmentCriteriaScore.findAll = async () => [{ assessment_id: 1, criterion: 'Skill 1', score: 80 }];
+	models.AssessmentChecklistItem.findAll = async () => [
+		{ assessment_id: 1, item: 'Item 1', checked: true, score: 4, required: true },
+		{ assessment_id: 1, item: 'Item 2', checked: true, score: 2, required: true },
+	];
+	let updatePayload;
+	models.Assessment.update = async (data, options) => {
+		updatePayload = data;
+		return [1];
+	};
+	models.sequelize.transaction = async (callback) => callback({});
+
+	try {
+		const result = await service.finalizeAssessment(1, { id: 2, role: 'mentor' });
+		assert.strictEqual(updatePayload.practical_passed, false);
+		assert.strictEqual(updatePayload.status, 'finalized');
+	} finally {
+		repository.findById = originals.findById;
+		models.AssessmentCriteriaScore.findAll = originals.findAllCriteria;
+		models.AssessmentChecklistItem.findAll = originals.findAllChecklist;
+		repository.update = originals.update;
+		models.sequelize.transaction = originals.transaction;
+		models.Assessment.update = originals.AssessmentUpdate;
+	}
+});
+
+test('finalization rejects when required checklist item missing score', async () => {
+	const originals = {
+		findById: repository.findById,
+		findAllCriteria: models.AssessmentCriteriaScore.findAll,
+		findAllChecklist: models.AssessmentChecklistItem.findAll,
 	};
 
 	repository.findById = async (id) => ({ id, mentee_id: 1, mentor_id: 2, facility_id: 1, status: 'in_review', prerequisites_met: true });
-	models.AssessmentCriteriaScore.findAll = async () => [
-		{ assessment_id: 1, criterion: 'Skill 1', score: 80 },
-		{ assessment_id: 1, criterion: 'Skill 2', score: null },
+	models.AssessmentCriteriaScore.findAll = async () => [{ assessment_id: 1, criterion: 'Skill 1', score: 80 }];
+	models.AssessmentChecklistItem.findAll = async () => [
+		{ assessment_id: 1, item: 'Item 1', checked: true, score: null, required: true },
 	];
 
 	try {
@@ -563,18 +675,106 @@ test('assessment finalization fails when criteria scores have null values', asyn
 		);
 	} finally {
 		repository.findById = originals.findById;
-		models.AssessmentCriteriaScore.findAll = originals.findAll;
+		models.AssessmentCriteriaScore.findAll = originals.findAllCriteria;
+		models.AssessmentChecklistItem.findAll = originals.findAllChecklist;
 	}
 });
 
-test('assessment finalization fails when prerequisites are not met', async () => {
+test('practical assessment cannot pass without required items', async () => {
+	const originals = {
+		findById: repository.findById,
+		findAllCriteria: models.AssessmentCriteriaScore.findAll,
+		findAllChecklist: models.AssessmentChecklistItem.findAll,
+		update: repository.update,
+		transaction: models.sequelize.transaction,
+		AssessmentUpdate: models.Assessment.update,
+	};
+
+	let findByIdCallCount = 0;
+	repository.findById = async (id) => {
+		findByIdCallCount++;
+		if (findByIdCallCount === 1) {
+			return { id, mentee_id: 1, mentor_id: 2, facility_id: 1, status: 'in_review', prerequisites_met: true };
+		}
+		return { id, mentee_id: 1, mentor_id: 2, facility_id: 1, status: 'finalized', aggregate_score: 85, practical_passed: false, finalized_at: new Date() };
+	};
+	models.AssessmentCriteriaScore.findAll = async () => [{ assessment_id: 1, criterion: 'Skill 1', score: 80 }];
+	models.AssessmentChecklistItem.findAll = async () => [
+		{ assessment_id: 1, item: 'Item 1', checked: true, score: 4, required: false },
+	];
+	let updatePayload;
+	models.Assessment.update = async (data, options) => {
+		updatePayload = data;
+		return [1];
+	};
+	models.sequelize.transaction = async (callback) => callback({});
+
+	try {
+		const result = await service.finalizeAssessment(1, { id: 2, role: 'mentor' });
+		assert.strictEqual(updatePayload.practical_passed, false);
+	} finally {
+		repository.findById = originals.findById;
+		models.AssessmentCriteriaScore.findAll = originals.findAllCriteria;
+		models.AssessmentChecklistItem.findAll = originals.findAllChecklist;
+		repository.update = originals.update;
+		models.sequelize.transaction = originals.transaction;
+		models.Assessment.update = originals.AssessmentUpdate;
+	}
+});
+
+test('optional checklist items do not affect practical pass/fail', async () => {
+	const originals = {
+		findById: repository.findById,
+		findAllCriteria: models.AssessmentCriteriaScore.findAll,
+		findAllChecklist: models.AssessmentChecklistItem.findAll,
+		update: repository.update,
+		transaction: models.sequelize.transaction,
+		AssessmentUpdate: models.Assessment.update,
+	};
+
+	let findByIdCallCount = 0;
+	repository.findById = async (id) => {
+		findByIdCallCount++;
+		if (findByIdCallCount === 1) {
+			return { id, mentee_id: 1, mentor_id: 2, facility_id: 1, status: 'in_review', prerequisites_met: true };
+		}
+		return { id, mentee_id: 1, mentor_id: 2, facility_id: 1, status: 'finalized', aggregate_score: 85, practical_passed: true, finalized_at: new Date() };
+	};
+	models.AssessmentCriteriaScore.findAll = async () => [{ assessment_id: 1, criterion: 'Skill 1', score: 80 }];
+	models.AssessmentChecklistItem.findAll = async () => [
+		{ assessment_id: 1, item: 'Item 1', checked: true, score: 4, required: true },
+		{ assessment_id: 1, item: 'Item 2', checked: true, score: 0, required: false },
+	];
+	let updatePayload;
+	models.Assessment.update = async (data, options) => {
+		updatePayload = data;
+		return [1];
+	};
+	models.sequelize.transaction = async (callback) => callback({});
+
+	try {
+		const result = await service.finalizeAssessment(1, { id: 2, role: 'mentor' });
+		assert.strictEqual(updatePayload.practical_passed, true);
+	} finally {
+		repository.findById = originals.findById;
+		models.AssessmentCriteriaScore.findAll = originals.findAllCriteria;
+		models.AssessmentChecklistItem.findAll = originals.findAllChecklist;
+		repository.update = originals.update;
+		models.sequelize.transaction = originals.transaction;
+		models.Assessment.update = originals.AssessmentUpdate;
+	}
+});
+
+test('assessment finalization fails when criteria scores are missing', async () => {
 	const originals = {
 		findById: repository.findById,
 		findAll: models.AssessmentCriteriaScore.findAll,
+		findAllChecklist: models.AssessmentChecklistItem.findAll,
 	};
 
-	repository.findById = async (id) => ({ id, mentee_id: 1, mentor_id: 2, facility_id: 1, status: 'in_review', prerequisites_met: false });
-	models.AssessmentCriteriaScore.findAll = async () => [{ assessment_id: 1, criterion: 'Skill 1', score: 80 }];
+	repository.findById = async (id) => ({ id, mentee_id: 1, mentor_id: 2, facility_id: 1, status: 'in_review', prerequisites_met: true });
+	models.AssessmentCriteriaScore.findAll = async () => [];
+	models.AssessmentChecklistItem.findAll = async () => [];
 
 	try {
 		await assert.rejects(
@@ -584,5 +784,78 @@ test('assessment finalization fails when prerequisites are not met', async () =>
 	} finally {
 		repository.findById = originals.findById;
 		models.AssessmentCriteriaScore.findAll = originals.findAll;
+		models.AssessmentChecklistItem.findAll = originals.findAllChecklist;
+	}
+});
+
+test('assessment finalization fails when criteria scores have null values', async () => {
+	const originals = {
+		findById: repository.findById,
+		findAll: models.AssessmentCriteriaScore.findAll,
+		findAllChecklist: models.AssessmentChecklistItem.findAll,
+	};
+
+	repository.findById = async (id) => ({ id, mentee_id: 1, mentor_id: 2, facility_id: 1, status: 'in_review', prerequisites_met: true });
+	models.AssessmentCriteriaScore.findAll = async () => [
+		{ assessment_id: 1, criterion: 'Skill 1', score: 80 },
+		{ assessment_id: 1, criterion: 'Skill 2', score: null },
+	];
+	models.AssessmentChecklistItem.findAll = async () => [];
+
+	try {
+		await assert.rejects(
+			service.finalizeAssessment(1, { id: 2, role: 'mentor' }),
+			{ statusCode: 400 }
+		);
+	} finally {
+		repository.findById = originals.findById;
+		models.AssessmentCriteriaScore.findAll = originals.findAll;
+		models.AssessmentChecklistItem.findAll = originals.findAllChecklist;
+	}
+});
+
+test('assessment finalization fails when criteria scores are missing', async () => {
+	const originals = {
+		findById: repository.findById,
+		findAll: models.AssessmentCriteriaScore.findAll,
+		findAllChecklist: models.AssessmentChecklistItem.findAll,
+	};
+
+	repository.findById = async (id) => ({ id, mentee_id: 1, mentor_id: 2, facility_id: 1, status: 'in_review', prerequisites_met: true });
+	models.AssessmentCriteriaScore.findAll = async () => [];
+	models.AssessmentChecklistItem.findAll = async () => [];
+
+	try {
+		await assert.rejects(
+			service.finalizeAssessment(1, { id: 2, role: 'mentor' }),
+			{ statusCode: 400 }
+		);
+	} finally {
+		repository.findById = originals.findById;
+		models.AssessmentCriteriaScore.findAll = originals.findAll;
+		models.AssessmentChecklistItem.findAll = originals.findAllChecklist;
+	}
+});
+
+test('assessment finalization fails when prerequisites are not met', async () => {
+	const originals = {
+		findById: repository.findById,
+		findAll: models.AssessmentCriteriaScore.findAll,
+		findAllChecklist: models.AssessmentChecklistItem.findAll,
+	};
+
+	repository.findById = async (id) => ({ id, mentee_id: 1, mentor_id: 2, facility_id: 1, status: 'in_review', prerequisites_met: false });
+	models.AssessmentCriteriaScore.findAll = async () => [{ assessment_id: 1, criterion: 'Skill 1', score: 80 }];
+	models.AssessmentChecklistItem.findAll = async () => [];
+
+	try {
+		await assert.rejects(
+			service.finalizeAssessment(1, { id: 2, role: 'mentor' }),
+			{ statusCode: 400 }
+		);
+	} finally {
+		repository.findById = originals.findById;
+		models.AssessmentCriteriaScore.findAll = originals.findAll;
+		models.AssessmentChecklistItem.findAll = originals.findAllChecklist;
 	}
 });

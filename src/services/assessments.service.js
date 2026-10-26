@@ -10,7 +10,7 @@ const assignmentsRepository = require('../repositories/assignments.repository');
 const progressService = require('./progress.service');
 const Role = require('../enums/role.enum');
 
-const ASSESSMENT_FIELDS = ['mentee_id', 'mentor_id', 'facility_id', 'cycle_id', 'thematic_area_id', 'status', 'aggregate_score', 'feedback', 'prerequisites_met', 'finalized_at'];
+const ASSESSMENT_FIELDS = ['mentee_id', 'mentor_id', 'facility_id', 'cycle_id', 'thematic_area_id', 'status', 'aggregate_score', 'feedback', 'prerequisites_met', 'practical_passed', 'finalized_at'];
 
 function toAssessmentResponse(assessment) {
 	if (!assessment) return null;
@@ -40,6 +40,8 @@ function toAssessmentDetailResponse(assessment) {
 			id: ci.id,
 			item: ci.item,
 			checked: ci.checked,
+			score: ci.score,
+			required: ci.required,
 		}));
 	}
 	
@@ -58,6 +60,25 @@ function toAssessmentDetailResponse(assessment) {
 
 function buildPagination(page = 1, limit = 20) {
 	return { page: Number(page), limit: Number(limit), offset: (Number(page) - 1) * Number(limit) };
+}
+
+function calculatePracticalPass(checklistItems) {
+	const requiredItems = checklistItems.filter((item) => item.required === true);
+	
+	// If no required items exist, cannot pass
+	if (requiredItems.length === 0) {
+		return false;
+	}
+	
+	// Check if any required item is missing a score
+	const hasMissingScores = requiredItems.some((item) => item.score === null || item.score === undefined);
+	if (hasMissingScores) {
+		return null; // Indicates missing scores, not a fail
+	}
+	
+	// Check if any required item scored below 3
+	const hasLowScore = requiredItems.some((item) => item.score < 3);
+	return !hasLowScore;
 }
 
 async function listAssessments({ page = 1, limit = 20, mentee_id, mentor_id, facility_id, cycle_id, thematic_area_id, status }, actor) {
@@ -259,20 +280,36 @@ async function finalizeAssessment(id, actor) {
 		throw new AppError('All criteria scores must be provided before finalization.', 400, 'MISSING_SCORES');
 	}
 
+	// Validate checklist items for practical assessment
+	const checklistItems = await AssessmentChecklistItem.findAll({ where: { assessment_id: id } });
+	const requiredItems = checklistItems.filter((item) => item.required === true);
+	
+	// Validate that all required checklist items have scores
+	if (requiredItems.length > 0) {
+		const missingRequiredScores = requiredItems.some((item) => item.score === null || item.score === undefined);
+		if (missingRequiredScores) {
+			throw new AppError('All required checklist items must have a score before finalization.', 400, 'MISSING_REQUIRED_CHECKLIST_SCORES');
+		}
+	}
+
 	// Validate prerequisites if required
 	if (!assessment.prerequisites_met) {
 		throw new AppError('Prerequisites must be met before finalization.', 400, 'PREREQUISITES_NOT_MET');
 	}
 
-	// Calculate aggregate score (simple average of criteria scores)
+	// Calculate aggregate score (simple average of criteria scores) - preserve existing behavior
 	const totalScore = criteriaScores.reduce((sum, cs) => sum + cs.score, 0);
 	const aggregateScore = totalScore / criteriaScores.length;
+
+	// Calculate practical pass/fail based on required checklist items
+	const practicalPassed = calculatePracticalPass(checklistItems);
 
 	await sequelize.transaction(async (transaction) => {
 		await Assessment.update(
 			{
 				status: AssessmentStatus.FINALIZED,
 				aggregate_score: aggregateScore,
+				practical_passed: practicalPassed,
 				finalized_at: new Date(),
 				updated_by: actor.id,
 			},
@@ -424,6 +461,14 @@ async function setChecklistItems(id, payload, actor) {
 		if (typeof item.checked !== 'boolean') {
 			throw new AppError('Each checklist item must have a boolean checked value.', 400, 'INVALID_CHECKED_VALUE');
 		}
+		if (item.score !== null && item.score !== undefined) {
+			if (typeof item.score !== 'number' || item.score < 0 || item.score > 4) {
+				throw new AppError('Score must be an integer between 0 and 4.', 400, 'INVALID_SCORE');
+			}
+		}
+		if (item.required !== undefined && typeof item.required !== 'boolean') {
+			throw new AppError('Required must be a boolean.', 400, 'INVALID_REQUIRED');
+		}
 	}
 
 	await sequelize.transaction(async (transaction) => {
@@ -437,6 +482,8 @@ async function setChecklistItems(id, payload, actor) {
 					assessment_id: id,
 					item: item.item.trim(),
 					checked: item.checked,
+					score: item.score !== null && item.score !== undefined ? item.score : null,
+					required: item.required !== undefined ? item.required : false,
 				},
 				{ transaction }
 			);
