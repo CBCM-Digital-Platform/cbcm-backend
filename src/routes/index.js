@@ -14,6 +14,9 @@ const sessionsRoutes = require('./sessions.routes');
 const assessmentsRoutes = require('./assessments.routes');
 const activityLogsRoutes = require('./activity-logs.routes');
 const analyticsRoutes = require('./analytics.routes');
+const settingsRoutes = require('./settings.routes');
+const uploadsRoutes = require('./uploads.routes');
+const resourcesRoutes = require('./resources.routes');
 
 const router = express.Router();
 router.use('/auth', authRoutes);
@@ -30,5 +33,8 @@ router.use('/sessions', sessionsRoutes);
 router.use('/assessments', assessmentsRoutes);
 router.use('/activity-logs', activityLogsRoutes);
 router.use('/analytics', analyticsRoutes);
+router.use('/settings', settingsRoutes);
+router.use('/uploads', uploadsRoutes);
+router.use('/resources', resourcesRoutes);
 
 module.exports = router;
