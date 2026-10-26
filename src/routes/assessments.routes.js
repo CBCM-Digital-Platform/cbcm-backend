@@ -8,6 +8,7 @@ const {
 	updateAssessmentValidation,
 	assessmentIdValidation,
 	setCriteriaScoreValidation,
+	setTheoryScoreValidation,
 	setChecklistItemsValidation,
 	addEvidenceValidation,
 	reviewAssessmentValidation,

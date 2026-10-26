@@ -12,6 +12,7 @@ const assignmentsRoutes = require('./assignments.routes');
 const progressRoutes = require('./progress.routes');
 const sessionsRoutes = require('./sessions.routes');
 const assessmentsRoutes = require('./assessments.routes');
+const certificatesRoutes = require('./certificates.routes');
 
 const router = express.Router();
 router.use('/auth', authRoutes);
@@ -26,5 +27,6 @@ router.use('/assignments', assignmentsRoutes);
 router.use('/progress', progressRoutes);
 router.use('/sessions', sessionsRoutes);
 router.use('/assessments', assessmentsRoutes);
+router.use('/certificates', certificatesRoutes);
 
 module.exports = router;

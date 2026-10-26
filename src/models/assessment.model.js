@@ -10,6 +10,8 @@ module.exports = (sequelize, DataTypes) => sequelize.define('Assessment', {
 	feedback: { type: DataTypes.TEXT },
 	prerequisites_met: { type: DataTypes.BOOLEAN, defaultValue: false },
 	practical_passed: { type: DataTypes.BOOLEAN, allowNull: true, defaultValue: null },
+	theory_score: { type: DataTypes.FLOAT, allowNull: true, defaultValue: null },
+	theory_passed: { type: DataTypes.BOOLEAN, allowNull: true, defaultValue: null },
 	updated_by: { type: DataTypes.INTEGER },
 	created_at: { type: DataTypes.DATE },
 	updated_at: { type: DataTypes.DATE },

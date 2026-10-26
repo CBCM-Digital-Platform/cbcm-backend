@@ -10,7 +10,7 @@ const assignmentsRepository = require('../repositories/assignments.repository');
 const progressService = require('./progress.service');
 const Role = require('../enums/role.enum');
 
-const ASSESSMENT_FIELDS = ['mentee_id', 'mentor_id', 'facility_id', 'cycle_id', 'thematic_area_id', 'status', 'aggregate_score', 'feedback', 'prerequisites_met', 'practical_passed', 'finalized_at'];
+const ASSESSMENT_FIELDS = ['mentee_id', 'mentor_id', 'facility_id', 'cycle_id', 'thematic_area_id', 'status', 'aggregate_score', 'feedback', 'prerequisites_met', 'practical_passed', 'theory_score', 'theory_passed', 'finalized_at'];
 
 function toAssessmentResponse(assessment) {
 	if (!assessment) return null;
@@ -428,6 +428,50 @@ async function setCriteriaScore(id, payload, actor) {
 	return toAssessmentDetailResponse(updated);
 }
 
+async function setTheoryScore(id, payload, actor) {
+	const assessment = await repository.findById(id);
+	if (!assessment) throw new AppError('Assessment was not found.', 404, 'ASSESSMENT_NOT_FOUND');
+
+	// Authorization check
+	if (actor.role === Role.MENTOR && assessment.mentor_id !== actor.id) {
+		throw new AppError('You can only update theory scores for your mentees.', 403, 'FORBIDDEN');
+	}
+	if (actor.role === Role.MENTEE) {
+		throw new AppError('Mentees cannot update theory scores.', 403, 'FORBIDDEN');
+	}
+	if (actor.role === Role.FACILITY_ADMIN && !canAccessFacility(actor, assessment.facility_id)) {
+		throw new AppError('You can only update theory scores at your facility.', 403, 'FORBIDDEN');
+	}
+
+	// Only draft or in-review assessments can be updated
+	if (assessment.status !== AssessmentStatus.DRAFT && assessment.status !== AssessmentStatus.IN_REVIEW) {
+		throw new AppError('Only draft or in-review assessments can be updated.', 400, 'INVALID_STATUS');
+	}
+
+	const { theory_score } = payload;
+	if (theory_score !== null && theory_score !== undefined) {
+		if (typeof theory_score !== 'number' || theory_score < 0 || theory_score > 100) {
+			throw new AppError('Theory score must be a number between 0 and 100.', 400, 'INVALID_SCORE');
+		}
+	}
+
+	// Calculate theory_passed based on 80/100 threshold
+	const theory_passed = theory_score !== null && theory_score !== undefined ? theory_score >= 80 : null;
+
+	await sequelize.transaction(async (transaction) => {
+		await Assessment.update(
+			{
+				theory_score: theory_score !== null && theory_score !== undefined ? theory_score : null,
+				theory_passed,
+			},
+			{ where: { id }, transaction }
+		);
+	});
+
+	const updated = await repository.findWithIncludes(id);
+	return toAssessmentDetailResponse(updated);
+}
+
 async function setChecklistItems(id, payload, actor) {
 	const assessment = await repository.findById(id);
 	if (!assessment) throw new AppError('Assessment was not found.', 404, 'ASSESSMENT_NOT_FOUND');
@@ -548,6 +592,7 @@ module.exports = {
 	finalizeAssessment,
 	reviewAssessment,
 	setCriteriaScore,
+	setTheoryScore,
 	setChecklistItems,
 	addEvidence,
 };
