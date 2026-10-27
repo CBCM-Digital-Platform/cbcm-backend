@@ -8,6 +8,7 @@ const {
 	updateAssessmentValidation,
 	assessmentIdValidation,
 	setCriteriaScoreValidation,
+	setTheoryScoreValidation,
 	setChecklistItemsValidation,
 	addEvidenceValidation,
 	reviewAssessmentValidation,
@@ -318,6 +319,45 @@ router.post('/:id/review', reviewAssessmentValidation, validateRequest, controll
  *         description: Assessment not found
  */
 router.post('/:id/criteria-scores', setCriteriaScoreValidation, validateRequest, controller.setCriteriaScore);
+
+/**
+ * @openapi
+ * /api/v1/assessments/{id}/theory-score:
+ *   post:
+ *     summary: Set assessment theory score
+ *     description: Sets or updates the theory score for an assessment. Automatically calculates theory_passed based on 80/100 threshold.
+ *     tags: [Assessments]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema: { type: integer, minimum: 1 }
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               theory_score:
+ *                 type: number
+ *                 minimum: 0
+ *                 maximum: 100
+ *     responses:
+ *       200:
+ *         description: Theory score set
+ *       400:
+ *         description: Invalid status or validation error
+ *       401:
+ *         description: Authentication required
+ *       403:
+ *         description: Authorization failed
+ *       404:
+ *         description: Assessment not found
+ */
+router.post('/:id/theory-score', setTheoryScoreValidation, validateRequest, controller.setTheoryScore);
 
 /**
  * @openapi

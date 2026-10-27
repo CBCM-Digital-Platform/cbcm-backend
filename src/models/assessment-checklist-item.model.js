@@ -3,4 +3,6 @@ module.exports = (sequelize, DataTypes) => sequelize.define('AssessmentChecklist
 	assessment_id: { type: DataTypes.INTEGER },
 	item: { type: DataTypes.STRING },
 	checked: { type: DataTypes.BOOLEAN },
+	score: { type: DataTypes.INTEGER, allowNull: true, defaultValue: null },
+	required: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: false },
 }, { tableName: 'assessment_checklist_items', timestamps: false });

@@ -1,2 +1,42 @@
-// src/dtos/response/logbook-entry.response.dto.js
-module.exports = {};
+module.exports = {
+	id: 'number',
+	mentee_id: 'number',
+	encounter_id: 'number | null',
+	thematic_area_id: 'number | null',
+	procedure_type: 'string | null',
+	hours: 'number | null',
+	clinical_notes: 'string | null',
+	status: 'string',
+	revision_reason: 'string | null',
+	outcome: 'string | null',
+	goal_progress: 'number | null',
+	mentor_approval: 'boolean',
+	approved_by: 'number | null',
+	approved_at: 'string | null',
+	created_by: 'number',
+	logged_at: 'string',
+	updated_at: 'string',
+	mentee: {
+		id: 'number',
+		full_name: 'string',
+		email: 'string',
+		facility_id: 'number',
+	},
+	encounter: {
+		id: 'number',
+		clinical_setting: 'string | null',
+		facility_id: 'number',
+	},
+	thematic_area: {
+		id: 'number',
+		name: 'string',
+	},
+	created_by_user: {
+		id: 'number',
+		full_name: 'string',
+	},
+	approved_by_user: {
+		id: 'number',
+		full_name: 'string',
+	},
+};

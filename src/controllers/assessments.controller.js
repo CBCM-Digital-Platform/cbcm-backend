@@ -74,6 +74,15 @@ async function setChecklistItems(req, res) {
 	}
 }
 
+async function setTheoryScore(req, res) {
+	try {
+		const payload = matchedData(req, { locations: ['body'] });
+		return successResponse(res, 200, await service.setTheoryScore(Number(req.params.id), payload, req.user));
+	} catch (error) {
+		return controllerError(res, error, 'Unable to set theory score.');
+	}
+}
+
 async function addEvidence(req, res) {
 	try {
 		const payload = matchedData(req, { locations: ['body'] });
@@ -91,6 +100,7 @@ module.exports = {
 	finalize,
 	review,
 	setCriteriaScore,
+	setTheoryScore,
 	setChecklistItems,
 	addEvidence,
 };

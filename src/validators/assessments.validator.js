@@ -26,11 +26,18 @@ const setCriteriaScoreValidation = [
 	body('criteria_scores.*.score').optional().isFloat({ min: 0, max: 100 }).withMessage('Score must be between 0 and 100.'),
 ];
 
+const setTheoryScoreValidation = [
+	...assessmentIdValidation,
+	body('theory_score').optional().isFloat({ min: 0, max: 100 }).withMessage('Theory score must be between 0 and 100.'),
+];
+
 const setChecklistItemsValidation = [
 	...assessmentIdValidation,
 	body('checklist_items').isArray().withMessage('Checklist items must be an array.'),
 	body('checklist_items.*.item').trim().notEmpty().withMessage('Each checklist item must have a non-empty value.'),
 	body('checklist_items.*.checked').isBoolean().withMessage('Each checklist item must have a boolean checked value.'),
+	body('checklist_items.*.score').optional().isInt({ min: 0, max: 4 }).withMessage('Score must be an integer between 0 and 4.'),
+	body('checklist_items.*.required').optional().isBoolean().withMessage('Required must be a boolean.'),
 ];
 
 const addEvidenceValidation = [
@@ -61,6 +68,7 @@ module.exports = {
 	updateAssessmentValidation,
 	assessmentIdValidation,
 	setCriteriaScoreValidation,
+	setTheoryScoreValidation,
 	setChecklistItemsValidation,
 	addEvidenceValidation,
 	reviewAssessmentValidation,
