@@ -3239,6 +3239,372 @@ components:
             limit: { type: integer, example: 20 }
             total: { type: integer, example: 5 }
             totalPages: { type: integer, example: 1 }
+    HierarchicalResource:
+      type: object
+      properties:
+        id:
+          type: integer
+          example: 1
+        title:
+          type: string
+          example: Neonatal Resuscitation Guide
+        description:
+          type: string
+          nullable: true
+          example: Clinical protocol for newborn resuscitation
+        type:
+          type: string
+          enum: [pdf, audio, video]
+          example: pdf
+        original_filename:
+          type: string
+          nullable: true
+          example: neonatal-guide.pdf
+        verified_mime_type:
+          type: string
+          nullable: true
+          example: application/pdf
+        file_size_bytes:
+          type: integer
+          nullable: true
+          example: 1048576
+        upload_status:
+          type: string
+          enum: [pending, completed, failed]
+          example: completed
+        publication_status:
+          type: string
+          enum: [draft, published, archived]
+          example: published
+        created_by:
+          type: integer
+          example: 1
+        updated_by:
+          type: integer
+          nullable: true
+          example: 1
+        archived_at:
+          type: string
+          format: date-time
+          nullable: true
+        archived_by:
+          type: integer
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+        uploadedFile:
+          type: object
+          nullable: true
+          properties:
+            id:
+              type: integer
+            owner_id:
+              type: integer
+            mime_type:
+              type: string
+            size_bytes:
+              type: integer
+            created_at:
+              type: string
+              format: date-time
+    HierarchicalResourceListResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/HierarchicalResource'
+        meta:
+          type: object
+          properties:
+            page:
+              type: integer
+              example: 1
+            limit:
+              type: integer
+              example: 20
+            total:
+              type: integer
+              example: 10
+            totalPages:
+              type: integer
+              example: 1
+paths:
+  /api/v1/hierarchical-resources:
+    post:
+      tags: [Hierarchical Resources]
+      summary: Upload a new hierarchical resource (Super Admin only)
+      description: Uploads a PDF, audio, or video file and creates a resource record. File is stored in private S3.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file, title]
+              properties:
+                file:
+                  type: string
+                  format: binary
+                  description: PDF, audio, or video file
+                title:
+                  type: string
+                  description: Resource title
+                description:
+                  type: string
+                  description: Optional description
+                publication_status:
+                  type: string
+                  enum: [draft, published]
+                  default: draft
+      responses:
+        '201':
+          description: Resource created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HierarchicalResource'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+    get:
+      tags: [Hierarchical Resources]
+      summary: List hierarchical resources
+      description: Returns resources scoped to the user's role and access grants.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+        - name: type
+          in: query
+          schema:
+            type: string
+            enum: [pdf, audio, video]
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [draft, published, archived]
+        - name: search
+          in: query
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Paginated resource list
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HierarchicalResourceListResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+  /api/v1/hierarchical-resources/{id}:
+    get:
+      tags: [Hierarchical Resources]
+      summary: Get a hierarchical resource
+      description: Returns resource details if the user has access through the permission hierarchy.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+            minimum: 1
+      responses:
+        '200':
+          description: Resource details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HierarchicalResource'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    post:
+      tags: [Hierarchical Resources]
+      summary: Grant resource to facilities (Super Admin only)
+      description: Grants a resource to one or more facilities.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+            minimum: 1
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [facility_ids]
+              properties:
+                facility_ids:
+                  type: array
+                  items:
+                    type: integer
+                  description: Facility IDs to grant access to
+      responses:
+        '200':
+          description: Grant count
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  granted:
+                    type: integer
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /api/v1/hierarchical-resources/{id}/grant-mentor:
+    post:
+      tags: [Hierarchical Resources]
+      summary: Grant resource to mentors (Facility Admin only)
+      description: Grants a resource to mentors within the facility admin's facility.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+            minimum: 1
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [mentor_ids]
+              properties:
+                mentor_ids:
+                  type: array
+                  items:
+                    type: integer
+                  description: Mentor IDs to grant access to
+      responses:
+        '200':
+          description: Grant count
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  granted:
+                    type: integer
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /api/v1/hierarchical-resources/{id}/assign-mentee:
+    post:
+      tags: [Hierarchical Resources]
+      summary: Assign resource to mentees (Mentor only)
+      description: Assigns a resource to mentees that the mentor is authorized to mentor.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+            minimum: 1
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [mentee_ids]
+              properties:
+                mentee_ids:
+                  type: array
+                  items:
+                    type: integer
+                  description: Mentee IDs to assign resource to
+      responses:
+        '200':
+          description: Assignment count
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  assigned:
+                    type: integer
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /api/v1/hierarchical-resources/{id}/content:
+    get:
+      tags: [Hierarchical Resources]
+      summary: Download or stream resource content
+      description: Returns the file content if the user has access. No permanent public URLs are exposed.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+            minimum: 1
+      responses:
+        '200':
+          description: File content stream
+          content:
+            application/octet-stream:
+              schema:
+                type: string
+                format: binary
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
 
   parameters:
     ConversationId:
@@ -8106,7 +8472,8 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
-    patch:
+  - name: Hierarchical Resources
+    description: Hierarchical resource management with Super Admin → Facility → Mentor → Mentee permissions    patch:
       summary: Update a user guide
       description: Updates an existing user guide.
       tags:
@@ -8157,7 +8524,8 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
-    delete:
+  - name: Hierarchical Resources
+    description: Hierarchical resource management with Super Admin → Facility → Mentor → Mentee permissions    delete:
       summary: Delete a user guide
       description: Deletes a user guide.
       tags:
@@ -8196,4 +8564,5 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
-
+  - name: Hierarchical Resources
+    description: Hierarchical resource management with Super Admin → Facility → Mentor → Mentee permissions

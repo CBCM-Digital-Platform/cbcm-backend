@@ -52,6 +52,10 @@ const definitions = {
 	Certificate: require('./certificate.model'),
 	ActivityLog: require('./activity-log.model'),
 	UploadedFile: require('./uploaded-file.model'),
+	HierarchicalResource: require('./hierarchical-resource.model'),
+	FacilityResourceGrant: require('./facility-resource-grant.model'),
+	MentorResourceGrant: require('./mentor-resource-grant.model'),
+	MenteeResourceAssignment: require('./mentee-resource-assignment.model'),
 };
 
 const models = Object.fromEntries(
@@ -184,6 +188,25 @@ const foreignKeys = [
 	['ActivityLog', 'User', 'actor_id', 'actor', 'activityLogs'],
 	['ActivityLog', 'Facility', 'facility_id', 'facility', 'activityLogs'],
 	['UploadedFile', 'User', 'owner_id', 'owner', 'uploadedFiles'],
+	['HierarchicalResource', 'UploadedFile', 'uploaded_file_id', 'uploadedFile', 'hierarchicalResources'],
+	['HierarchicalResource', 'User', 'created_by', 'createdBy', 'hierarchicalResourcesCreated'],
+	['HierarchicalResource', 'User', 'updated_by', 'updatedBy', 'hierarchicalResourcesUpdated'],
+	['HierarchicalResource', 'User', 'archived_by', 'archivedBy', 'hierarchicalResourcesArchived'],
+	['FacilityResourceGrant', 'HierarchicalResource', 'resource_id', 'resource', 'facilityGrants'],
+	['FacilityResourceGrant', 'Facility', 'facility_id', 'facility', 'resourceGrants'],
+	['FacilityResourceGrant', 'User', 'granted_by', 'grantedBy', 'facilityGrantsMade'],
+	['FacilityResourceGrant', 'User', 'revoked_by', 'revokedBy', 'facilityGrantsRevoked'],
+	['MentorResourceGrant', 'HierarchicalResource', 'resource_id', 'resource', 'mentorGrants'],
+	['MentorResourceGrant', 'Facility', 'facility_id', 'facility', 'mentorResourceGrants'],
+	['MentorResourceGrant', 'User', 'mentor_id', 'mentor', 'resourceGrantsReceived'],
+	['MentorResourceGrant', 'User', 'granted_by', 'grantedBy', 'mentorGrantsMade'],
+	['MentorResourceGrant', 'User', 'revoked_by', 'revokedBy', 'mentorGrantsRevoked'],
+	['MenteeResourceAssignment', 'HierarchicalResource', 'resource_id', 'resource', 'menteeAssignments'],
+	['MenteeResourceAssignment', 'User', 'mentor_id', 'mentor', 'resourceAssignmentsMade'],
+	['MenteeResourceAssignment', 'User', 'mentee_id', 'mentee', 'resourceAssignmentsReceived'],
+	['MenteeResourceAssignment', 'Facility', 'facility_id', 'facility', 'menteeResourceAssignments'],
+	['MenteeResourceAssignment', 'User', 'assigned_by', 'assignedBy', 'assignmentsMade'],
+	['MenteeResourceAssignment', 'User', 'revoked_by', 'revokedBy', 'assignmentsRevoked'],
 ];
 
 for (const [sourceName, targetName, foreignKey, as, inverseAs, oneToOne] of foreignKeys) {

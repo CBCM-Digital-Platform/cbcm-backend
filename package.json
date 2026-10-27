@@ -19,7 +19,8 @@
     "seed:production": "node scripts/seed-production.js",
     "migrate": "node node_modules/sequelize-cli/lib/sequelize db:migrate",
     "migrate:undo": "node node_modules/sequelize-cli/lib/sequelize db:migrate:undo",
-    "test:resources": "node --test tests/unit/resources.test.js"
+    "test:resources": "node --test tests/unit/resources.test.js",
+    "test:hierarchical-resources": "node --test tests/unit/hierarchical-resources.test.js"
   },
   "keywords": [],
   "author": "",
