@@ -1430,6 +1430,24 @@ components:
           type: string
           format: date-time
           nullable: true
+    LearningOptionWrite:
+      type: object
+      required:
+        - text
+      properties:
+        text:
+          type: string
+          example: Start emergency assessment
+        isCorrect:
+          type: boolean
+          example: true
+        label:
+          type: string
+          enum: [A, B, C, D]
+          example: A
+        orderNumber:
+          type: integer
+          example: 0
     QuizQuestion:
       type: object
       required:
@@ -3338,6 +3356,14 @@ components:
               example: 1
 
   parameters:
+    AssignmentId:
+      name: id
+      in: path
+      required: true
+      description: Positive integer assignment ID.
+      schema:
+        type: integer
+        minimum: 1
     ConversationId:
       name: id
       in: path
@@ -3578,6 +3604,22 @@ tags:
     description: Learning modules, content, access, progress, and quizzes.
   - name: Notifications
     description: Notifications belonging to the authenticated user.
+  - name: Certificates
+    description: Mentee certificate eligibility, issuance, and revocation
+  - name: Uploads
+    description: Media and file upload management with secure binary storage
+  - name: Resources
+    description: Learning resource files, media materials, and module attachments
+  - name: Settings
+    description: System FAQs and user onboarding guides
+  - name: User Guides
+    description: User guide management (Facility Admin only)
+  - name: Logbook
+    description: Mentee clinical procedure logbook entries and mentor review workflow
+  - name: Assessments
+    description: Clinical competency assessments, scoring, criteria, and evidence
+  - name: Sessions
+    description: Clinical encounter sessions, scheduling, notes, and virtual rooms
   - name: Hierarchical Resources
     description: Hierarchical resource management with Super Admin → Facility → Mentor → Mentee permissions
 paths:
@@ -8473,8 +8515,6 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
-  - name: User Guides
-    description: User guide management (Facility Admin only)
     patch:
       summary: Update a user guide
       description: Updates an existing user guide.
@@ -8526,8 +8566,7 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
-  - name: Hierarchical Resources
-    description: Hierarchical resource management with Super Admin → Facility → Mentor → Mentee permissions    delete:
+    delete:
       summary: Delete a user guide
       description: Deletes a user guide.
       tags:
@@ -8566,5 +8605,3 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
-  - name: Hierarchical Resources
-    description: Hierarchical resource management with Super Admin → Facility → Mentor → Mentee permissions

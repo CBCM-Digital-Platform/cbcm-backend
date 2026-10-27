@@ -14,6 +14,8 @@ const storage = require('../../src/providers/storage.provider');
 const hierarchicalResourcesRoutes = require('../../src/routes/hierarchical-resources.routes');
 const { generateAccessToken } = require('../../src/utils/token.util');
 
+const validPdfBuffer = Buffer.from('%PDF-1.4\n1 0 obj\n<<>>\nendobj\n');
+
 describe('Hierarchical Resources API', () => {
 	let app;
 	let adminUser, facility1Admin, facility2Admin, mentorUser, menteeUser, otherMenteeUser;
@@ -48,6 +50,12 @@ describe('Hierarchical Resources API', () => {
 			{ id: 6, email: 'othermentee@cbcm.org', role: Role.MENTEE, status: 'active', facility_id: 2, password_hash: 'hash', must_change_password: false },
 		]);
 
+		await models.MentorshipCycle.create({
+			id: 1,
+			name: 'Test Cycle',
+			status: 'active',
+		});
+
 		await models.Assignment.create({
 			id: 1,
 			mentor_id: 4,
@@ -79,7 +87,7 @@ describe('Hierarchical Resources API', () => {
 	describe('Super Admin Resource Creation', () => {
 		it('should allow Super Admin to create a resource', async () => {
 			const file = {
-				buffer: Buffer.from('PDF content'),
+				buffer: validPdfBuffer,
 				originalname: 'test.pdf',
 				mimetype: 'application/pdf',
 				size: 100,
@@ -99,7 +107,7 @@ describe('Hierarchical Resources API', () => {
 
 		it('should reject non-Super Admin from creating resources', async () => {
 			const file = {
-				buffer: Buffer.from('PDF content'),
+				buffer: validPdfBuffer,
 				originalname: 'test.pdf',
 				mimetype: 'application/pdf',
 				size: 100,
@@ -117,7 +125,7 @@ describe('Hierarchical Resources API', () => {
 
 		before(async () => {
 			const file = {
-				buffer: Buffer.from('PDF content'),
+				buffer: validPdfBuffer,
 				originalname: 'test.pdf',
 				mimetype: 'application/pdf',
 				size: 100,
@@ -162,7 +170,7 @@ describe('Hierarchical Resources API', () => {
 
 		before(async () => {
 			const file = {
-				buffer: Buffer.from('PDF content'),
+				buffer: validPdfBuffer,
 				originalname: 'test.pdf',
 				mimetype: 'application/pdf',
 				size: 100,
@@ -205,7 +213,7 @@ describe('Hierarchical Resources API', () => {
 
 		before(async () => {
 			const file = {
-				buffer: Buffer.from('PDF content'),
+				buffer: validPdfBuffer,
 				originalname: 'test.pdf',
 				mimetype: 'application/pdf',
 				size: 100,
@@ -249,7 +257,7 @@ describe('Hierarchical Resources API', () => {
 
 		before(async () => {
 			const file = {
-				buffer: Buffer.from('PDF content'),
+				buffer: validPdfBuffer,
 				originalname: 'test.pdf',
 				mimetype: 'application/pdf',
 				size: 100,
@@ -299,7 +307,7 @@ describe('Hierarchical Resources API', () => {
 
 		before(async () => {
 			const file = {
-				buffer: Buffer.from('PDF content'),
+				buffer: validPdfBuffer,
 				originalname: 'test.pdf',
 				mimetype: 'application/pdf',
 				size: 100,

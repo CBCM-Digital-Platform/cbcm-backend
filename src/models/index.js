@@ -205,7 +205,7 @@ const foreignKeys = [
 	['MenteeResourceAssignment', 'User', 'mentor_id', 'mentor', 'resourceAssignmentsMade'],
 	['MenteeResourceAssignment', 'User', 'mentee_id', 'mentee', 'resourceAssignmentsReceived'],
 	['MenteeResourceAssignment', 'Facility', 'facility_id', 'facility', 'menteeResourceAssignments'],
-	['MenteeResourceAssignment', 'User', 'assigned_by', 'assignedBy', 'assignmentsMade'],
+	['MenteeResourceAssignment', 'User', 'assigned_by', 'assignedBy', 'resourceAssignmentsCreatedBy'],
 	['MenteeResourceAssignment', 'User', 'revoked_by', 'revokedBy', 'assignmentsRevoked'],
 ];
 

@@ -165,21 +165,21 @@ async function findForMentee(menteeId, { page = 1, limit = 20, type, status, sea
 
 async function checkFacilityAccess(resourceId, facilityId) {
 	const grant = await models.FacilityResourceGrant.findOne({
-		where: { resource_id: resourceId, facility_id, grant_status: 'active' },
+		where: { resource_id: resourceId, facility_id: facilityId, grant_status: 'active' },
 	});
 	return !!grant;
 }
 
 async function checkMentorAccess(resourceId, mentorId) {
 	const grant = await models.MentorResourceGrant.findOne({
-		where: { resource_id: resourceId, mentor_id, grant_status: 'active' },
+		where: { resource_id: resourceId, mentor_id: mentorId, grant_status: 'active' },
 	});
 	return !!grant;
 }
 
 async function checkMenteeAccess(resourceId, menteeId) {
 	const assignment = await models.MenteeResourceAssignment.findOne({
-		where: { resource_id: resourceId, mentee_id, assignment_status: 'active' },
+		where: { resource_id: resourceId, mentee_id: menteeId, assignment_status: 'active' },
 	});
 	return !!assignment;
 }
@@ -196,7 +196,7 @@ async function getFacilityGrants(resourceId) {
 
 async function getMentorGrants(resourceId, facilityId) {
 	return models.MentorResourceGrant.findAll({
-		where: { resource_id: resourceId, facility_id, grant_status: 'active' },
+		where: { resource_id: resourceId, facility_id: facilityId, grant_status: 'active' },
 		include: [
 			{ model: models.User, as: 'mentor', attributes: ['id', 'full_name', 'email'] },
 			{ model: models.User, as: 'grantedBy', attributes: ['id', 'full_name', 'email'] },
@@ -206,7 +206,7 @@ async function getMentorGrants(resourceId, facilityId) {
 
 async function getMenteeAssignments(resourceId, mentorId) {
 	return models.MenteeResourceAssignment.findAll({
-		where: { resource_id: resourceId, mentor_id, assignment_status: 'active' },
+		where: { resource_id: resourceId, mentor_id: mentorId, assignment_status: 'active' },
 		include: [
 			{ model: models.User, as: 'mentee', attributes: ['id', 'full_name', 'email'] },
 			{ model: models.User, as: 'assignedBy', attributes: ['id', 'full_name', 'email'] },

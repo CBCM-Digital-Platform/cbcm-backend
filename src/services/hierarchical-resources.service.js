@@ -134,13 +134,13 @@ async function grantToFacility(resourceId, facilityIds, actor) {
 		const results = [];
 		for (const facilityId of facilityIds) {
 			const existing = await models.FacilityResourceGrant.findOne({
-				where: { resource_id: resourceId, facility_id, grant_status: 'active' },
+				where: { resource_id: resourceId, facility_id: facilityId, grant_status: 'active' },
 				transaction,
 			});
 			if (!existing) {
 				const grant = await models.FacilityResourceGrant.create({
 					resource_id: resourceId,
-					facility_id,
+					facility_id: facilityId,
 					granted_by: actor.id,
 					grant_status: 'active',
 					granted_at: new Date(),
@@ -158,7 +158,7 @@ async function revokeFromFacility(resourceId, facilityId, actor) {
 	assertSuperAdmin(actor);
 	
 	const grant = await models.FacilityResourceGrant.findOne({
-		where: { resource_id: resourceId, facility_id, grant_status: 'active' },
+		where: { resource_id: resourceId, facility_id: facilityId, grant_status: 'active' },
 	});
 	if (!grant) {
 		throw new AppError('Active grant not found.', 404, 'NOT_FOUND');
@@ -173,7 +173,12 @@ async function revokeFromFacility(resourceId, facilityId, actor) {
 
 		await models.MentorResourceGrant.update(
 			{ grant_status: 'revoked', revoked_at: new Date(), revoked_by: actor.id },
-			{ where: { resource_id: resourceId, facility_id, grant_status: 'active' }, transaction }
+			{ where: { resource_id: resourceId, facility_id: facilityId, grant_status: 'active' }, transaction }
+		);
+
+		await models.MenteeResourceAssignment.update(
+			{ assignment_status: 'revoked', revoked_at: new Date(), revoked_by: actor.id },
+			{ where: { resource_id: resourceId, facility_id: facilityId, assignment_status: 'active' }, transaction }
 		);
 	});
 
@@ -276,7 +281,7 @@ async function assignToMentee(resourceId, menteeIds, actor) {
 				transaction,
 			});
 			if (!assignment) {
-				continue;
+				throw new AppError('Mentee is not assigned to you.', 403, 'FORBIDDEN');
 			}
 
 			const existing = await models.MenteeResourceAssignment.findOne({
@@ -309,7 +314,7 @@ async function revokeFromMentee(resourceId, menteeId, actor) {
 	}
 
 	const assignment = await models.MenteeResourceAssignment.findOne({
-		where: { resource_id: resourceId, mentee_id, mentor_id: actor.id, assignment_status: 'active' },
+		where: { resource_id: resourceId, mentee_id: menteeId, mentor_id: actor.id, assignment_status: 'active' },
 	});
 	if (!assignment) {
 		throw new AppError('Active assignment not found.', 404, 'NOT_FOUND');

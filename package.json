@@ -6,8 +6,10 @@
     "test": "tests"
   },
   "scripts": {
+    "start": "node src/server.js",
     "dev": "node --watch src/server.js",
     "test": "node --test tests/unit/messaging.test.js tests/unit/learning.test.js tests/unit/sessions.test.js tests/unit/storage.test.js tests/unit/upload.test.js tests/unit/uploads-api.test.js tests/unit/resources.test.js",
+    "test:swagger": "node --test tests/unit/swagger.test.js",
     "test:learning": "node --test tests/unit/learning.test.js",
     "test:messaging": "node --test tests/unit/messaging.test.js",
     "test:sessions": "node --test tests/unit/sessions.test.js",
@@ -18,6 +20,7 @@
     "seed": "node scripts/seed.js",
     "seed:production": "node scripts/seed-production.js",
     "migrate": "node node_modules/sequelize-cli/lib/sequelize db:migrate",
+    "migrate:production": "node node_modules/sequelize-cli/lib/sequelize db:migrate --env production",
     "migrate:undo": "node node_modules/sequelize-cli/lib/sequelize db:migrate:undo",
     "test:resources": "node --test tests/unit/resources.test.js",
     "test:hierarchical-resources": "node --test tests/unit/hierarchical-resources.test.js"
@@ -40,12 +43,12 @@
     "pg": "^8.23.0",
     "pg-hstore": "^2.3.4",
     "sequelize": "^6.37.8",
+    "sequelize-cli": "^6.6.5",
     "supertest": "^7.3.0",
     "swagger-jsdoc": "^6.3.0",
     "swagger-ui-express": "^5.0.1"
   },
   "devDependencies": {
-    "sequelize-cli": "^6.6.5",
     "sqlite3": "^6.0.1"
   }
 }
