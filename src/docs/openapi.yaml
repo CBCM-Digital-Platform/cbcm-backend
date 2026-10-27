@@ -3847,6 +3847,8 @@ tags:
     description: Learning modules, content, access, progress, and quizzes.
   - name: Notifications
     description: Notifications belonging to the authenticated user.
+  - name: Hierarchical Resources
+    description: Hierarchical resource management with Super Admin → Facility → Mentor → Mentee permissions
 paths:
   /api/v1/users/me:
     get:
@@ -8472,8 +8474,9 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
-  - name: Hierarchical Resources
-    description: Hierarchical resource management with Super Admin → Facility → Mentor → Mentee permissions    patch:
+  - name: User Guides
+    description: User guide management (Facility Admin only)
+    patch:
       summary: Update a user guide
       description: Updates an existing user guide.
       tags:
