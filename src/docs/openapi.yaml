@@ -3336,6 +3336,250 @@ components:
             totalPages:
               type: integer
               example: 1
+
+  parameters:
+    ConversationId:
+      name: id
+      in: path
+      required: true
+      description: Positive integer conversation ID.
+      schema:
+        type: integer
+        minimum: 1
+    MessageId:
+      name: messageId
+      in: path
+      required: true
+      description: Positive integer message ID.
+      schema:
+        type: integer
+        minimum: 1
+    LearningId:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: integer
+        minimum: 1
+    ModuleId:
+      name: moduleId
+      in: path
+      required: true
+      schema:
+        type: integer
+        minimum: 1
+    ContentId:
+      name: contentId
+      in: path
+      required: true
+      schema:
+        type: integer
+        minimum: 1
+    QuizId:
+      name: quizId
+      in: path
+      required: true
+      schema:
+        type: integer
+        minimum: 1
+    MentorId:
+      name: mentorId
+      in: path
+      required: true
+      schema:
+        type: integer
+        minimum: 1
+    MenteeId:
+      name: menteeId
+      in: path
+      required: true
+      schema:
+        type: integer
+        minimum: 1
+    QuestionId:
+      name: questionId
+      in: path
+      required: true
+      schema:
+        type: integer
+        minimum: 1
+    OptionId:
+      name: optionId
+      in: path
+      required: true
+      schema:
+        type: integer
+        minimum: 1
+  responses:
+    BadRequest:
+      description: Invalid request data.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    Unauthorized:
+      description: Missing or invalid bearer token.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    Forbidden:
+      description: Authenticated user is not a conversation participant or cannot use the attachment.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    NotFound:
+      description: Requested resource not found.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    ServerError:
+      description: Unexpected server error.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    Conflict:
+      description: Requested action conflicts with the current resource state.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    LearningObject:
+      description: Learning resource returned.
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [success, data]
+            properties:
+              success:
+                type: boolean
+                example: true
+              data:
+                type: object
+    LearningList:
+      description: Learning resources returned.
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [success, data]
+            properties:
+              success:
+                type: boolean
+                example: true
+              data:
+                type: array
+                items:
+                  type: object
+    LearningCreated:
+      description: Learning resource created.
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [success, data]
+            properties:
+              success:
+                type: boolean
+                example: true
+              data:
+                type: object
+    LearningAction:
+      description: Learning action completed.
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [success, data]
+            properties:
+              success:
+                type: boolean
+                example: true
+              data:
+                type: object
+    NotificationList:
+      description: Notifications belonging to the authenticated user.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/NotificationListResponse'
+    NotificationItem:
+      description: Notification returned.
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [success, data]
+            properties:
+              success:
+                type: boolean
+                example: true
+              data:
+                $ref: '#/components/schemas/Notification'
+    NotificationAction:
+      description: Notification action completed.
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [success, data]
+            properties:
+              success:
+                type: boolean
+                example: true
+              data:
+                type: object
+    NotificationUnreadCount:
+      description: Unread notification count.
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [success, data]
+            properties:
+              success:
+                type: boolean
+                example: true
+              data:
+                type: object
+                required: [unreadCount]
+                properties:
+                  unreadCount:
+                    type: integer
+                    minimum: 0
+tags:
+  - name: Auth
+    description: Authentication and session management
+  - name: Users
+    description: User management and profiles
+  - name: Facilities
+    description: Facility management
+  - name: Mentorship Cycles
+    description: Mentorship cycle management
+  - name: Cycle Configuration
+    description: Cycle facility and thematic area configuration
+  - name: Messaging
+    description: Messaging and conversations
+  - name: Thematic Areas
+    description: Global thematic area management (System Admin only)
+  - name: Assignments
+    description: Mentor-mentee assignment management
+  - name: Progress
+    description: Knowledge-score snapshots and progress tracking
+  - name: Activity Logs
+    description: Audit and activity logging
+  - name: Analytics
+    description: Dashboard metrics and analytics
+  - name: Learning
+    description: Learning modules, content, access, progress, and quizzes.
+  - name: Notifications
+    description: Notifications belonging to the authenticated user.
+  - name: Hierarchical Resources
+    description: Hierarchical resource management with Super Admin → Facility → Mentor → Mentee permissions
 paths:
   /api/v1/hierarchical-resources:
     post:
@@ -3605,251 +3849,6 @@ paths:
           $ref: '#/components/responses/Forbidden'
         '404':
           $ref: '#/components/responses/NotFound'
-
-  parameters:
-    ConversationId:
-      name: id
-      in: path
-      required: true
-      description: Positive integer conversation ID.
-      schema:
-        type: integer
-        minimum: 1
-    MessageId:
-      name: messageId
-      in: path
-      required: true
-      description: Positive integer message ID.
-      schema:
-        type: integer
-        minimum: 1
-    LearningId:
-      name: id
-      in: path
-      required: true
-      schema:
-        type: integer
-        minimum: 1
-    ModuleId:
-      name: moduleId
-      in: path
-      required: true
-      schema:
-        type: integer
-        minimum: 1
-    ContentId:
-      name: contentId
-      in: path
-      required: true
-      schema:
-        type: integer
-        minimum: 1
-    QuizId:
-      name: quizId
-      in: path
-      required: true
-      schema:
-        type: integer
-        minimum: 1
-    MentorId:
-      name: mentorId
-      in: path
-      required: true
-      schema:
-        type: integer
-        minimum: 1
-    MenteeId:
-      name: menteeId
-      in: path
-      required: true
-      schema:
-        type: integer
-        minimum: 1
-    QuestionId:
-      name: questionId
-      in: path
-      required: true
-      schema:
-        type: integer
-        minimum: 1
-    OptionId:
-      name: optionId
-      in: path
-      required: true
-      schema:
-        type: integer
-        minimum: 1
-  responses:
-    BadRequest:
-      description: Invalid request data.
-      content:
-        application/json:
-          schema:
-            $ref: '#/components/schemas/ErrorResponse'
-    Unauthorized:
-      description: Missing or invalid bearer token.
-      content:
-        application/json:
-          schema:
-            $ref: '#/components/schemas/ErrorResponse'
-    Forbidden:
-      description: Authenticated user is not a conversation participant or cannot use the attachment.
-      content:
-        application/json:
-          schema:
-            $ref: '#/components/schemas/ErrorResponse'
-    NotFound:
-      description: Requested resource not found.
-      content:
-        application/json:
-          schema:
-            $ref: '#/components/schemas/ErrorResponse'
-    ServerError:
-      description: Unexpected server error.
-      content:
-        application/json:
-          schema:
-            $ref: '#/components/schemas/ErrorResponse'
-    Conflict:
-      description: Requested action conflicts with the current resource state.
-      content:
-        application/json:
-          schema:
-            $ref: '#/components/schemas/ErrorResponse'
-    LearningObject:
-      description: Learning resource returned.
-      content:
-        application/json:
-          schema:
-            type: object
-            required: [success, data]
-            properties:
-              success:
-                type: boolean
-                example: true
-              data:
-                type: object
-    LearningList:
-      description: Learning resources returned.
-      content:
-        application/json:
-          schema:
-            type: object
-            required: [success, data]
-            properties:
-              success:
-                type: boolean
-                example: true
-              data:
-                type: array
-                items:
-                  type: object
-    LearningCreated:
-      description: Learning resource created.
-      content:
-        application/json:
-          schema:
-            type: object
-            required: [success, data]
-            properties:
-              success:
-                type: boolean
-                example: true
-              data:
-                type: object
-    LearningAction:
-      description: Learning action completed.
-      content:
-        application/json:
-          schema:
-            type: object
-            required: [success, data]
-            properties:
-              success:
-                type: boolean
-                example: true
-              data:
-                type: object
-    NotificationList:
-      description: Notifications belonging to the authenticated user.
-      content:
-        application/json:
-          schema:
-            $ref: '#/components/schemas/NotificationListResponse'
-    NotificationItem:
-      description: Notification returned.
-      content:
-        application/json:
-          schema:
-            type: object
-            required: [success, data]
-            properties:
-              success:
-                type: boolean
-                example: true
-              data:
-                $ref: '#/components/schemas/Notification'
-    NotificationAction:
-      description: Notification action completed.
-      content:
-        application/json:
-          schema:
-            type: object
-            required: [success, data]
-            properties:
-              success:
-                type: boolean
-                example: true
-              data:
-                type: object
-    NotificationUnreadCount:
-      description: Unread notification count.
-      content:
-        application/json:
-          schema:
-            type: object
-            required: [success, data]
-            properties:
-              success:
-                type: boolean
-                example: true
-              data:
-                type: object
-                required: [unreadCount]
-                properties:
-                  unreadCount:
-                    type: integer
-                    minimum: 0
-tags:
-  - name: Auth
-    description: Authentication and session management
-  - name: Users
-    description: User management and profiles
-  - name: Facilities
-    description: Facility management
-  - name: Mentorship Cycles
-    description: Mentorship cycle management
-  - name: Cycle Configuration
-    description: Cycle facility and thematic area configuration
-  - name: Messaging
-    description: Messaging and conversations
-  - name: Thematic Areas
-    description: Global thematic area management (System Admin only)
-  - name: Assignments
-    description: Mentor-mentee assignment management
-  - name: Progress
-    description: Knowledge-score snapshots and progress tracking
-  - name: Activity Logs
-    description: Audit and activity logging
-  - name: Analytics
-    description: Dashboard metrics and analytics
-  - name: Learning
-    description: Learning modules, content, access, progress, and quizzes.
-  - name: Notifications
-    description: Notifications belonging to the authenticated user.
-  - name: Hierarchical Resources
-    description: Hierarchical resource management with Super Admin → Facility → Mentor → Mentee permissions
-paths:
   /api/v1/users/me:
     get:
       summary: Get current user's profile
