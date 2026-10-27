@@ -2,8 +2,8 @@ const express = require('express');
 const router = express.Router();
 const controller = require('../controllers/certificates.controller');
 const validator = require('../validators/certificates.validator');
-const { authenticate } = require('../middleware/auth');
-const { requireRole } = require('../middleware/authorization');
+const authenticate = require('../middlewares/auth/authenticate.middleware');
+const requireRole = require('../middlewares/auth/require-role.middleware');
 
 // All certificate routes require authentication
 router.use(authenticate);

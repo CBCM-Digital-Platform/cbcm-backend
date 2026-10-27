@@ -13,6 +13,10 @@ const progressRoutes = require('./progress.routes');
 const sessionsRoutes = require('./sessions.routes');
 const assessmentsRoutes = require('./assessments.routes');
 const certificatesRoutes = require('./certificates.routes');
+const logbookRoutes = require('./logbook.routes');
+const resourcesRoutes = require('./resources.routes');
+const uploadsRoutes = require('./uploads.routes');
+const settingsRoutes = require('./settings.routes');
 
 const router = express.Router();
 router.use('/auth', authRoutes);
@@ -28,5 +32,9 @@ router.use('/progress', progressRoutes);
 router.use('/sessions', sessionsRoutes);
 router.use('/assessments', assessmentsRoutes);
 router.use('/certificates', certificatesRoutes);
+router.use('/logbook', logbookRoutes);
+router.use('/resources', resourcesRoutes);
+router.use('/uploads', uploadsRoutes);
+router.use('/settings', settingsRoutes);
 
 module.exports = router;

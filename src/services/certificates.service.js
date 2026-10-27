@@ -2,7 +2,7 @@ const AppError = require('../errors/app-error');
 const repository = require('../repositories/certificates.repository');
 const { canAccessFacility, canAccessUser, SYSTEM_ADMIN_ROLES, FACILITY_ADMIN_ROLES } = require('../constants/roles.constants');
 const storage = require('../providers/storage.provider');
-const { User, CertificateTemplate } = require('../models');
+const { sequelize, User, CertificateTemplate } = require('../models');
 
 async function checkEligibility(menteeId, cycleId, thematicAreaId, actor) {
 	// Validate mentee

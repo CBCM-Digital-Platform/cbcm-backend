@@ -8,8 +8,9 @@ const CycleStatus = require('../enums/cycle-status.enum');
 const repository = require('../repositories/sessions.repository');
 const assignmentsRepository = require('../repositories/assignments.repository');
 const { canAccessFacility, SYSTEM_ADMIN_ROLES, FACILITY_ADMIN_ROLES } = require('../constants/roles.constants');
+const notificationService = require('./notifications.service');
+const NotificationType = require('../enums/notification-type.enum');
 const Role = require('../enums/role.enum');
-const env = require('../config/env');
 
 function paginationValues(page = 1, limit = 20) {
 	return { page: Number(page), limit: Number(limit), offset: (Number(page) - 1) * Number(limit) };
@@ -155,10 +156,26 @@ async function createSession(payload, actor) {
 		preparation_notes: payload.preparation_notes || null,
 		status: status || SessionStatus.DRAFT,
 		jitsi_room_id: (mode === EncounterMode.VIRTUAL && (status === 'scheduled' || scheduled_at)) ? crypto.randomBytes(16).toString('hex') : null,
-		jitsi_room_enabled: mode === EncounterMode.VIRTUAL && (status === 'scheduled' || scheduled_at),
+		jitsi_room_enabled: Boolean(mode === EncounterMode.VIRTUAL && (status === 'scheduled' || !!scheduled_at)),
 	};
 
 	const session = await repository.create(sessionData);
+
+	// Notify both participants when a session is scheduled
+	if (session.status === 'scheduled' || session.scheduled_at) {
+		try {
+			await notificationService.createNotifications({
+				userIds: [session.mentor_id, session.mentee_id],
+				type: NotificationType.SESSION_SCHEDULED,
+				title: 'Clinical session scheduled',
+				body: 'A clinical session has been scheduled.',
+				referenceType: 'clinical_session',
+				referenceId: session.id,
+			});
+		} catch (e) {
+			// do not fail session creation
+		}
+	}
 
 	return toSessionResponse(session);
 }

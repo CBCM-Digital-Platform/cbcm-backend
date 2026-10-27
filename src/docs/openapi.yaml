@@ -2165,6 +2165,902 @@ components:
                 type: string
                 example: 'Available mentor in facility'
 
+    SubmitQuizRequest:
+      type: object
+      required:
+        - answers
+      properties:
+        answers:
+          type: array
+          items:
+            $ref: '#/components/schemas/QuizAnswerSubmission'
+    QuizResultResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        data:
+          $ref: '#/components/schemas/QuizResult'
+    ThematicAreaResponse:
+      type: object
+      properties:
+        id:
+          type: integer
+          example: 1
+        code:
+          type: string
+          example: RMNCH
+        name:
+          type: string
+          example: Reproductive, Maternal, Newborn and Child Health
+    AssignmentResponse:
+      type: object
+      properties:
+        id:
+          type: integer
+          example: 1
+        mentor_id:
+          type: integer
+          example: 4
+        mentee_id:
+          type: integer
+          example: 5
+        facility_id:
+          type: integer
+          example: 1
+        cycle_id:
+          type: integer
+          example: 1
+        thematic_area_id:
+          type: integer
+          example: 2
+        priority_score:
+          type: number
+          example: 85.5
+        matching_reason:
+          type: string
+          example: Best skill match
+        status:
+          type: string
+          enum: [active, pending, completed, terminated]
+          example: active
+        assigned_by:
+          type: integer
+          example: 1
+        assigned_at:
+          type: string
+          format: date-time
+        unassigned_at:
+          type: string
+          format: date-time
+          nullable: true
+    Session:
+      type: object
+      properties:
+        id:
+          type: integer
+          example: 1
+        assignment_id:
+          type: integer
+          example: 1
+        mentor_id:
+          type: integer
+          example: 4
+        mentee_id:
+          type: integer
+          example: 5
+        facility_id:
+          type: integer
+          example: 1
+        mode:
+          type: string
+          enum: [in_person, virtual, hybrid]
+          example: virtual
+        scheduled_at:
+          type: string
+          format: date-time
+          nullable: true
+        started_at:
+          type: string
+          format: date-time
+          nullable: true
+        ended_at:
+          type: string
+          format: date-time
+          nullable: true
+        duration_minutes:
+          type: integer
+          nullable: true
+          example: 60
+        clinical_setting:
+          type: string
+          nullable: true
+          example: Outpatient Clinic
+        location:
+          type: string
+          nullable: true
+          example: Room 302
+        session_goals:
+          type: string
+          nullable: true
+          example: Review neonatal resuscitation protocols
+        preparation_notes:
+          type: string
+          nullable: true
+          example: Read module 2 before session
+        status:
+          type: string
+          enum: [draft, scheduled, in_progress, completed, cancelled, terminated, no_show]
+          example: scheduled
+        cancellation_reason:
+          type: string
+          nullable: true
+        jitsi_room_id:
+          type: string
+          nullable: true
+          example: cbcm-room-123
+        jitsi_room_enabled:
+          type: boolean
+          example: true
+        recording_file_id:
+          type: integer
+          nullable: true
+        updated_by:
+          type: integer
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+    Resource:
+      type: object
+      properties:
+        id:
+          type: integer
+          example: 1
+        title:
+          type: string
+          example: Neonatal Resuscitation Guide
+        type:
+          type: string
+          enum: [pdf, audio, video]
+          example: pdf
+        thematicAreaId:
+          type: integer
+          nullable: true
+          example: 1
+        thematic_area_id:
+          type: integer
+          nullable: true
+          example: 1
+        moduleId:
+          type: integer
+          nullable: true
+          example: 2
+        module_id:
+          type: integer
+          nullable: true
+          example: 2
+        fileId:
+          type: integer
+          nullable: true
+          example: 5
+        file_id:
+          type: integer
+          nullable: true
+          example: 5
+        url:
+          type: string
+          nullable: true
+        createdBy:
+          type: integer
+          nullable: true
+          example: 1
+        created_by:
+          type: integer
+          nullable: true
+          example: 1
+        updatedBy:
+          type: integer
+          nullable: true
+          example: 1
+        updated_by:
+          type: integer
+          nullable: true
+          example: 1
+        createdAt:
+          type: string
+          format: date-time
+        created_at:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+        module:
+          type: object
+          nullable: true
+          properties:
+            id:
+              type: integer
+            title:
+              type: string
+            thematicAreaId:
+              type: integer
+              nullable: true
+            status:
+              type: string
+            isPublished:
+              type: boolean
+            isAuthorized:
+              type: boolean
+        thematicArea:
+          type: object
+          nullable: true
+          properties:
+            id:
+              type: integer
+            code:
+              type: string
+            name:
+              type: string
+        thematic_area:
+          type: object
+          nullable: true
+          properties:
+            id:
+              type: integer
+            code:
+              type: string
+            name:
+              type: string
+        file:
+          type: object
+          nullable: true
+          properties:
+            id:
+              type: integer
+            mimeType:
+              type: string
+            sizeBytes:
+              type: integer
+            createdAt:
+              type: string
+              format: date-time
+    CreateResourceRequest:
+      type: object
+      required:
+        - title
+        - type
+        - thematic_area_id
+        - module_id
+        - file_id
+      properties:
+        title:
+          type: string
+          maxLength: 255
+          example: Neonatal Resuscitation Guidelines
+        type:
+          type: string
+          enum: [pdf, audio, video]
+          example: pdf
+        thematic_area_id:
+          type: integer
+          example: 1
+        thematicAreaId:
+          type: integer
+          description: Alternative camelCase for thematic_area_id
+        module_id:
+          type: integer
+          example: 2
+        moduleId:
+          type: integer
+          description: Alternative camelCase for module_id
+        file_id:
+          type: integer
+          example: 5
+        fileId:
+          type: integer
+          description: Alternative camelCase for file_id
+        url:
+          type: string
+          nullable: true
+    UpdateResourceRequest:
+      type: object
+      properties:
+        title:
+          type: string
+          maxLength: 255
+        type:
+          type: string
+          enum: [pdf, audio, video]
+        thematic_area_id:
+          type: integer
+          nullable: true
+        thematicAreaId:
+          type: integer
+          nullable: true
+        module_id:
+          type: integer
+          nullable: true
+        moduleId:
+          type: integer
+          nullable: true
+        file_id:
+          type: integer
+          nullable: true
+        fileId:
+          type: integer
+          nullable: true
+        url:
+          type: string
+          nullable: true
+    ResourceResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        data:
+          $ref: '#/components/schemas/Resource'
+    ResourceListResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/Resource'
+        meta:
+          type: object
+          properties:
+            page:
+              type: integer
+              example: 1
+            limit:
+              type: integer
+              example: 20
+            total:
+              type: integer
+              example: 10
+            totalPages:
+              type: integer
+              example: 1
+    UploadedFile:
+      type: object
+      properties:
+        id:
+          type: integer
+          example: 1
+        ownerId:
+          type: integer
+          example: 2
+        context:
+          type: string
+          example: resource
+        mimeType:
+          type: string
+          example: application/pdf
+        sizeBytes:
+          type: integer
+          example: 1048576
+        createdAt:
+          type: string
+          format: date-time
+    UploadedFileResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        data:
+          $ref: '#/components/schemas/UploadedFile'
+    Certificate:
+      type: object
+      properties:
+        id:
+          type: integer
+          example: 1
+        mentee_id:
+          type: integer
+          example: 5
+        cycle_id:
+          type: integer
+          example: 1
+        thematic_area_id:
+          type: integer
+          example: 2
+        template_id:
+          type: integer
+          nullable: true
+          example: 1
+        mentee_name_snapshot:
+          type: string
+          example: Dr. Jane Doe
+        status:
+          type: string
+          enum: [issued, revoked]
+          example: issued
+        pdf_url:
+          type: string
+          nullable: true
+          example: uploads/certificate-uuid.pdf
+        issued_by:
+          type: integer
+          example: 1
+        issued_at:
+          type: string
+          format: date-time
+        version:
+          type: integer
+          example: 1
+        mentee:
+          type: object
+          properties:
+            id: { type: integer }
+            full_name: { type: string }
+            email: { type: string }
+        cycle:
+          type: object
+          properties:
+            id: { type: integer }
+            name: { type: string }
+        thematicArea:
+          type: object
+          properties:
+            id: { type: integer }
+            name: { type: string }
+        template:
+          type: object
+          nullable: true
+          properties:
+            id: { type: integer }
+            name: { type: string }
+        issuedBy:
+          type: object
+          properties:
+            id: { type: integer }
+            full_name: { type: string }
+    IssueCertificateRequest:
+      type: object
+      required:
+        - mentee_id
+        - cycle_id
+        - thematic_area_id
+      properties:
+        mentee_id:
+          type: integer
+          example: 5
+        cycle_id:
+          type: integer
+          example: 1
+        thematic_area_id:
+          type: integer
+          example: 2
+        template_id:
+          type: integer
+          nullable: true
+          example: 1
+    CertificateResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        data:
+          $ref: '#/components/schemas/Certificate'
+    CertificateListResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/Certificate'
+        meta:
+          type: object
+          properties:
+            page:
+              type: integer
+              example: 1
+            limit:
+              type: integer
+              example: 20
+            total:
+              type: integer
+              example: 1
+            totalPages:
+              type: integer
+              example: 1
+    CertificateEligibilityResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        data:
+          type: object
+          properties:
+            eligible:
+              type: boolean
+              example: true
+            reason:
+              type: string
+              nullable: true
+            assessment:
+              type: object
+              nullable: true
+            existingCertificate:
+              type: object
+              nullable: true
+    Faq:
+      type: object
+      properties:
+        id:
+          type: integer
+          example: 1
+        category:
+          type: string
+          nullable: true
+          example: General
+        question:
+          type: string
+          example: How do I schedule a session?
+        answer:
+          type: string
+          example: Go to the sessions tab and click New Session.
+        target_audience:
+          type: string
+          nullable: true
+          example: mentee,mentor
+        created_by:
+          type: integer
+          nullable: true
+          example: 1
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+    CreateFaqRequest:
+      type: object
+      required:
+        - question
+        - answer
+      properties:
+        category:
+          type: string
+          maxLength: 255
+          example: General
+        question:
+          type: string
+          example: How do I schedule a session?
+        answer:
+          type: string
+          example: Go to the sessions tab and click New Session.
+        target_audience:
+          type: string
+          example: mentee,mentor
+    UpdateFaqRequest:
+      type: object
+      properties:
+        category:
+          type: string
+          maxLength: 255
+        question:
+          type: string
+        answer:
+          type: string
+        target_audience:
+          type: string
+    FaqResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        data:
+          $ref: '#/components/schemas/Faq'
+    FaqListResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/Faq'
+        meta:
+          type: object
+          properties:
+            page: { type: integer, example: 1 }
+            limit: { type: integer, example: 20 }
+            total: { type: integer, example: 5 }
+            totalPages: { type: integer, example: 1 }
+    UserGuide:
+      type: object
+      properties:
+        id:
+          type: integer
+          example: 1
+        title:
+          type: string
+          example: Mentor Onboarding Guide
+        content:
+          type: string
+          example: Guide content and steps for mentors.
+        attachment_file_id:
+          type: integer
+          nullable: true
+          example: 3
+        target_audience:
+          type: string
+          nullable: true
+          example: mentor
+        created_by:
+          type: integer
+          nullable: true
+          example: 1
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+    CreateGuideRequest:
+      type: object
+      required:
+        - title
+        - content
+      properties:
+        title:
+          type: string
+          example: Mentor Onboarding Guide
+        content:
+          type: string
+          example: Instructions for onboarding mentors.
+        attachment_file_id:
+          type: integer
+          nullable: true
+          example: 3
+        target_audience:
+          type: string
+          example: mentor
+    UpdateGuideRequest:
+      type: object
+      properties:
+        title:
+          type: string
+        content:
+          type: string
+        attachment_file_id:
+          type: integer
+          nullable: true
+        target_audience:
+          type: string
+    GuideResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        data:
+          $ref: '#/components/schemas/UserGuide'
+    GuideListResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/UserGuide'
+        meta:
+          type: object
+          properties:
+            page: { type: integer, example: 1 }
+            limit: { type: integer, example: 20 }
+            total: { type: integer, example: 3 }
+            totalPages: { type: integer, example: 1 }
+    LogbookEntry:
+      type: object
+      properties:
+        id:
+          type: integer
+          example: 1
+        mentee_id:
+          type: integer
+          example: 5
+        mentor_id:
+          type: integer
+          example: 4
+        cycle_id:
+          type: integer
+          example: 1
+        thematic_area_id:
+          type: integer
+          example: 2
+        procedure_name:
+          type: string
+          example: Lumbar Puncture
+        category:
+          type: string
+          example: Clinical Procedure
+        patient_identifier:
+          type: string
+          example: PT-9821
+        date_performed:
+          type: string
+          format: date
+          example: '2026-10-25'
+        role:
+          type: string
+          enum: [performed, assisted, observed]
+          example: performed
+        supervision_level:
+          type: string
+          enum: [direct, indirect, independent]
+          example: direct
+        outcome:
+          type: string
+          enum: [successful, partially_successful, unsuccessful, complicated]
+          example: successful
+        complications:
+          type: string
+          nullable: true
+        notes:
+          type: string
+          nullable: true
+        status:
+          type: string
+          enum: [draft, submitted, approved, revision_requested]
+          example: submitted
+        submitted_at:
+          type: string
+          format: date-time
+          nullable: true
+        approved_at:
+          type: string
+          format: date-time
+          nullable: true
+        approved_by:
+          type: integer
+          nullable: true
+        mentor_feedback:
+          type: string
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+    CreateLogbookEntryRequest:
+      type: object
+      required:
+        - cycle_id
+        - thematic_area_id
+        - procedure_name
+        - date_performed
+        - role
+        - supervision_level
+      properties:
+        cycle_id:
+          type: integer
+          example: 1
+        thematic_area_id:
+          type: integer
+          example: 2
+        mentor_id:
+          type: integer
+          example: 4
+        procedure_name:
+          type: string
+          example: Lumbar Puncture
+        category:
+          type: string
+          example: Clinical Procedure
+        patient_identifier:
+          type: string
+          example: PT-9821
+        date_performed:
+          type: string
+          format: date
+          example: '2026-10-25'
+        role:
+          type: string
+          enum: [performed, assisted, observed]
+          example: performed
+        supervision_level:
+          type: string
+          enum: [direct, indirect, independent]
+          example: direct
+        outcome:
+          type: string
+          enum: [successful, partially_successful, unsuccessful, complicated]
+          example: successful
+        complications:
+          type: string
+        notes:
+          type: string
+    UpdateLogbookEntryRequest:
+      type: object
+      properties:
+        procedure_name:
+          type: string
+        category:
+          type: string
+        patient_identifier:
+          type: string
+        date_performed:
+          type: string
+          format: date
+        role:
+          type: string
+          enum: [performed, assisted, observed]
+        supervision_level:
+          type: string
+          enum: [direct, indirect, independent]
+        outcome:
+          type: string
+          enum: [successful, partially_successful, unsuccessful, complicated]
+        complications:
+          type: string
+        notes:
+          type: string
+    ApproveLogbookEntryRequest:
+      type: object
+      properties:
+        mentor_feedback:
+          type: string
+          example: Excellent technique demonstrated.
+    RequestLogbookRevisionRequest:
+      type: object
+      required:
+        - mentor_feedback
+      properties:
+        mentor_feedback:
+          type: string
+          example: Please add details about patient vitals and monitoring.
+    LogbookResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        data:
+          $ref: '#/components/schemas/LogbookEntry'
+    LogbookListResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/LogbookEntry'
+        meta:
+          type: object
+          properties:
+            page: { type: integer, example: 1 }
+            limit: { type: integer, example: 20 }
+            total: { type: integer, example: 5 }
+            totalPages: { type: integer, example: 1 }
+
   parameters:
     ConversationId:
       name: id
@@ -3758,7 +4654,7 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
-  /messages/conversations:
+  /api/v1/messages/conversations:
     get:
       tags:
         - Messaging
@@ -5698,6 +6594,1173 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
+  /api/v1/certificates/eligibility/{mentee_id}/{cycle_id}/{thematic_area_id}:
+    get:
+      summary: Check certificate eligibility
+      description: Evaluates whether a mentee is eligible for a certificate in a specific cycle and thematic area. Requires a finalized assessment with theory_passed=true and practical_passed=true, and no existing active certificate.
+      tags:
+        - Certificates
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: mentee_id
+          required: true
+          schema:
+            type: integer
+            minimum: 1
+          description: Mentee user ID
+        - in: path
+          name: cycle_id
+          required: true
+          schema:
+            type: integer
+            minimum: 1
+          description: Mentorship cycle ID
+        - in: path
+          name: thematic_area_id
+          required: true
+          schema:
+            type: integer
+            minimum: 1
+          description: Thematic area ID
+      responses:
+        '200':
+          description: Eligibility check result
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CertificateEligibilityResponse'
+        '400':
+          description: Invalid parameters or user is not a mentee
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Forbidden (insufficient permissions or facility scope violation)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Mentee not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/v1/certificates:
+    get:
+      summary: List certificates
+      description: Retrieves a paginated list of certificates. Facility administrators are restricted to mentees within their facility. Mentees can view only their own certificates.
+      tags:
+        - Certificates
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: query
+          name: page
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+          description: Page number
+        - in: query
+          name: limit
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+          description: Number of items per page
+        - in: query
+          name: mentee_id
+          schema:
+            type: integer
+          description: Filter by mentee ID
+        - in: query
+          name: cycle_id
+          schema:
+            type: integer
+          description: Filter by mentorship cycle ID
+        - in: query
+          name: thematic_area_id
+          schema:
+            type: integer
+          description: Filter by thematic area ID
+        - in: query
+          name: status
+          schema:
+            type: string
+            enum: [issued, revoked]
+          description: Filter by certificate status
+      responses:
+        '200':
+          description: Paginated certificate list
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CertificateListResponse'
+        '400':
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+    post:
+      summary: Issue certificate
+      description: Issues a certificate for an eligible mentee upon verifying theory and practical assessment passes. Generates and stores the certificate PDF document.
+      tags:
+        - Certificates
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/IssueCertificateRequest'
+      responses:
+        '201':
+          description: Certificate issued successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CertificateResponse'
+        '400':
+          description: Validation error or invalid user role
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Forbidden (insufficient role or facility scope violation)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Mentee or template not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: Ineligible for certificate (incomplete assessments or duplicate active certificate)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: PDF generation or storage failed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/v1/certificates/{id}:
+    get:
+      summary: Get certificate details
+      description: Retrieves a single certificate by ID including mentee, cycle, thematic area, template, and issuer associations.
+      tags:
+        - Certificates
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+            minimum: 1
+          description: Certificate ID
+      responses:
+        '200':
+          description: Certificate details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CertificateResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Certificate not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+    delete:
+      summary: Revoke certificate
+      description: Revokes an issued certificate. Sets certificate status to revoked.
+      tags:
+        - Certificates
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+            minimum: 1
+          description: Certificate ID
+      responses:
+        '200':
+          description: Certificate revoked successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Certificate not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/v1/uploads:
+    post:
+      summary: Upload a file
+      description: Uploads a media file (PDF, MP3, WAV, MP4, MOV, or WebM) using multipart/form-data. The file is validated by magic bytes signature and size limit, then stored in the configured storage provider.
+      tags:
+        - Uploads
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required:
+                - file
+              properties:
+                file:
+                  type: string
+                  format: binary
+                  description: Binary file to upload
+                context:
+                  type: string
+                  default: resource
+                  description: Context or category for the file upload (e.g. resource, avatar, guide)
+      responses:
+        '201':
+          description: File uploaded successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UploadedFileResponse'
+        '400':
+          description: File required, unsupported type, empty file, or size exceeds limit
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/v1/uploads/{id}:
+    get:
+      summary: Get uploaded file metadata
+      description: Retrieves file metadata for an uploaded file by ID.
+      tags:
+        - Uploads
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+            minimum: 1
+          description: Uploaded file ID
+      responses:
+        '200':
+          description: File metadata
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UploadedFileResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: File not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+    delete:
+      summary: Delete an uploaded file
+      description: Deletes the uploaded file from persistent storage and deletes the database record.
+      tags:
+        - Uploads
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+            minimum: 1
+          description: Uploaded file ID
+      responses:
+        '200':
+          description: File deleted successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: object
+                    properties:
+                      id:
+                        type: integer
+                        example: 1
+                      deleted:
+                        type: boolean
+                        example: true
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: File not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/v1/uploads/{id}/content:
+    get:
+      summary: Download uploaded file content
+      description: Streams the raw binary contents of the uploaded file with appropriate Content-Type and Content-Disposition headers.
+      tags:
+        - Uploads
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+            minimum: 1
+          description: Uploaded file ID
+      responses:
+        '200':
+          description: Binary file stream
+          content:
+            application/octet-stream:
+              schema:
+                type: string
+                format: binary
+            application/pdf:
+              schema:
+                type: string
+                format: binary
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: File not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/v1/resources:
+    get:
+      summary: List learning resources
+      description: Retrieves a paginated list of learning resources. System Admin can view all; Facility Admin can view resources in their facility's thematic areas; Mentors with permission and Mentees with module access can view resources for their modules.
+      tags:
+        - Resources
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: query
+          name: page
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+          description: Page number
+        - in: query
+          name: limit
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+          description: Items per page
+        - in: query
+          name: thematic_area_id
+          schema:
+            type: integer
+          description: Filter by thematic area ID
+        - in: query
+          name: module_id
+          schema:
+            type: integer
+          description: Filter by module ID
+        - in: query
+          name: type
+          schema:
+            type: string
+            enum: [pdf, audio, video]
+          description: Filter by resource type
+      responses:
+        '200':
+          description: Paginated resource list
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResourceListResponse'
+        '400':
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+    post:
+      summary: Create a learning resource
+      description: Creates a new learning resource associated with an uploaded file, module, and thematic area. Only facility management roles can create resources.
+      tags:
+        - Resources
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateResourceRequest'
+      responses:
+        '201':
+          description: Resource created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResourceResponse'
+        '400':
+          description: Validation error or MIME type mismatch
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Forbidden (insufficient permissions or out-of-facility module)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: File, module, or thematic area not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/v1/resources/{id}:
+    get:
+      summary: Get learning resource details
+      description: Retrieves complete metadata for a learning resource including associated module, thematic area, and file details.
+      tags:
+        - Resources
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+            minimum: 1
+          description: Resource ID
+      responses:
+        '200':
+          description: Resource details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResourceResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Resource not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+    patch:
+      summary: Update a learning resource
+      description: Updates resource metadata such as title, type, thematic area, module, or file.
+      tags:
+        - Resources
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+            minimum: 1
+          description: Resource ID
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateResourceRequest'
+      responses:
+        '200':
+          description: Resource updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResourceResponse'
+        '400':
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Resource not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+    delete:
+      summary: Delete a learning resource
+      description: Deletes a learning resource record while preserving the underlying uploaded file and storage object.
+      tags:
+        - Resources
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+            minimum: 1
+          description: Resource ID
+      responses:
+        '200':
+          description: Resource deleted successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: object
+                    properties:
+                      id:
+                        type: integer
+                        example: 1
+                      deleted:
+                        type: boolean
+                        example: true
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Resource not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/v1/resources/{id}/content:
+    get:
+      summary: Download resource file content
+      description: Streams the binary content of the file attached to the resource.
+      tags:
+        - Resources
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+            minimum: 1
+          description: Resource ID
+      responses:
+        '200':
+          description: Binary file stream
+          content:
+            application/octet-stream:
+              schema:
+                type: string
+                format: binary
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Resource or file not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/v1/settings/faqs:
+    get:
+      summary: List FAQs
+      description: Retrieves a paginated list of frequently asked questions filtered by audience relevance according to the requesting user's role.
+      tags:
+        - Settings
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: query
+          name: page
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - in: query
+          name: limit
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+        - in: query
+          name: category
+          schema:
+            type: string
+            maxLength: 255
+      responses:
+        '200':
+          description: Paginated FAQ list
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FaqListResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+    post:
+      summary: Create an FAQ
+      description: Creates a new FAQ entry. Only administrators can create FAQs.
+      tags:
+        - Settings
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateFaqRequest'
+      responses:
+        '201':
+          description: FAQ created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FaqResponse'
+        '400':
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/v1/settings/faqs/{id}:
+    get:
+      summary: Get an FAQ
+      description: Retrieves an FAQ entry by ID.
+      tags:
+        - Settings
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+            minimum: 1
+      responses:
+        '200':
+          description: FAQ details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FaqResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: FAQ not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+    patch:
+      summary: Update an FAQ
+      description: Updates an existing FAQ entry.
+      tags:
+        - Settings
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+            minimum: 1
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateFaqRequest'
+      responses:
+        '200':
+          description: FAQ updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FaqResponse'
+        '400':
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: FAQ not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+    delete:
+      summary: Delete an FAQ
+      description: Deletes an FAQ entry.
+      tags:
+        - Settings
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+            minimum: 1
+      responses:
+        '200':
+          description: FAQ deleted successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: FAQ not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/v1/settings/guides:
+    get:
+      summary: List user guides
+      description: Retrieves a paginated list of user guides visible to the current user's role.
+      tags:
+        - Settings
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: query
+          name: page
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - in: query
+          name: limit
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+      responses:
+        '200':
+          description: Paginated guide list
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GuideListResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+    post:
+      summary: Create a user guide
+      description: Creates a user onboarding or system guide, optionally linking an uploaded attachment file.
+      tags:
+        - Settings
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateGuideRequest'
+      responses:
+        '201':
+          description: Guide created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GuideResponse'
+        '400':
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/v1/settings/guides/{id}:
+    get:
+      summary: Get a user guide
+      description: Retrieves a user guide by ID.
+      tags:
+        - Settings
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+            minimum: 1
+      responses:
+        '200':
+          description: Guide details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GuideResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Guide not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+    patch:
+      summary: Update a user guide
+      description: Updates an existing user guide.
+      tags:
+        - Settings
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+            minimum: 1
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateGuideRequest'
+      responses:
+        '200':
+          description: Guide updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GuideResponse'
+        '400':
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Guide not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+    delete:
+      summary: Delete a user guide
+      description: Deletes a user guide.
+      tags:
+        - Settings
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+            minimum: 1
+      responses:
+        '200':
+          description: Guide deleted successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Guide not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
 tags:
   - name: Auth
     description: Authentication and session management
@@ -5721,3 +7784,17 @@ tags:
     description: Learning modules, content, access, progress, and quizzes.
   - name: Notifications
     description: Notifications belonging to the authenticated user.
+  - name: Certificates
+    description: Mentee certificate eligibility, issuance, and revocation
+  - name: Uploads
+    description: Media and file upload management with secure binary storage
+  - name: Resources
+    description: Learning resource files, media materials, and module attachments
+  - name: Settings
+    description: System FAQs and user onboarding guides
+  - name: Logbook
+    description: Mentee clinical procedure logbook entries and mentor review workflow
+  - name: Assessments
+    description: Clinical competency assessments, scoring, criteria, and evidence
+  - name: Sessions
+    description: Clinical encounter sessions, scheduling, notes, and virtual rooms

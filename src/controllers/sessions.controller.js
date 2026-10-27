@@ -29,13 +29,14 @@ async function availableTimes(req, res) {
 		return controllerError(res, error, 'Unable to load available times.');
 	}
 }
-async function create(req, res) {
-	try {
-		return successResponse(res, 201, await service.createSession(payload, req.user));
-	} catch (error) {
-		return controllerError(res, error, 'Unable to create the session.');
+	async function create(req, res) {
+		try {
+			const payload = matchedData(req, { locations: ['body'] });
+			return successResponse(res, 201, await service.createSession(payload, req.user));
+		} catch (error) {
+			return controllerError(res, error, 'Unable to create the session.');
+		}
 	}
-}
 
 async function update(req, res) {
 	try {

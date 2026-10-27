@@ -1,7 +1,8 @@
-const { successResponse, controllerError } = require('../utils/response');
+const { successResponse } = require('../utils/response.util');
+const controllerError = require('../utils/controller-error.util');
 const service = require('../services/certificates.service');
 
-async function checkEligibility(req, res, next) {
+async function checkEligibility(req, res) {
 	try {
 		const { mentee_id, cycle_id, thematic_area_id } = req.params;
 		const result = await service.checkEligibility(
@@ -10,22 +11,22 @@ async function checkEligibility(req, res, next) {
 			Number(thematic_area_id),
 			req.user
 		);
-		successResponse(res, result, 200);
+		return successResponse(res, 200, result);
 	} catch (error) {
-		controllerError(error, req, res, next);
+		return controllerError(res, error, 'Unable to check eligibility.');
 	}
 }
 
-async function issueCertificate(req, res, next) {
+async function issueCertificate(req, res) {
 	try {
 		const certificate = await service.issueCertificate(req.body, req.user);
-		successResponse(res, certificate, 201);
+		return successResponse(res, 201, certificate);
 	} catch (error) {
-		controllerError(error, req, res, next);
+		return controllerError(res, error, 'Unable to issue certificate.');
 	}
 }
 
-async function listCertificates(req, res, next) {
+async function listCertificates(req, res) {
 	try {
 		const filters = {
 			mentee_id: req.query.mentee_id ? Number(req.query.mentee_id) : undefined,
@@ -36,27 +37,32 @@ async function listCertificates(req, res, next) {
 			limit: req.query.limit,
 		};
 		const result = await service.listCertificates(filters, req.user);
-		successResponse(res, result, 200);
+		return successResponse(res, 200, result.items, {
+			page: result.page,
+			limit: result.limit,
+			total: result.total,
+			totalPages: result.totalPages,
+		});
 	} catch (error) {
-		controllerError(error, req, res, next);
+		return controllerError(res, error, 'Unable to list certificates.');
 	}
 }
 
-async function getCertificate(req, res, next) {
+async function getCertificate(req, res) {
 	try {
 		const certificate = await service.getCertificate(Number(req.params.id), req.user);
-		successResponse(res, certificate, 200);
+		return successResponse(res, 200, certificate);
 	} catch (error) {
-		controllerError(error, req, res, next);
+		return controllerError(res, error, 'Unable to load certificate.');
 	}
 }
 
-async function revokeCertificate(req, res, next) {
+async function revokeCertificate(req, res) {
 	try {
 		const result = await service.revokeCertificate(Number(req.params.id), req.user);
-		successResponse(res, result, 200);
+		return successResponse(res, 200, result);
 	} catch (error) {
-		controllerError(error, req, res, next);
+		return controllerError(res, error, 'Unable to revoke certificate.');
 	}
 }
 
