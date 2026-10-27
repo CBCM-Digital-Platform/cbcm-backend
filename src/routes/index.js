@@ -12,19 +12,13 @@ const assignmentsRoutes = require('./assignments.routes');
 const progressRoutes = require('./progress.routes');
 const sessionsRoutes = require('./sessions.routes');
 const assessmentsRoutes = require('./assessments.routes');
-<<<<<<< HEAD
 const certificatesRoutes = require('./certificates.routes');
 const logbookRoutes = require('./logbook.routes');
-const resourcesRoutes = require('./resources.routes');
-const uploadsRoutes = require('./uploads.routes');
-const settingsRoutes = require('./settings.routes');
-=======
 const activityLogsRoutes = require('./activity-logs.routes');
 const analyticsRoutes = require('./analytics.routes');
 const settingsRoutes = require('./settings.routes');
 const uploadsRoutes = require('./uploads.routes');
 const resourcesRoutes = require('./resources.routes');
->>>>>>> origin/main
 
 const router = express.Router();
 router.use('/auth', authRoutes);
@@ -39,18 +33,12 @@ router.use('/assignments', assignmentsRoutes);
 router.use('/progress', progressRoutes);
 router.use('/sessions', sessionsRoutes);
 router.use('/assessments', assessmentsRoutes);
-<<<<<<< HEAD
 router.use('/certificates', certificatesRoutes);
 router.use('/logbook', logbookRoutes);
-router.use('/resources', resourcesRoutes);
-router.use('/uploads', uploadsRoutes);
-router.use('/settings', settingsRoutes);
-=======
 router.use('/activity-logs', activityLogsRoutes);
 router.use('/analytics', analyticsRoutes);
 router.use('/settings', settingsRoutes);
 router.use('/uploads', uploadsRoutes);
 router.use('/resources', resourcesRoutes);
->>>>>>> origin/main
 
 module.exports = router;
