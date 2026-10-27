@@ -6243,14 +6243,7 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/SubmitQuizRequest'
-      responses:
-        '200':
-          description: Quiz result
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/QuizResultResponse'
+              $ref: '#/components/schemas/QuizSubmissionRequest'
       responses:
         '200':
           $ref: '#/components/responses/LearningObject'
@@ -7015,11 +7008,10 @@ paths:
                 $ref: '#/components/schemas/CertificateEligibilityResponse'
         '400':
           description: Invalid parameters or user is not a mentee
-          description: Dashboard metrics
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/DashboardMetricsResponse'
+                $ref: '#/components/schemas/ErrorResponse'
         '401':
           description: Authentication required
           content:
@@ -8205,42 +8197,3 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
 
-tags:
-  - name: Auth
-    description: Authentication and session management
-  - name: Users
-    description: User management and profiles
-  - name: Facilities
-    description: Facility management
-  - name: Mentorship Cycles
-    description: Mentorship cycle management
-  - name: Cycle Configuration
-    description: Cycle facility and thematic area configuration
-  - name: Messaging
-    description: Messaging and conversations
-  - name: Thematic Areas
-    description: Global thematic area management (System Admin only)
-  - name: Assignments
-    description: Mentor-mentee assignment management
-  - name: Progress
-    description: Knowledge-score snapshots and progress tracking
-  - name: Learning
-    description: Learning modules, content, access, progress, and quizzes.
-  - name: Notifications
-    description: Notifications belonging to the authenticated user.
-  - name: Certificates
-    description: Mentee certificate eligibility, issuance, and revocation
-  - name: Uploads
-    description: Media and file upload management with secure binary storage
-  - name: Resources
-    description: Learning resource files, media materials, and module attachments
-  - name: Settings
-    description: System FAQs and user onboarding guides
-  - name: Logbook
-    description: Mentee clinical procedure logbook entries and mentor review workflow
-  - name: Assessments
-    description: Clinical competency assessments, scoring, criteria, and evidence
-  - name: Sessions
-    description: Clinical encounter sessions, scheduling, notes, and virtual rooms
-          $ref: '#/components/responses/NotFound'
-    description: Authenticated learning resources CRUD and library management.
