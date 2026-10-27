@@ -7,6 +7,7 @@ const { generateAccessToken, generateRefreshTokenValue, getRefreshTokenExpiry, g
 const emailUtil = require('../utils/email.util');
 const env = require('../config/env');
 const { USER_ROLES, canAssignRole, canAccessUser } = require('../constants/roles.constants');
+const { logActivity } = require('../utils/activity-logger.util');
 
 const USER_SYSTEM_ROLES = new Set(USER_ROLES);
 const RESET_MESSAGE = 'If that email exists, a reset link will be sent.';
@@ -84,7 +85,7 @@ async function login({ email, password, deviceInfo }) {
     expiresAt,
   });
 
-  await logActivity({ actorId: user.id, action: 'login', entityId: user.id });
+  await logActivity({ actorId: user.id, action: 'login', entityType: 'user', entityId: user.id, facilityId: user.facility_id, outcome: 'success', ipAddress: deviceInfo });
 
   return {
     accessToken,
@@ -163,7 +164,7 @@ async function logout({ user, refreshToken }) {
     await authRepository.revokeAllUserRefreshTokens(user.id);
   }
 
-  await logActivity({ actorId: user.id, action: 'logout', entityId: user.id });
+  await logActivity({ actorId: user.id, action: 'logout', entityType: 'user', entityId: user.id, facilityId: user.facility_id, outcome: 'success' });
 
   return { revoked: true };
 }
@@ -261,7 +262,7 @@ async function resetPassword({ token, password, newPassword, confirmPassword }) 
     await authRepository.invalidatePasswordResetTokens(resetToken.user_id, transaction);
   });
 
-  await logActivity({ actorId: resetToken.user_id, action: 'password_reset', entityId: resetToken.user_id });
+  await logActivity({ actorId: resetToken.user_id, action: 'password_reset', entityType: 'user', entityId: resetToken.user_id, outcome: 'success' });
 
   return { reset: true };
 }
@@ -326,7 +327,7 @@ async function resetOtp({ email, otp, newPassword, confirmPassword }) {
     await authRepository.invalidatePasswordResetTokens(user.id, transaction);
   });
 
-  await logActivity({ actorId: user.id, action: 'password_reset', entityId: user.id });
+  await logActivity({ actorId: user.id, action: 'password_reset', entityType: 'user', entityId: user.id, outcome: 'success' });
 
   return { reset: true };
 }
@@ -357,7 +358,7 @@ async function changePassword({ user, currentPassword, newPassword }) {
     await authRepository.revokeAllUserRefreshTokens(user.id, transaction);
   });
 
-  await logActivity({ actorId: user.id, action: 'password_change', entityId: user.id });
+  await logActivity({ actorId: user.id, action: 'password_change', entityType: 'user', entityId: user.id, outcome: 'success' });
 
   return { changed: true };
 }
@@ -519,7 +520,7 @@ async function createUserByAdmin(payload) {
     throw error;
   }
 
-  await logActivity({ actorId: payload.created_by, action: 'user_provisioned', entityId: user.id });
+  await logActivity({ actorId: payload.created_by, action: 'user_provisioned', entityType: 'user', entityId: user.id, facilityId: user.facility_id, outcome: 'success' });
 
   return sanitizeUser(user);
 }
@@ -545,23 +546,10 @@ async function updateUserStatus(userId, status, updatedBy) {
     ...(status === 'active' ? {} : { password_changed_at: new Date() }),
   });
   if (status !== 'active') await authRepository.revokeAllUserRefreshTokens(user.id);
-  await logActivity({ actorId: updatedBy, action: 'user_status_changed', entityId: user.id });
+  await logActivity({ actorId: updatedBy, action: 'user_status_changed', entityType: 'user', entityId: user.id, facilityId: user.facility_id, outcome: 'success' });
   return sanitizeUser(user);
 }
 
-async function logActivity({ actorId = null, action, entityId = null }) {
-  try {
-    await ActivityLog.create({
-      actor_id: actorId,
-      action,
-      entity_type: 'user',
-      entity_id: entityId,
-      details: JSON.stringify({}),
-    });
-  } catch {
-    // Audit logging must not turn a successful authentication action into a failure.
-  }
-}
 
 module.exports = {
   login,

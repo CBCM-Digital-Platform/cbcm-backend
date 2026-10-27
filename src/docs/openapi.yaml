@@ -2097,6 +2097,185 @@ components:
         total_snapshots:
           type: integer
           example: 20
+    ActivityLogResponse:
+      type: object
+      properties:
+        id:
+          type: integer
+          example: 1
+        actor_id:
+          type: integer
+          nullable: true
+          example: 10
+        facility_id:
+          type: integer
+          nullable: true
+          example: 5
+        action:
+          type: string
+          example: 'assessment.finalized'
+        entity_type:
+          type: string
+          example: 'assessment'
+        entity_id:
+          type: integer
+          nullable: true
+          example: 100
+        details:
+          type: string
+          example: '{"outcome":"success","aggregate_score":85.5}'
+        ip_address:
+          type: string
+          nullable: true
+          example: '192.168.1.1'
+        user_agent:
+          type: string
+          nullable: true
+          example: 'Mozilla/5.0'
+        created_at:
+          type: string
+          format: date-time
+          example: '2026-10-15T10:30:00.000Z'
+    ActivityLogListResponse:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/ActivityLogResponse'
+        total:
+          type: integer
+          example: 150
+        page:
+          type: integer
+          example: 1
+        limit:
+          type: integer
+          example: 20
+        totalPages:
+          type: integer
+          example: 8
+    DashboardMetricsResponse:
+      type: object
+      properties:
+        users:
+          type: object
+          properties:
+            total:
+              type: integer
+              example: 150
+            active:
+              type: integer
+              example: 120
+            inactive:
+              type: integer
+              example: 30
+        mentors:
+          type: object
+          properties:
+            total:
+              type: integer
+              example: 40
+            active:
+              type: integer
+              example: 35
+        mentees:
+          type: object
+          properties:
+            total:
+              type: integer
+              example: 100
+            active:
+              type: integer
+              example: 85
+        assignments:
+          type: object
+          properties:
+            total:
+              type: integer
+              example: 90
+            active:
+              type: integer
+              example: 75
+        assessments:
+          type: object
+          properties:
+            total:
+              type: integer
+              example: 200
+            finalized:
+              type: integer
+              example: 150
+            draft:
+              type: integer
+              example: 50
+        progress:
+          type: object
+          properties:
+            total_snapshots:
+              type: integer
+              example: 500
+        facilities:
+          type: object
+          properties:
+            total:
+              type: integer
+              example: 10
+            active:
+              type: integer
+              example: 8
+        cycles:
+          type: object
+          properties:
+            total:
+              type: integer
+              example: 5
+            active:
+              type: integer
+              example: 3
+        learning:
+          type: object
+          properties:
+            total_modules:
+              type: integer
+              example: 25
+    ActivitySummaryResponse:
+      type: object
+      properties:
+        total_events:
+          type: integer
+          example: 1000
+        success:
+          type: integer
+          example: 850
+        failure:
+          type: integer
+          example: 100
+        denied:
+          type: integer
+          example: 50
+        period:
+          type: object
+          properties:
+            start:
+              type: string
+              format: date-time
+              nullable: true
+              example: '2026-10-01T00:00:00.000Z'
+            end:
+              type: string
+              format: date-time
+              nullable: true
+              example: '2026-10-31T23:59:59.999Z'
+    LearningProgressMetricsResponse:
+      type: object
+      properties:
+        total_progress_records:
+          type: integer
+          example: 500
+        total_modules:
+          type: integer
+          example: 25
     FindMatchesRequest:
       type: object
       required:
@@ -3275,6 +3454,33 @@ components:
                   unreadCount:
                     type: integer
                     minimum: 0
+tags:
+  - name: Auth
+    description: Authentication and session management
+  - name: Users
+    description: User management and profiles
+  - name: Facilities
+    description: Facility management
+  - name: Mentorship Cycles
+    description: Mentorship cycle management
+  - name: Cycle Configuration
+    description: Cycle facility and thematic area configuration
+  - name: Messaging
+    description: Messaging and conversations
+  - name: Thematic Areas
+    description: Global thematic area management (System Admin only)
+  - name: Assignments
+    description: Mentor-mentee assignment management
+  - name: Progress
+    description: Knowledge-score snapshots and progress tracking
+  - name: Activity Logs
+    description: Audit and activity logging
+  - name: Analytics
+    description: Dashboard metrics and analytics
+  - name: Learning
+    description: Learning modules, content, access, progress, and quizzes.
+  - name: Notifications
+    description: Notifications belonging to the authenticated user.
 paths:
   /api/v1/users/me:
     get:
@@ -6045,6 +6251,9 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/QuizResultResponse'
+      responses:
+        '200':
+          $ref: '#/components/responses/LearningObject'
         '400':
           $ref: '#/components/responses/BadRequest'
         '401':
@@ -6053,6 +6262,8 @@ paths:
           $ref: '#/components/responses/Forbidden'
         '404':
           $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
   /api/v1/assignments/{id}/unassign:
     parameters:
       - $ref: '#/components/parameters/AssignmentId'
@@ -6388,6 +6599,35 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /api/v1/learning/questions/{questionId}/options:
+    parameters:
+      - $ref: '#/components/parameters/QuestionId'
+    post:
+      tags: [Learning]
+      summary: Add an answer option to a quiz question
+      description: Facility Admin only. label A-D maps to existing option order.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LearningOptionWrite'
+      responses:
+        '201':
+          $ref: '#/components/responses/LearningCreated'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
   /api/v1/progress/mentees/{menteeId}/knowledge-snapshots:
     get:
       summary: Get a mentee's knowledge-score snapshots
@@ -6436,6 +6676,34 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
+          $ref: '#/components/responses/NotFound'
+  /api/v1/learning/questions/{questionId}/options/{optionId}:
+    parameters:
+      - $ref: '#/components/parameters/QuestionId'
+      - $ref: '#/components/parameters/OptionId'
+    put:
+      tags: [Learning]
+      summary: Replace an answer option
+      description: Facility Admin only.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LearningOptionWrite'
+      responses:
+        '200':
+          $ref: '#/components/responses/LearningObject'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
   /api/v1/progress/mentees/{menteeId}/competencies:
     get:
       summary: Get a mentee's competency breakdown
@@ -6594,12 +6862,126 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
+  /api/v1/activity-logs:
+    get:
+      summary: List activity logs
+      description: Lists activity logs with authorized filters and pagination. System Admin sees organization-wide logs; Facility Admin sees only their facility's logs; Mentors and Mentees see only their own logs.
+      tags:
+        - Activity Logs
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: query
+          name: page
+          schema: { type: integer, minimum: 1, default: 1 }
+        - in: query
+          name: limit
+          schema: { type: integer, minimum: 1, maximum: 100, default: 20 }
+        - in: query
+          name: actor_id
+          schema: { type: integer }
+        - in: query
+          name: facility_id
+          schema: { type: integer }
+        - in: query
+          name: action
+          schema: { type: string }
+        - in: query
+          name: entity_type
+          schema: { type: string }
+        - in: query
+          name: entity_id
+          schema: { type: integer }
+        - in: query
+          name: outcome
+          schema: { type: string, enum: [success, failure, denied] }
+        - in: query
+          name: start_date
+          schema: { type: string, format: date }
+        - in: query
+          name: end_date
+          schema: { type: string, format: date }
+      responses:
+        '200':
+          description: Paginated activity logs
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ActivityLogListResponse'
+        '400':
+          description: Invalid filters
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Authentication required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Facility scope violation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /api/v1/activity-logs/{id}:
+    get:
+      summary: Get an activity log
+      description: Retrieves a specific activity log by ID. Users can only access logs they are authorized to view.
+      tags:
+        - Activity Logs
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer, minimum: 1 }
+      responses:
+        '200':
+          description: Activity log details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ActivityLogResponse'
+        '400':
+          description: Invalid log ID
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Authentication required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Scope violation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Activity log not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
   /api/v1/certificates/eligibility/{mentee_id}/{cycle_id}/{thematic_area_id}:
     get:
       summary: Check certificate eligibility
       description: Evaluates whether a mentee is eligible for a certificate in a specific cycle and thematic area. Requires a finalized assessment with theory_passed=true and practical_passed=true, and no existing active certificate.
       tags:
         - Certificates
+  /api/v1/analytics/dashboard:
+    get:
+      summary: Get dashboard metrics
+      description: Returns aggregate dashboard metrics based on user role and facility scope. System Admin sees organization-wide metrics; Facility Admin sees only their facility's metrics; Mentors see their facility's metrics; Mentees see their personal metrics.
+      tags:
+        - Analytics
       security:
         - bearerAuth: []
       parameters:
@@ -6633,6 +7015,47 @@ paths:
                 $ref: '#/components/schemas/CertificateEligibilityResponse'
         '400':
           description: Invalid parameters or user is not a mentee
+          description: Dashboard metrics
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DashboardMetricsResponse'
+        '401':
+          description: Authentication required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Facility scope violation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /api/v1/analytics/activity-summary:
+    get:
+      summary: Get activity summary
+      description: Returns activity summary with event counts by outcome within a date range. System Admin sees organization-wide activity; Facility Admin sees only their facility's activity; Mentors and Mentees see only their own activity.
+      tags:
+        - Analytics
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: query
+          name: start_date
+          schema: { type: string, format: date }
+        - in: query
+          name: end_date
+          schema: { type: string, format: date }
+      responses:
+        '200':
+          description: Activity summary
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ActivitySummaryResponse'
+        '400':
+          description: Invalid date filters
           content:
             application/json:
               schema:
@@ -6649,8 +7072,29 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
-        '404':
-          description: Mentee not found
+  /api/v1/analytics/learning-progress:
+    get:
+      summary: Get learning progress metrics
+      description: Returns learning progress metrics based on user role and facility scope. System Admin sees organization-wide metrics; Facility Admin sees only their facility's metrics; Mentees see their personal progress.
+      tags:
+        - Analytics
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Learning progress metrics
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LearningProgressMetricsResponse'
+        '401':
+          description: Authentication required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Scope violation
           content:
             application/json:
               schema:
@@ -7798,3 +8242,5 @@ tags:
     description: Clinical competency assessments, scoring, criteria, and evidence
   - name: Sessions
     description: Clinical encounter sessions, scheduling, notes, and virtual rooms
+          $ref: '#/components/responses/NotFound'
+    description: Authenticated learning resources CRUD and library management.

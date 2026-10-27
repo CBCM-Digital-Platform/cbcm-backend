@@ -443,4 +443,3 @@ describe('Guide Attachment Validation', () => {
 	});
 });
 });
-
