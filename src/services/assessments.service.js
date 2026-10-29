@@ -135,13 +135,13 @@ async function getAssessment(id, actor) {
 	if (!assessment) throw new AppError('Assessment was not found.', 404, 'ASSESSMENT_NOT_FOUND');
 
 	// Authorization check
-	if (actor.role === Role.MENTOR && assessment.mentor_id !== actor.id) {
+	if (actor && actor.role === Role.MENTOR && assessment.mentor_id !== actor.id) {
 		throw new AppError('You can only view assessments for your mentees.', 403, 'FORBIDDEN');
 	}
-	if (actor.role === Role.MENTEE && assessment.mentee_id !== actor.id) {
+	if (actor && actor.role === Role.MENTEE && assessment.mentee_id !== actor.id) {
 		throw new AppError('You can only view your own assessments.', 403, 'FORBIDDEN');
 	}
-	if (actor.role === Role.FACILITY_ADMIN && !canAccessFacility(actor, assessment.facility_id)) {
+	if (actor && actor.role === Role.FACILITY_ADMIN && !canAccessFacility(actor, assessment.facility_id)) {
 		throw new AppError('You can only view assessments at your facility.', 403, 'FORBIDDEN');
 	}
 
@@ -194,14 +194,14 @@ async function createAssessment(payload, actor) {
 	}
 
 	// Enforce RBAC scope
-	if (actor.role === Role.FACILITY_ADMIN) {
+	if (actor && actor.role === Role.FACILITY_ADMIN) {
 		if (!canAccessFacility(actor, facility_id)) {
 			throw new AppError('You can only create assessments within your authorized facility.', 403, 'FORBIDDEN');
 		}
 	}
 
 	// Mentors can only create assessments for their assigned mentees
-	if (actor.role === Role.MENTOR && mentor_id !== actor.id) {
+	if (actor && actor.role === Role.MENTOR && mentor_id !== actor.id) {
 		throw new AppError('You can only create assessments for your mentees.', 403, 'FORBIDDEN');
 	}
 
@@ -224,13 +224,13 @@ async function updateAssessment(id, payload, actor) {
 	if (!assessment) throw new AppError('Assessment was not found.', 404, 'ASSESSMENT_NOT_FOUND');
 
 	// Authorization check
-	if (actor.role === Role.MENTOR && assessment.mentor_id !== actor.id) {
+	if (actor && actor.role === Role.MENTOR && assessment.mentor_id !== actor.id) {
 		throw new AppError('You can only update assessments for your mentees.', 403, 'FORBIDDEN');
 	}
-	if (actor.role === Role.MENTEE) {
+	if (actor && actor.role === Role.MENTEE) {
 		throw new AppError('Mentees cannot update assessments.', 403, 'FORBIDDEN');
 	}
-	if (actor.role === Role.FACILITY_ADMIN && !canAccessFacility(actor, assessment.facility_id)) {
+	if (actor && actor.role === Role.FACILITY_ADMIN && !canAccessFacility(actor, assessment.facility_id)) {
 		throw new AppError('You can only update assessments at your facility.', 403, 'FORBIDDEN');
 	}
 
@@ -254,13 +254,13 @@ async function finalizeAssessment(id, actor) {
 	if (!assessment) throw new AppError('Assessment was not found.', 404, 'ASSESSMENT_NOT_FOUND');
 
 	// Authorization check
-	if (actor.role === Role.MENTOR && assessment.mentor_id !== actor.id) {
+	if (actor && actor.role === Role.MENTOR && assessment.mentor_id !== actor.id) {
 		throw new AppError('You can only finalize assessments for your mentees.', 403, 'FORBIDDEN');
 	}
-	if (actor.role === Role.MENTEE) {
+	if (actor && actor.role === Role.MENTEE) {
 		throw new AppError('Mentees cannot finalize assessments.', 403, 'FORBIDDEN');
 	}
-	if (actor.role === Role.FACILITY_ADMIN && !canAccessFacility(actor, assessment.facility_id)) {
+	if (actor && actor.role === Role.FACILITY_ADMIN && !canAccessFacility(actor, assessment.facility_id)) {
 		throw new AppError('You can only finalize assessments at your facility.', 403, 'FORBIDDEN');
 	}
 
@@ -348,7 +348,7 @@ async function reviewAssessment(id, payload, actor) {
 	if (!assessment) throw new AppError('Assessment was not found.', 404, 'ASSESSMENT_NOT_FOUND');
 
 	// Authorization check - only facility admins and system admins can review
-	if (!SYSTEM_ADMIN_ROLES.includes(actor.role) && !FACILITY_ADMIN_ROLES.includes(actor.role)) {
+	if (!actor || (!SYSTEM_ADMIN_ROLES.includes(actor.role) && !FACILITY_ADMIN_ROLES.includes(actor.role))) {
 		throw new AppError('Only administrators can review assessments.', 403, 'FORBIDDEN');
 	}
 
@@ -379,13 +379,13 @@ async function setCriteriaScore(id, payload, actor) {
 	if (!assessment) throw new AppError('Assessment was not found.', 404, 'ASSESSMENT_NOT_FOUND');
 
 	// Authorization check
-	if (actor.role === Role.MENTOR && assessment.mentor_id !== actor.id) {
+	if (actor && actor.role === Role.MENTOR && assessment.mentor_id !== actor.id) {
 		throw new AppError('You can only score assessments for your mentees.', 403, 'FORBIDDEN');
 	}
-	if (actor.role === Role.MENTEE) {
+	if (actor && actor.role === Role.MENTEE) {
 		throw new AppError('Mentees cannot score assessments.', 403, 'FORBIDDEN');
 	}
-	if (actor.role === Role.FACILITY_ADMIN && !canAccessFacility(actor, assessment.facility_id)) {
+	if (actor && actor.role === Role.FACILITY_ADMIN && !canAccessFacility(actor, assessment.facility_id)) {
 		throw new AppError('You can only score assessments at your facility.', 403, 'FORBIDDEN');
 	}
 
@@ -445,13 +445,13 @@ async function setTheoryScore(id, payload, actor) {
 	if (!assessment) throw new AppError('Assessment was not found.', 404, 'ASSESSMENT_NOT_FOUND');
 
 	// Authorization check
-	if (actor.role === Role.MENTOR && assessment.mentor_id !== actor.id) {
+	if (actor && actor.role === Role.MENTOR && assessment.mentor_id !== actor.id) {
 		throw new AppError('You can only update theory scores for your mentees.', 403, 'FORBIDDEN');
 	}
-	if (actor.role === Role.MENTEE) {
+	if (actor && actor.role === Role.MENTEE) {
 		throw new AppError('Mentees cannot update theory scores.', 403, 'FORBIDDEN');
 	}
-	if (actor.role === Role.FACILITY_ADMIN && !canAccessFacility(actor, assessment.facility_id)) {
+	if (actor && actor.role === Role.FACILITY_ADMIN && !canAccessFacility(actor, assessment.facility_id)) {
 		throw new AppError('You can only update theory scores at your facility.', 403, 'FORBIDDEN');
 	}
 
@@ -489,13 +489,13 @@ async function setChecklistItems(id, payload, actor) {
 	if (!assessment) throw new AppError('Assessment was not found.', 404, 'ASSESSMENT_NOT_FOUND');
 
 	// Authorization check
-	if (actor.role === Role.MENTOR && assessment.mentor_id !== actor.id) {
+	if (actor && actor.role === Role.MENTOR && assessment.mentor_id !== actor.id) {
 		throw new AppError('You can only update checklists for your mentees.', 403, 'FORBIDDEN');
 	}
-	if (actor.role === Role.MENTEE) {
+	if (actor && actor.role === Role.MENTEE) {
 		throw new AppError('Mentees cannot update assessment checklists.', 403, 'FORBIDDEN');
 	}
-	if (actor.role === Role.FACILITY_ADMIN && !canAccessFacility(actor, assessment.facility_id)) {
+	if (actor && actor.role === Role.FACILITY_ADMIN && !canAccessFacility(actor, assessment.facility_id)) {
 		throw new AppError('You can only update checklists at your facility.', 403, 'FORBIDDEN');
 	}
 
@@ -555,13 +555,13 @@ async function addEvidence(id, payload, actor) {
 	if (!assessment) throw new AppError('Assessment was not found.', 404, 'ASSESSMENT_NOT_FOUND');
 
 	// Authorization check
-	if (actor.role === Role.MENTOR && assessment.mentor_id !== actor.id) {
+	if (actor && actor.role === Role.MENTOR && assessment.mentor_id !== actor.id) {
 		throw new AppError('You can only add evidence for your mentees.', 403, 'FORBIDDEN');
 	}
-	if (actor.role === Role.MENTEE && assessment.mentee_id !== actor.id) {
+	if (actor && actor.role === Role.MENTEE && assessment.mentee_id !== actor.id) {
 		throw new AppError('You can only add evidence to your own assessments.', 403, 'FORBIDDEN');
 	}
-	if (actor.role === Role.FACILITY_ADMIN && !canAccessFacility(actor, assessment.facility_id)) {
+	if (actor && actor.role === Role.FACILITY_ADMIN && !canAccessFacility(actor, assessment.facility_id)) {
 		throw new AppError('You can only add evidence at your facility.', 403, 'FORBIDDEN');
 	}
 
