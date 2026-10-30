@@ -14,7 +14,7 @@ async function getDashboard(req, res) {
 
 async function getActivitySummary(req, res) {
 	try {
-		return successResponse(res, 200, await service.getActivitySummary(matchedData(req, { locations: ['query'] }), req.user));
+		return successResponse(res, 200, await service.getActivitySummary(matchedData(req, { locations: ['query'] }) || {}, req.user));
 	} catch (error) {
 		return controllerError(res, error, 'Unable to load activity summary.');
 	}

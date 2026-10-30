@@ -6,7 +6,7 @@ const controllerError = require('../utils/controller-error.util');
 
 async function list(req, res) {
 	try {
-		const result = await service.listSnapshots(matchedData(req, { locations: ['query'] }), req.user);
+		const result = await service.listSnapshots(matchedData(req, { locations: ['query'] }) || {}, req.user);
 		return successResponse(res, 200, result.items, { page: result.page, limit: result.limit, total: result.total, totalPages: result.totalPages });
 	} catch (error) {
 		return controllerError(res, error, 'Unable to list snapshots.');
@@ -40,7 +40,7 @@ async function getMenteeSnapshots(req, res) {
 
 async function getSummary(req, res) {
 	try {
-		return successResponse(res, 200, await service.getProgressSummary(matchedData(req, { locations: ['query'] }), req.user));
+		return successResponse(res, 200, await service.getProgressSummary(matchedData(req, { locations: ['query'] }) || {}, req.user));
 	} catch (error) {
 		return controllerError(res, error, 'Unable to load progress summary.');
 	}
@@ -56,7 +56,7 @@ async function getMenteeCompetencyBreakdown(req, res) {
 
 async function getTrends(req, res) {
 	try {
-		return successResponse(res, 200, await service.getProgressTrends(matchedData(req, { locations: ['query'] }), req.user));
+		return successResponse(res, 200, await service.getProgressTrends(matchedData(req, { locations: ['query'] }) || {}, req.user));
 	} catch (error) {
 		return controllerError(res, error, 'Unable to load progress trends.');
 	}
@@ -64,7 +64,7 @@ async function getTrends(req, res) {
 
 async function getMenteeTrends(req, res) {
 	try {
-		return successResponse(res, 200, await service.getMenteeProgressTrends(Number(req.params.menteeId), matchedData(req, { locations: ['query'] }), req.user));
+		return successResponse(res, 200, await service.getMenteeProgressTrends(Number(req.params.menteeId), matchedData(req, { locations: ['query'] }) || {}, req.user));
 	} catch (error) {
 		return controllerError(res, error, 'Unable to load mentee progress trends.');
 	}

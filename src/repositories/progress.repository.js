@@ -14,7 +14,7 @@ async function findOne(where, options = {}) {
 }
 
 async function findMany(where, options = {}) {
-	return KnowledgeScoreSnapshot.findAll({ where, ...options });
+	return KnowledgeScoreSnapshot.findAndCountAll({ where, ...options });
 }
 
 async function create(data, options = {}) {

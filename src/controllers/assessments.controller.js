@@ -6,7 +6,7 @@ const controllerError = require('../utils/controller-error.util');
 
 async function list(req, res) {
 	try {
-		const result = await service.listAssessments(matchedData(req, { locations: ['query'] }), req.user);
+		const result = await service.listAssessments(matchedData(req, { locations: ['query'] }) || {}, req.user);
 		return successResponse(res, 200, result.items, { page: result.page, limit: result.limit, total: result.total, totalPages: result.totalPages });
 	} catch (error) {
 		return controllerError(res, error, 'Unable to list assessments.');
