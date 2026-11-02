@@ -11,7 +11,7 @@ router.use(authenticate);
 // Check eligibility (admin/facility admin only)
 router.get(
 	'/eligibility/:mentee_id/:cycle_id/:thematic_area_id',
-	requireRole(['admin', 'facility_admin']),
+	requireRole(['admin', 'facility_admin', 'mentee']),
 	validator.eligibilityParamsValidation,
 	controller.checkEligibility
 );

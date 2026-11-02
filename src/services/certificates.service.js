@@ -10,6 +10,11 @@ async function checkEligibility(menteeId, cycleId, thematicAreaId, actor) {
 	if (!mentee) throw new AppError('Mentee was not found.', 404, 'MENTEE_NOT_FOUND');
 	if (mentee.role !== 'mentee') throw new AppError('Selected user is not a mentee.', 400, 'INVALID_ROLE');
 
+	// Mentee can only check their own eligibility
+	if (actor && actor.role === 'mentee' && Number(actor.id) !== Number(menteeId)) {
+		throw new AppError('You can only check your own certificate eligibility.', 403, 'FORBIDDEN');
+	}
+
 	// Authorization for facility admin
 	if (actor && actor.role === 'facility_admin' && !canAccessUser(actor, mentee)) {
 		throw new AppError('You can only issue certificates for mentees within your facility.', 403, 'FORBIDDEN');

@@ -2,11 +2,12 @@ const repository = require('../repositories/learning.repository');
 const AppError = require('../errors/app-error');
 const Role = require('../enums/role.enum');
 const LearningPermission = require('../enums/learning-permission.enum');
+const { SYSTEM_ADMIN_ROLES } = require('../constants/roles.constants');
 const notificationService = require('./notifications.service');
 const NotificationType = require('../enums/notification-type.enum');
 
 const normalizeRole = (role) => String(role || '').toLowerCase();
-const isSystemAdmin = (role) => normalizeRole(role) === Role.ADMIN;
+const isSystemAdmin = (role) => SYSTEM_ADMIN_ROLES.includes(normalizeRole(role));
 const isFacilityAdmin = (role) => normalizeRole(role) === Role.FACILITY_ADMIN;
 const isLearningManager = (role) => isSystemAdmin(role) || isFacilityAdmin(role);
 const isModulePublishedAndAuthorized = (module) => (
@@ -222,10 +223,21 @@ const assertGrantorModuleScope = async ({ module, actor }) => {
 	await assertFacilityAdminModuleScope(module, actor);
 };
 
-const assertMentorEligibleForModule = async ({ mentorId, moduleId }) => {
+const assertMentorEligibleForModule = async ({ mentorId, moduleId, actor }) => {
 	if (!(await repository.isMentor(mentorId))) {
 		throw new AppError('Permissions can only be granted to a mentor.', 400, 'VALIDATION_ERROR');
 	}
+
+	if (actor && isFacilityAdmin(actor?.role)) {
+		const mentor = await repository.getUserById(mentorId);
+		if (!mentor) {
+			throw new AppError('Mentor not found.', 404, 'NOT_FOUND');
+		}
+		if (Number(mentor.facility_id) !== Number(actor.facility_id)) {
+			throw new AppError('You can only grant access to mentors within your facility.', 403, 'FORBIDDEN');
+		}
+	}
+
 	if (!(await repository.hasActiveMentorAssignment({ mentorId, moduleId }))) {
 		throw new AppError('The mentor must have an active assignment for this module thematic area.', 409, 'CONFLICT');
 	}
@@ -236,7 +248,7 @@ const grantMentorModuleAccess = async ({ mentorId, moduleId, actor, grantedBy })
 	const module = await ensureModule(moduleId);
 	if (actor) {
 		await assertGrantorModuleScope({ module, actor });
-		await assertMentorEligibleForModule({ mentorId, moduleId });
+		await assertMentorEligibleForModule({ mentorId, moduleId, actor });
 	} else if (grantedBy && repository.isLearningAdmin) {
 		if (!(await repository.isLearningAdmin(grantedBy))) {
 			throw new AppError('Only administrators can grant module access to mentors.', 403, 'FORBIDDEN');
@@ -271,7 +283,7 @@ const grantModuleMentorPermission = async ({ mentorId, moduleId, permission, act
 	const module = await ensureModule(moduleId);
 	if (actor) {
 		await assertGrantorModuleScope({ module, actor });
-		await assertMentorEligibleForModule({ mentorId, moduleId });
+		await assertMentorEligibleForModule({ mentorId, moduleId, actor });
 	}
 	if (!Object.values(LearningPermission).includes(permission)) {
 		throw new AppError('Unsupported learning permission.', 400, 'VALIDATION_ERROR');

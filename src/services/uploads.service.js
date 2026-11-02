@@ -1,5 +1,5 @@
 const AppError = require('../errors/app-error');
-const { hasAnyRole, FACILITY_MANAGEMENT_ROLES } = require('../constants/roles.constants');
+const { hasAnyRole, SYSTEM_ADMIN_ROLES } = require('../constants/roles.constants');
 const storage = require('../providers/storage.provider');
 const repository = require('../repositories/uploads.repository');
 const { toUpload } = require('../dtos/response/upload.response.dto');
@@ -7,7 +7,7 @@ const { parseContext } = require('../validators/uploads.validator');
 
 const requireUploadAccess = (file, actor) => {
 	if (!file) throw new AppError('Uploaded file was not found.', 404, 'FILE_NOT_FOUND');
-	if (hasAnyRole(actor?.role, FACILITY_MANAGEMENT_ROLES)) return;
+	if (hasAnyRole(actor?.role, SYSTEM_ADMIN_ROLES)) return;
 	if (Number(file.owner_id) === Number(actor?.id)) return;
 	throw new AppError('You do not have permission to access this file.', 403, 'FORBIDDEN');
 };

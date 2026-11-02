@@ -19,7 +19,7 @@ const listModules = async ({ status, thematicAreaId, createdBy, publishedOnly = 
 	}
 	if (authorizedOnly) where.is_authorized = true;
 
-	return models.LearningModule.findAll({
+	const modules = await models.LearningModule.findAll({
 		where,
 		include: [
 			{ model: models.ThematicArea, as: 'thematicArea', attributes: ['id', 'name'] },
@@ -32,6 +32,34 @@ const listModules = async ({ status, thematicAreaId, createdBy, publishedOnly = 
 		],
 		order: [['order_number', 'ASC'], ['id', 'ASC']],
 	});
+
+	if (modules.length === 0) return modules;
+
+	const moduleIdsWithCounts = modules.map(m => m.id);
+	const mentorCounts = await models.LearningModuleMentorPermission.findAll({
+		where: {
+			module_id: { [Op.in]: moduleIdsWithCounts },
+			permission: 'learning.resources.view',
+			revoked_at: null,
+		},
+		attributes: ['module_id', 'mentor_id'],
+	}).then(records => {
+		const countMap = {};
+		const uniqueMentorsPerModule = {};
+		records.forEach(r => {
+			const key = `${r.module_id}-${r.mentor_id}`;
+			if (!uniqueMentorsPerModule[key]) {
+				uniqueMentorsPerModule[key] = true;
+				countMap[r.module_id] = (countMap[r.module_id] || 0) + 1;
+			}
+		});
+		return countMap;
+	});
+
+	return modules.map(module => ({
+		...module.toJSON(),
+		activeMentorCount: mentorCounts[module.id] || 0,
+	}));
 };
 
 const listModuleIdsForFacility = async (facilityId) => {

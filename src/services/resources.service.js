@@ -5,7 +5,7 @@ const models = require('../models');
 const AppError = require('../errors/app-error');
 const Role = require('../enums/role.enum');
 const LearningPermission = require('../enums/learning-permission.enum');
-const { hasAnyRole, FACILITY_MANAGEMENT_ROLES } = require('../constants/roles.constants');
+const { hasAnyRole, SYSTEM_ADMIN_ROLES } = require('../constants/roles.constants');
 const { ALLOWED_RESOURCE_MIME_TYPES } = require('../config/multer');
 const repository = require('../repositories/resources.repository');
 const { toResource } = require('../dtos/response/resource.response.dto');
@@ -16,7 +16,7 @@ const {
 } = require('../validators/resources.validator');
 
 const normalizeRole = (role) => String(role || '').toLowerCase();
-const isSystemAdmin = (role) => normalizeRole(role) === Role.ADMIN;
+const isSystemAdmin = (role) => hasAnyRole(role, SYSTEM_ADMIN_ROLES);
 const isFacilityAdmin = (role) => normalizeRole(role) === Role.FACILITY_ADMIN;
 
 const isModulePublishedAndAuthorized = (module) => (
@@ -26,8 +26,8 @@ const isModulePublishedAndAuthorized = (module) => (
 );
 
 function assertCanManageResources(actor) {
-	if (!actor || !hasAnyRole(actor.role, FACILITY_MANAGEMENT_ROLES)) {
-		throw new AppError('You do not have permission to manage resources.', 403, 'FORBIDDEN');
+	if (!actor || !hasAnyRole(actor.role, SYSTEM_ADMIN_ROLES)) {
+		throw new AppError('Only system administrators can manage learning resources.', 403, 'FORBIDDEN');
 	}
 }
 
@@ -85,28 +85,6 @@ async function assertFileAndTypeMatch({ fileId, type }) {
 async function assertCanManageResourceRecord(resource, actor) {
 	assertCanManageResources(actor);
 	if (isSystemAdmin(actor?.role)) return;
-
-	if (isFacilityAdmin(actor?.role)) {
-		if (resource.module_id) {
-			const inScope = await repository.isModuleInFacilityScope({
-				moduleId: resource.module_id,
-				facilityId: actor.facility_id,
-			});
-			if (!inScope) {
-				throw new AppError('You do not have permission to modify this resource.', 403, 'FORBIDDEN');
-			}
-		} else if (resource.thematic_area_id) {
-			const inScope = await repository.isThematicAreaInFacilityScope({
-				thematicAreaId: resource.thematic_area_id,
-				facilityId: actor.facility_id,
-			});
-			if (!inScope) {
-				throw new AppError('You do not have permission to modify this resource.', 403, 'FORBIDDEN');
-			}
-		} else {
-			throw new AppError('You do not have permission to modify this resource.', 403, 'FORBIDDEN');
-		}
-	}
 }
 
 async function createResource(body, actor) {
@@ -218,6 +196,9 @@ async function getResource(id, actor) {
 		if (!progress) {
 			throw new AppError('You do not have access to this learning module.', 403, 'FORBIDDEN');
 		}
+		if (progress.status === 'access_revoked') {
+			throw new AppError('Your access to this learning module has been revoked.', 403, 'FORBIDDEN');
+		}
 		return toResource(resource);
 	}
 
@@ -290,7 +271,7 @@ async function listResources(query, actor) {
 		let menteeModuleIds = [];
 		if (models.LearningModuleProgress) {
 			const progressRecords = await models.LearningModuleProgress.findAll({
-				where: { mentee_id: actor.id },
+				where: { mentee_id: actor.id, [Op.or]: [{ status: { [Op.ne]: 'access_revoked' } }, { status: null }] },
 				attributes: ['module_id'],
 			});
 			menteeModuleIds = [...new Set(progressRecords.map((r) => r.module_id))];
@@ -300,6 +281,8 @@ async function listResources(query, actor) {
 			menteeModuleIds.map(async (moduleId) => {
 				const module = await repository.getModuleById(moduleId);
 				if (!module || !isModulePublishedAndAuthorized(module)) return null;
+				const progress = await repository.getModuleProgress({ menteeId: actor.id, moduleId });
+				if (!progress) return null;
 				return moduleId;
 			})
 		)).filter(Boolean);
@@ -360,15 +343,6 @@ async function updateResource(id, body, actor) {
 		const thematicArea = await repository.getThematicAreaById(payload.thematic_area_id);
 		if (!thematicArea) {
 			throw new AppError('Thematic area not found.', 404, 'NOT_FOUND');
-		}
-		if (isFacilityAdmin(actor?.role)) {
-			const inScope = await repository.isThematicAreaInFacilityScope({
-				thematicAreaId: payload.thematic_area_id,
-				facilityId: actor.facility_id,
-			});
-			if (!inScope) {
-				throw new AppError('The thematic area is outside your facility scope.', 403, 'FORBIDDEN');
-			}
 		}
 	}
 

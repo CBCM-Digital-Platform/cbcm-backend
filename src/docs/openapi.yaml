@@ -6251,7 +6251,7 @@ paths:
                 timeLimitMinutes:
                   type: integer
                 attemptLimit:
-                  type: integer
+                  type: integer;[]''
                 isPublished:
                   type: boolean
                 isAuthorized:
@@ -7378,6 +7378,30 @@ paths:
       description: Evaluates whether a mentee is eligible for a certificate in a specific cycle and thematic area. Requires a finalized assessment with theory_passed=true and practical_passed=true, and no existing active certificate.
       tags:
         - Certificates
+      parameters:
+        - in: path
+          name: mentee_id
+          required: true
+          schema:
+            type: integer
+            minimum: 1
+          description: Mentee user ID
+        - in: path
+          name: cycle_id
+          required: true
+          schema:
+            type: integer
+            minimum: 1
+          description: Mentorship cycle ID
+        - in: path
+          name: thematic_area_id
+          required: true
+          schema:
+            type: integer
+            minimum: 1
+          description: Thematic area ID
+      security:
+        - bearerAuth: []
   /api/v1/analytics/dashboard:
     get:
       summary: Get dashboard metrics

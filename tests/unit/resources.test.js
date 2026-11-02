@@ -306,31 +306,15 @@ describe('Resources CRUD API (Step 5)', () => {
 			if (facility2Resource) await service.deleteResource(facility2Resource.id, admin).catch(() => {});
 		});
 
-		it('should allow facility admin to create resource within their facility scope', async () => {
+		it('should reject facility admin from creating resource (only super admin allowed)', async () => {
 			const fac1Admin = { id: 2, role: Role.FACILITY_ADMIN, facility_id: 1 };
-			const res = await service.createResource({
-				title: 'Fac1 Audio Resource',
-				type: 'audio',
-				thematic_area_id: 1,
-				module_id: 1,
-				file_id: 2,
-			}, fac1Admin);
-
-			assert.ok(res.id);
-			assert.equal(res.createdBy, 2);
-			await service.deleteResource(res.id, fac1Admin);
-		});
-
-		it('should reject facility admin from creating resource outside facility scope', async () => {
-			const fac1Admin = { id: 2, role: Role.FACILITY_ADMIN, facility_id: 1 };
-			// module 2 is in Facility 2 scope (thematic area 2)
 			await assert.rejects(
 				service.createResource({
-					title: 'Out of Scope',
-					type: 'video',
-					thematic_area_id: 2,
-					module_id: 2,
-					file_id: 3,
+					title: 'Fac1 Audio Resource',
+					type: 'audio',
+					thematic_area_id: 1,
+					module_id: 1,
+					file_id: 2,
 				}, fac1Admin),
 				{ statusCode: 403 }
 			);
@@ -350,39 +334,20 @@ describe('Resources CRUD API (Step 5)', () => {
 			);
 		});
 
-		it('should allow facility admin to update resource in their facility scope', async () => {
-			const fac1Admin = { id: 2, role: Role.FACILITY_ADMIN, facility_id: 1 };
-			const updated = await service.updateResource(facility1Resource.id, {
-				title: 'Updated Facility 1 Title',
-			}, fac1Admin);
-
-			assert.equal(updated.title, 'Updated Facility 1 Title');
-			assert.equal(updated.updatedBy, 2);
-		});
-
-		it('should reject facility admin from updating resource outside facility scope', async () => {
-			const fac1Admin = { id: 2, role: Role.FACILITY_ADMIN, facility_id: 1 };
-			await assert.rejects(
-				service.updateResource(facility2Resource.id, { title: 'Hacked Title' }, fac1Admin),
-				{ statusCode: 403 }
-			);
-		});
-
-		it('should reject facility admin from updating resource to an out-of-scope module', async () => {
+		it('should reject facility admin from updating resource (only super admin allowed)', async () => {
 			const fac1Admin = { id: 2, role: Role.FACILITY_ADMIN, facility_id: 1 };
 			await assert.rejects(
 				service.updateResource(facility1Resource.id, {
-					module_id: 2,
-					thematic_area_id: 2,
+					title: 'Updated Facility 1 Title',
 				}, fac1Admin),
 				{ statusCode: 403 }
 			);
 		});
 
-		it('should reject facility admin from deleting resource outside facility scope', async () => {
+		it('should reject facility admin from deleting resource (only super admin allowed)', async () => {
 			const fac1Admin = { id: 2, role: Role.FACILITY_ADMIN, facility_id: 1 };
 			await assert.rejects(
-				service.deleteResource(facility2Resource.id, fac1Admin),
+				service.deleteResource(facility1Resource.id, fac1Admin),
 				{ statusCode: 403 }
 			);
 		});
@@ -659,6 +624,21 @@ describe('Resources CRUD API (Step 5)', () => {
 			testResourceId = response.body.data.id;
 		});
 
+		it('POST /api/v1/resources should reject facility admin (only super admin allowed)', async () => {
+			const response = await request(app)
+				.post('/api/v1/resources')
+				.set('Authorization', `Bearer ${facAdminToken}`)
+				.send({
+					title: 'Fac Admin Created',
+					type: 'pdf',
+					thematic_area_id: 1,
+					module_id: 1,
+					file_id: 1,
+				});
+
+			assert.equal(response.status, 403);
+		});
+
 		it('POST /api/v1/resources should reject unauthorized roles (e.g. mentor)', async () => {
 			const response = await request(app)
 				.post('/api/v1/resources')
@@ -706,6 +686,15 @@ describe('Resources CRUD API (Step 5)', () => {
 			assert.equal(response.status, 200);
 			assert.equal(response.body.success, true);
 			assert.equal(response.body.data.title, 'HTTP Updated Resource');
+		});
+
+		it('PATCH /api/v1/resources/:id should reject facility admin (only super admin allowed)', async () => {
+			const response = await request(app)
+				.patch(`/api/v1/resources/${testResourceId}`)
+				.set('Authorization', `Bearer ${facAdminToken}`)
+				.send({ title: 'Unauthorized Update' });
+
+			assert.equal(response.status, 403);
 		});
 
 		it('DELETE /api/v1/resources/:id should delete resource record', async () => {
