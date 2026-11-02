@@ -47,14 +47,41 @@ async function getFacilityCount(where = {}) {
 }
 
 async function getActiveFacilityCount(where = {}) {
-	return Facility.count({ where: { ...where, status: 'active' } });
+	// Facility model doesn't have a status column, so just return total count
+	return Facility.count({ where });
 }
 
 async function getMentorshipCycleCount(where = {}) {
+	// If filtering by facility_id, need to join with cycle_facilities table
+	if (where.facility_id) {
+		const { CycleFacility } = require('../models');
+		return MentorshipCycle.count({
+			where: { ...where, facility_id: undefined },
+			include: [{
+				model: CycleFacility,
+				as: 'cycleFacilitiesForFilter',
+				where: { facility_id: where.facility_id },
+				required: true
+			}]
+		});
+	}
 	return MentorshipCycle.count({ where });
 }
 
 async function getActiveMentorshipCycleCount(where = {}) {
+	// If filtering by facility_id, need to join with cycle_facilities table
+	if (where.facility_id) {
+		const { CycleFacility } = require('../models');
+		return MentorshipCycle.count({
+			where: { ...where, facility_id: undefined, status: 'active' },
+			include: [{
+				model: CycleFacility,
+				as: 'cycleFacilitiesForFilter',
+				where: { facility_id: where.facility_id },
+				required: true
+			}]
+		});
+	}
 	return MentorshipCycle.count({ where: { ...where, status: 'active' } });
 }
 

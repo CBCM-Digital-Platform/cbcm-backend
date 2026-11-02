@@ -72,7 +72,7 @@ const foreignKeys = [
 	['RefreshToken', 'User', 'user_id', 'user', 'refreshTokens'],
 	['PasswordResetToken', 'User', 'user_id', 'user', 'passwordResetTokens'],
 	['CycleFacility', 'MentorshipCycle', 'cycle_id', 'cycle', 'cycleFacilities'],
-	['CycleFacility', 'Facility', 'facility_id', 'facility', 'cycleFacilities'],
+	['CycleFacility', 'Facility', 'facility_id', 'facility', 'facility'],
 	['CycleFacility', 'User', 'created_by', 'createdBy', 'cycleFacilitiesCreated'],
 	['CycleThematicArea', 'MentorshipCycle', 'cycle_id', 'cycle', 'cycleThematicAreas'],
 	['CycleThematicArea', 'ThematicArea', 'thematic_area_id', 'thematicArea', 'cycleThematicAreas'],
@@ -219,6 +219,12 @@ for (const [sourceName, targetName, foreignKey, as, inverseAs, oneToOne] of fore
 		target.hasMany(source, { foreignKey, as: inverseAs });
 	}
 }
+
+// Add direct hasMany associations for filtering
+models.MentorshipCycle.hasMany(models.CycleFacility, {
+	foreignKey: 'cycle_id',
+	as: 'cycleFacilitiesForFilter',
+});
 
 models.MentorshipCycle.belongsToMany(models.Facility, {
 	through: models.CycleFacility,

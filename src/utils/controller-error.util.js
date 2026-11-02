@@ -12,7 +12,8 @@ function controllerError(res, error, fallbackMessage) {
   console.error('Error Stack:', error.stack);
   console.error('Error Name:', error.name);
   console.error('Error Message:', error.message);
-  return errorResponse(res, 500, 'INTERNAL_SERVER_ERROR', fallbackMessage);
+  // TEMPORARY: Include error details in response for debugging
+  return errorResponse(res, 500, 'INTERNAL_SERVER_ERROR', fallbackMessage, [error.message, error.name]);
 }
 
 module.exports = controllerError;

@@ -5,6 +5,7 @@ const repository = require('../repositories/analytics.repository');
 
 async function getDashboardMetrics(actor) {
 	const where = {};
+	const cycleWhere = {};
 
 	// Enforce facility scope for Facility Admin
 	if (actor && actor.role === 'facility_admin') {
@@ -12,11 +13,13 @@ async function getDashboardMetrics(actor) {
 			throw new AppError('Facility administrator must be assigned to a facility.', 403, 'FORBIDDEN');
 		}
 		where.facility_id = actor.facility_id;
+		cycleWhere.facility_id = actor.facility_id;
 	}
 
 	// Mentors can only see metrics for their facility
 	if (actor && actor.role === 'mentor' && actor.facility_id) {
 		where.facility_id = actor.facility_id;
+		cycleWhere.facility_id = actor.facility_id;
 	}
 
 	// Mentees can only see their own metrics
@@ -55,8 +58,8 @@ async function getDashboardMetrics(actor) {
 		repository.getSnapshotCount(where),
 		repository.getFacilityCount(),
 		repository.getActiveFacilityCount(),
-		repository.getMentorshipCycleCount(),
-		repository.getActiveMentorshipCycleCount(),
+		repository.getMentorshipCycleCount(cycleWhere),
+		repository.getActiveMentorshipCycleCount(cycleWhere),
 		repository.getLearningModuleCount(),
 	]);
 
@@ -88,7 +91,7 @@ async function getDashboardMetrics(actor) {
 		},
 		facilities: {
 			total: totalFacilities,
-			active: activeFacilities,
+			active: totalFacilities, // Facility model doesn't have status column
 		},
 		cycles: {
 			total: totalCycles,
