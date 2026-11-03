@@ -6,6 +6,11 @@ module.exports = (sequelize, DataTypes) => sequelize.define('Resource', {
 	module_id: { type: DataTypes.INTEGER, allowNull: true },
 	url: { type: DataTypes.STRING, allowNull: true },
 	file_id: { type: DataTypes.INTEGER, allowNull: true },
+	legacy_hierarchical_resource_id: {
+		type: DataTypes.INTEGER,
+		allowNull: true,
+		unique: 'uq_resources_legacy_hierarchical_resource_id',
+	},
 	created_by: { type: DataTypes.INTEGER },
 	updated_by: { type: DataTypes.INTEGER },
 	created_at: { type: DataTypes.DATE },

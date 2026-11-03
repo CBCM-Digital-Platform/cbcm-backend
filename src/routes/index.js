@@ -19,7 +19,6 @@ const analyticsRoutes = require('./analytics.routes');
 const settingsRoutes = require('./settings.routes');
 const uploadsRoutes = require('./uploads.routes');
 const resourcesRoutes = require('./resources.routes');
-const hierarchicalResourcesRoutes = require('./hierarchical-resources.routes');
 
 const router = express.Router();
 router.use('/auth', authRoutes);
@@ -41,6 +40,5 @@ router.use('/analytics', analyticsRoutes);
 router.use('/settings', settingsRoutes);
 router.use('/uploads', uploadsRoutes);
 router.use('/resources', resourcesRoutes);
-router.use('/hierarchical-resources', hierarchicalResourcesRoutes);
 
 module.exports = router;

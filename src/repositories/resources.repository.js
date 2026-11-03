@@ -125,6 +125,7 @@ module.exports = {
 	listModuleIdsForFacility: (...args) => learningRepository.listModuleIdsForFacility(...args),
 	listMentorModuleIds: (...args) => learningRepository.listMentorModuleIds(...args),
 	hasActiveMentorAssignment: (...args) => learningRepository.hasActiveMentorAssignment(...args),
+	hasModuleMentorAccess: (...args) => learningRepository.hasModuleMentorAccess(...args),
 	hasModuleMentorPermission: (...args) => learningRepository.hasModuleMentorPermission(...args),
 	getModuleProgress: (...args) => learningRepository.getModuleProgress(...args),
 };

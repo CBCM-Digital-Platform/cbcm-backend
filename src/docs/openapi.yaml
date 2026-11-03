@@ -1256,36 +1256,6 @@ components:
           type: string
           format: date-time
           nullable: true
-    LearningModuleAccess:
-      type: object
-      required:
-        - moduleId
-        - menteeId
-      properties:
-        id:
-          type: integer
-          example: 18
-        moduleId:
-          type: integer
-          example: 1
-        menteeId:
-          type: integer
-          example: 42
-        assignedBy:
-          type: integer
-          nullable: true
-          example: 12
-        assignedAt:
-          type: string
-          format: date-time
-          nullable: true
-        status:
-          type: string
-          enum:
-            - not_started
-            - in_progress
-            - completed
-          example: not_started
     LearningModuleMentorAccess:
       type: object
       required:
@@ -2549,9 +2519,6 @@ components:
           type: integer
           nullable: true
           example: 5
-        url:
-          type: string
-          nullable: true
         createdBy:
           type: integer
           nullable: true
@@ -2731,6 +2698,89 @@ components:
             totalPages:
               type: integer
               example: 1
+    ResourceAssignment:
+      type: object
+      properties:
+        id:
+          type: integer
+          example: 12
+        assignmentId:
+          type: integer
+          example: 12
+        resourceId:
+          type: integer
+          example: 4
+        mentorId:
+          type: integer
+          example: 8
+        menteeId:
+          type: integer
+          example: 15
+        facilityId:
+          type: integer
+          nullable: true
+          example: 2
+        status:
+          type: string
+          enum: [active, completed, revoked]
+          example: active
+        assignedBy:
+          type: integer
+          example: 8
+        assignedAt:
+          type: string
+          format: date-time
+        completedAt:
+          type: string
+          format: date-time
+          nullable: true
+        revokedAt:
+          type: string
+          format: date-time
+          nullable: true
+        revokedBy:
+          type: integer
+          nullable: true
+        resource:
+          $ref: '#/components/schemas/Resource'
+        assigned:
+          type: boolean
+          example: true
+        created:
+          type: boolean
+          example: true
+        revoked:
+          type: boolean
+          example: false
+        completed:
+          type: boolean
+          example: false
+    ResourceAssignmentListResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/ResourceAssignment'
+    ResourceAssignmentResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        data:
+          $ref: '#/components/schemas/ResourceAssignment'
+    ResourceAssignmentRequest:
+      type: object
+      required: [mentee_id]
+      properties:
+        mentee_id:
+          type: integer
+          minimum: 1
+          example: 15
     UploadedFile:
       type: object
       properties:
@@ -3257,104 +3307,6 @@ components:
             limit: { type: integer, example: 20 }
             total: { type: integer, example: 5 }
             totalPages: { type: integer, example: 1 }
-    HierarchicalResource:
-      type: object
-      properties:
-        id:
-          type: integer
-          example: 1
-        title:
-          type: string
-          example: Neonatal Resuscitation Guide
-        description:
-          type: string
-          nullable: true
-          example: Clinical protocol for newborn resuscitation
-        type:
-          type: string
-          enum: [pdf, audio, video]
-          example: pdf
-        original_filename:
-          type: string
-          nullable: true
-          example: neonatal-guide.pdf
-        verified_mime_type:
-          type: string
-          nullable: true
-          example: application/pdf
-        file_size_bytes:
-          type: integer
-          nullable: true
-          example: 1048576
-        upload_status:
-          type: string
-          enum: [pending, completed, failed]
-          example: completed
-        publication_status:
-          type: string
-          enum: [draft, published, archived]
-          example: published
-        created_by:
-          type: integer
-          example: 1
-        updated_by:
-          type: integer
-          nullable: true
-          example: 1
-        archived_at:
-          type: string
-          format: date-time
-          nullable: true
-        archived_by:
-          type: integer
-          nullable: true
-        created_at:
-          type: string
-          format: date-time
-        updated_at:
-          type: string
-          format: date-time
-        uploadedFile:
-          type: object
-          nullable: true
-          properties:
-            id:
-              type: integer
-            owner_id:
-              type: integer
-            mime_type:
-              type: string
-            size_bytes:
-              type: integer
-            created_at:
-              type: string
-              format: date-time
-    HierarchicalResourceListResponse:
-      type: object
-      properties:
-        success:
-          type: boolean
-          example: true
-        data:
-          type: array
-          items:
-            $ref: '#/components/schemas/HierarchicalResource'
-        meta:
-          type: object
-          properties:
-            page:
-              type: integer
-              example: 1
-            limit:
-              type: integer
-              example: 20
-            total:
-              type: integer
-              example: 10
-            totalPages:
-              type: integer
-              example: 1
-
   parameters:
     AssignmentId:
       name: id
@@ -3600,8 +3552,26 @@ tags:
     description: Audit and activity logging
   - name: Analytics
     description: Dashboard metrics and analytics
-  - name: Learning
-    description: Learning modules, content, access, progress, and quizzes.
+  - name: Learning Permissions
+    description: Grant, list, and revoke mentor capabilities for learning modules.
+  - name: Learning Modules
+    description: Retrieve learning modules and module availability for authenticated users.
+  - name: Learning Content
+    description: Retrieve learning content items within authorized learning modules.
+  - name: Learning Content Management
+    description: Create, update, and delete learning modules and content.
+  - name: Quiz Retrieval
+    description: Retrieve quizzes available to the authenticated mentee.
+  - name: Quiz Question Management
+    description: Create and manage quizzes, questions, and answer options.
+  - name: Module Completion
+    description: Track learning content progress and confirm module completion.
+  - name: Quiz Attempt Management
+    description: Start quiz attempts and submit answers.
+  - name: Quiz Results & History
+    description: Retrieve quiz results and attempt history.
+  - name: Answer Key
+    description: Retrieve quiz answer keys for authorized users.
   - name: Notifications
     description: Notifications belonging to the authenticated user.
   - name: Certificates
@@ -3609,7 +3579,11 @@ tags:
   - name: Uploads
     description: Media and file upload management with secure binary storage
   - name: Resources
-    description: Learning resource files, media materials, and module attachments
+    description: Create, browse, update, delete, and download learning resources.
+  - name: Resource Assignments
+    description: Assign individual resources to mentees and monitor assignment progress.
+  - name: Mentee Resource Access
+    description: Mentee-facing access to individually assigned resources.
   - name: Settings
     description: System FAQs and user onboarding guides
   - name: User Guides
@@ -3620,277 +3594,7 @@ tags:
     description: Clinical competency assessments, scoring, criteria, and evidence
   - name: Sessions
     description: Clinical encounter sessions, scheduling, notes, and virtual rooms
-  - name: Hierarchical Resources
-    description: Hierarchical resource management with Super Admin → Facility → Mentor → Mentee permissions
 paths:
-  /api/v1/hierarchical-resources:
-    post:
-      tags: [Hierarchical Resources]
-      summary: Upload a new hierarchical resource (Super Admin only)
-      description: Uploads a PDF, audio, or video file and creates a resource record. File is stored in private S3.
-      security:
-        - bearerAuth: []
-      requestBody:
-        required: true
-        content:
-          multipart/form-data:
-            schema:
-              type: object
-              required: [file, title]
-              properties:
-                file:
-                  type: string
-                  format: binary
-                  description: PDF, audio, or video file
-                title:
-                  type: string
-                  description: Resource title
-                description:
-                  type: string
-                  description: Optional description
-                publication_status:
-                  type: string
-                  enum: [draft, published]
-                  default: draft
-      responses:
-        '201':
-          description: Resource created
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/HierarchicalResource'
-        '400':
-          $ref: '#/components/responses/BadRequest'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-    get:
-      tags: [Hierarchical Resources]
-      summary: List hierarchical resources
-      description: Returns resources scoped to the user's role and access grants.
-      security:
-        - bearerAuth: []
-      parameters:
-        - name: page
-          in: query
-          schema:
-            type: integer
-            minimum: 1
-            default: 1
-        - name: limit
-          in: query
-          schema:
-            type: integer
-            minimum: 1
-            maximum: 100
-            default: 20
-        - name: type
-          in: query
-          schema:
-            type: string
-            enum: [pdf, audio, video]
-        - name: status
-          in: query
-          schema:
-            type: string
-            enum: [draft, published, archived]
-        - name: search
-          in: query
-          schema:
-            type: string
-      responses:
-        '200':
-          description: Paginated resource list
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/HierarchicalResourceListResponse'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-  /api/v1/hierarchical-resources/{id}:
-    get:
-      tags: [Hierarchical Resources]
-      summary: Get a hierarchical resource
-      description: Returns resource details if the user has access through the permission hierarchy.
-      security:
-        - bearerAuth: []
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: integer
-            minimum: 1
-      responses:
-        '200':
-          description: Resource details
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/HierarchicalResource'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '404':
-          $ref: '#/components/responses/NotFound'
-    post:
-      tags: [Hierarchical Resources]
-      summary: Grant resource to facilities (Super Admin only)
-      description: Grants a resource to one or more facilities.
-      security:
-        - bearerAuth: []
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: integer
-            minimum: 1
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              required: [facility_ids]
-              properties:
-                facility_ids:
-                  type: array
-                  items:
-                    type: integer
-                  description: Facility IDs to grant access to
-      responses:
-        '200':
-          description: Grant count
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  granted:
-                    type: integer
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '404':
-          $ref: '#/components/responses/NotFound'
-  /api/v1/hierarchical-resources/{id}/grant-mentor:
-    post:
-      tags: [Hierarchical Resources]
-      summary: Grant resource to mentors (Facility Admin only)
-      description: Grants a resource to mentors within the facility admin's facility.
-      security:
-        - bearerAuth: []
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: integer
-            minimum: 1
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              required: [mentor_ids]
-              properties:
-                mentor_ids:
-                  type: array
-                  items:
-                    type: integer
-                  description: Mentor IDs to grant access to
-      responses:
-        '200':
-          description: Grant count
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  granted:
-                    type: integer
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '404':
-          $ref: '#/components/responses/NotFound'
-  /api/v1/hierarchical-resources/{id}/assign-mentee:
-    post:
-      tags: [Hierarchical Resources]
-      summary: Assign resource to mentees (Mentor only)
-      description: Assigns a resource to mentees that the mentor is authorized to mentor.
-      security:
-        - bearerAuth: []
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: integer
-            minimum: 1
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              required: [mentee_ids]
-              properties:
-                mentee_ids:
-                  type: array
-                  items:
-                    type: integer
-                  description: Mentee IDs to assign resource to
-      responses:
-        '200':
-          description: Assignment count
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  assigned:
-                    type: integer
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '404':
-          $ref: '#/components/responses/NotFound'
-  /api/v1/hierarchical-resources/{id}/content:
-    get:
-      tags: [Hierarchical Resources]
-      summary: Download or stream resource content
-      description: Returns the file content if the user has access. No permanent public URLs are exposed.
-      security:
-        - bearerAuth: []
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: integer
-            minimum: 1
-      responses:
-        '200':
-          description: File content stream
-          content:
-            application/octet-stream:
-              schema:
-                type: string
-                format: binary
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '404':
-          $ref: '#/components/responses/NotFound'
   /api/v1/users/me:
     get:
       summary: Get current user's profile
@@ -5686,7 +5390,7 @@ paths:
           $ref: '#/components/responses/ServerError'
   /api/v1/learning/modules:
     get:
-      tags: [Learning]
+      tags: [Learning Modules]
       summary: List learning modules available to the authenticated user
       description: Results are filtered according to the user's role, publication status, and access grants.
       security:
@@ -5718,9 +5422,9 @@ paths:
         '500':
           $ref: '#/components/responses/ServerError'
     post:
-      tags: [Learning]
+      tags: [Learning Content Management]
       summary: Create a learning module
-      description: Available to system and facility administrators.
+      description: Available only to the Super Admin (system administrator).
       security:
         - bearerAuth: []
       requestBody:
@@ -5770,7 +5474,7 @@ paths:
     parameters:
       - $ref: '#/components/parameters/LearningId'
     get:
-      tags: [Learning]
+      tags: [Learning Modules]
       summary: Get a learning module
       security:
         - bearerAuth: []
@@ -5786,8 +5490,9 @@ paths:
         '404':
           $ref: '#/components/responses/NotFound'
     patch:
-      tags: [Learning]
+      tags: [Learning Content Management]
       summary: Partially update a learning module
+      description: Available only to the Super Admin (system administrator), including publication and authorization changes.
       security:
         - bearerAuth: []
       requestBody:
@@ -5831,8 +5536,9 @@ paths:
         '404':
           $ref: '#/components/responses/NotFound'
     put:
-      tags: [Learning]
+      tags: [Learning Content Management]
       summary: Replace a learning module's editable fields
+      description: Available only to the Super Admin (system administrator), including publication and authorization changes.
       security:
         - bearerAuth: []
       requestBody:
@@ -5876,8 +5582,9 @@ paths:
         '404':
           $ref: '#/components/responses/NotFound'
     delete:
-      tags: [Learning]
+      tags: [Learning Content Management]
       summary: Delete a learning module
+      description: Available only to the Super Admin (system administrator).
       security:
         - bearerAuth: []
       responses:
@@ -5895,7 +5602,7 @@ paths:
     parameters:
       - $ref: '#/components/parameters/ModuleId'
     get:
-      tags: [Learning]
+      tags: [Learning Content]
       summary: List content in a learning module
       security:
         - bearerAuth: []
@@ -5909,7 +5616,7 @@ paths:
         '404':
           $ref: '#/components/responses/NotFound'
     post:
-      tags: [Learning]
+      tags: [Learning Content Management]
       summary: Add content to a learning module
       security:
         - bearerAuth: []
@@ -5961,7 +5668,7 @@ paths:
       - $ref: '#/components/parameters/ModuleId'
       - $ref: '#/components/parameters/ContentId'
     get:
-      tags: [Learning]
+      tags: [Learning Content]
       summary: Get learning content
       security:
         - bearerAuth: []
@@ -5977,7 +5684,7 @@ paths:
         '404':
           $ref: '#/components/responses/NotFound'
     patch:
-      tags: [Learning]
+      tags: [Learning Content Management]
       summary: Partially update learning content
       security:
         - bearerAuth: []
@@ -6022,7 +5729,7 @@ paths:
         '404':
           $ref: '#/components/responses/NotFound'
     put:
-      tags: [Learning]
+      tags: [Learning Content Management]
       summary: Replace learning content fields
       security:
         - bearerAuth: []
@@ -6067,7 +5774,7 @@ paths:
         '404':
           $ref: '#/components/responses/NotFound'
     delete:
-      tags: [Learning]
+      tags: [Learning Content Management]
       summary: Delete learning content
       security:
         - bearerAuth: []
@@ -6086,7 +5793,7 @@ paths:
     parameters:
       - $ref: '#/components/parameters/ModuleId'
     get:
-      tags: [Learning]
+      tags: [Quiz Retrieval]
       summary: Get the quiz for a module
       security:
         - bearerAuth: []
@@ -6100,7 +5807,7 @@ paths:
         '404':
           $ref: '#/components/responses/NotFound'
     post:
-      tags: [Learning]
+      tags: [Quiz Question Management]
       summary: Create a quiz for a module
       description: Facility Admin only, limited to modules in the administrator's facility. Mentors cannot create quizzes.
       security:
@@ -6212,7 +5919,7 @@ paths:
     parameters:
       - $ref: '#/components/parameters/QuizId'
     get:
-      tags: [Learning]
+      tags: [Quiz Retrieval]
       summary: Get a quiz for the authenticated mentee
       description: Mentee only. Use question and option ids from this response when submitting answers. Correct answers are not included.
       security:
@@ -6229,7 +5936,7 @@ paths:
         '404':
           $ref: '#/components/responses/NotFound'
     patch:
-      tags: [Learning]
+      tags: [Quiz Question Management]
       summary: Partially update a quiz
       description: Facility Admin only, limited to quizzes whose module belongs to the administrator's facility.
       security:
@@ -6267,12 +5974,13 @@ paths:
           $ref: '#/components/responses/Forbidden'
         '404':
           $ref: '#/components/responses/NotFound'
-  /api/v1/learning/modules/{moduleId}/mentor-access:
+  /api/v1/learning/modules/{moduleId}/mentor-permissions:
     parameters:
       - $ref: '#/components/parameters/ModuleId'
     get:
-      tags: [Learning]
-      summary: List mentors authorized for a module
+      tags: [Learning Permissions]
+      summary: List mentor permissions for a module
+      description: Available to System Admin and Facility Admin for module oversight. Granting and revoking permissions is restricted to the Facility Admin responsible for the module's facility.
       security:
         - bearerAuth: []
       responses:
@@ -6285,8 +5993,9 @@ paths:
         '404':
           $ref: '#/components/responses/NotFound'
     post:
-      tags: [Learning]
-      summary: Grant a mentor access to a module
+      tags: [Learning Permissions]
+      summary: Grant a mentor permission for a module
+      description: Available only to the Facility Admin responsible for the module's facility. Mentor access to a module makes its resources visible; mentees still require individual resource assignments.
       security:
         - bearerAuth: []
       requestBody:
@@ -6311,155 +6020,14 @@ paths:
           $ref: '#/components/responses/Forbidden'
         '404':
           $ref: '#/components/responses/NotFound'
-  /api/v1/learning/modules/{moduleId}/mentor-access/{mentorId}:
+  /api/v1/learning/modules/{moduleId}/mentor-permissions/{mentorId}:
     parameters:
       - $ref: '#/components/parameters/ModuleId'
       - $ref: '#/components/parameters/MentorId'
     delete:
-      tags: [Learning]
-      summary: Revoke a mentor's access to a module
-      security:
-        - bearerAuth: []
-      responses:
-        '200':
-          $ref: '#/components/responses/LearningAction'
-        '400':
-          $ref: '#/components/responses/BadRequest'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '404':
-          $ref: '#/components/responses/NotFound'
-  /api/v1/learning/modules/{moduleId}/mentor-permissions:
-    parameters:
-      - $ref: '#/components/parameters/ModuleId'
-    get:
-      tags: [Learning]
-      summary: List mentor permissions for a module
-      description: Available to administrators (System Admin and Facility Admin).
-      security:
-        - bearerAuth: []
-      responses:
-        '200':
-          $ref: '#/components/responses/LearningList'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '404':
-          $ref: '#/components/responses/NotFound'
-    post:
-      tags: [Learning]
-      summary: Grant a mentor permission for a module
-      description: Available to administrators (System Admin and Facility Admin).
-      security:
-        - bearerAuth: []
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              required: [mentorId, permission]
-              properties:
-                mentorId:
-                  type: integer
-                  minimum: 1
-                permission:
-                  type: string
-                  enum: [learning.resources.view, learning.materials.assign, learning.quiz.answer_key.view]
-      responses:
-        '201':
-          $ref: '#/components/responses/LearningCreated'
-        '400':
-          $ref: '#/components/responses/BadRequest'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '404':
-          $ref: '#/components/responses/NotFound'
-  /api/v1/learning/modules/{moduleId}/mentor-permissions/{mentorId}/{permission}:
-    parameters:
-      - $ref: '#/components/parameters/ModuleId'
-      - $ref: '#/components/parameters/MentorId'
-      - name: permission
-        in: path
-        required: true
-        schema:
-          type: string
-          enum: [learning.resources.view, learning.materials.assign, learning.quiz.answer_key.view]
-    delete:
-      tags: [Learning]
-      summary: Revoke a mentor permission for a module
-      description: Available to administrators (System Admin and Facility Admin).
-      security:
-        - bearerAuth: []
-      responses:
-        '200':
-          $ref: '#/components/responses/LearningAction'
-        '400':
-          $ref: '#/components/responses/BadRequest'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '404':
-          $ref: '#/components/responses/NotFound'
-  /api/v1/learning/modules/{moduleId}/access:
-    parameters:
-      - $ref: '#/components/parameters/ModuleId'
-    get:
-      tags: [Learning]
-      summary: List mentee access grants for a module
-      security:
-        - bearerAuth: []
-      responses:
-        '200':
-          $ref: '#/components/responses/LearningList'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '404':
-          $ref: '#/components/responses/NotFound'
-    post:
-      tags: [Learning]
-      summary: Grant a mentee access to a module
-      description: Available to mentors.
-      security:
-        - bearerAuth: []
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              required: [menteeId]
-              properties:
-                menteeId:
-                  type: integer
-                  minimum: 1
-      responses:
-        '201':
-          $ref: '#/components/responses/LearningCreated'
-        '400':
-          $ref: '#/components/responses/BadRequest'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '404':
-          $ref: '#/components/responses/NotFound'
-  /api/v1/learning/modules/{moduleId}/access/{menteeId}:
-    parameters:
-      - $ref: '#/components/parameters/ModuleId'
-      - $ref: '#/components/parameters/MenteeId'
-    delete:
-      tags: [Learning]
-      summary: Revoke a mentee's access to a module
-      description: Available to module administrators and the mentor who granted the access.
+      tags: [Learning Permissions]
+      summary: Revoke a mentor's module access
+      description: Available only to the Facility Admin responsible for the module's facility. This revokes the mentor's access to the module resources.
       security:
         - bearerAuth: []
       responses:
@@ -6477,7 +6045,7 @@ paths:
     parameters:
       - $ref: '#/components/parameters/MenteeId'
     get:
-      tags: [Learning]
+      tags: [Learning Modules]
       summary: List modules assigned to a mentee
       description: Available to administrators and mentors with access to the mentee.
       security:
@@ -6493,7 +6061,7 @@ paths:
           $ref: '#/components/responses/Forbidden'
   /api/v1/learning/my/modules:
     get:
-      tags: [Learning]
+      tags: [Learning Modules]
       summary: List modules assigned to the authenticated mentee
       security:
         - bearerAuth: []
@@ -6508,7 +6076,7 @@ paths:
     parameters:
       - $ref: '#/components/parameters/ModuleId'
     get:
-      tags: [Learning]
+      tags: [Module Completion]
       summary: Get the authenticated mentee's module progress
       security:
         - bearerAuth: []
@@ -6527,7 +6095,7 @@ paths:
     parameters:
       - $ref: '#/components/parameters/ModuleId'
     get:
-      tags: [Learning]
+      tags: [Module Completion]
       summary: Get the authenticated mentee's module progress
       security:
         - bearerAuth: []
@@ -6546,7 +6114,7 @@ paths:
     parameters:
       - $ref: '#/components/parameters/ModuleId'
     get:
-      tags: [Learning]
+      tags: [Module Completion]
       summary: Get content completion progress for a module
       security:
         - bearerAuth: []
@@ -6564,7 +6132,7 @@ paths:
       - $ref: '#/components/parameters/ModuleId'
       - $ref: '#/components/parameters/ContentId'
     post:
-      tags: [Learning]
+      tags: [Module Completion]
       summary: Mark module content as completed
       security:
         - bearerAuth: []
@@ -6583,7 +6151,7 @@ paths:
     parameters:
       - $ref: '#/components/parameters/ModuleId'
     post:
-      tags: [Learning]
+      tags: [Module Completion]
       summary: Confirm completion of a learning module
       security:
         - bearerAuth: []
@@ -6602,7 +6170,7 @@ paths:
     parameters:
       - $ref: '#/components/parameters/ModuleId'
     get:
-      tags: [Learning]
+      tags: [Quiz Retrieval]
       summary: Get the quiz for a module
       security:
         - bearerAuth: []
@@ -6621,7 +6189,7 @@ paths:
     parameters:
       - $ref: '#/components/parameters/QuizId'
     post:
-      tags: [Learning]
+      tags: [Quiz Attempt Management]
       summary: Start a quiz attempt
       security:
         - bearerAuth: []
@@ -6642,7 +6210,7 @@ paths:
     parameters:
       - $ref: '#/components/parameters/QuizId'
     post:
-      tags: [Learning]
+      tags: [Quiz Attempt Management]
       summary: Submit answers for a quiz attempt
       description: Submits quiz answers for an active attempt and returns the result.
       security:
@@ -6833,7 +6401,7 @@ paths:
     parameters:
       - $ref: '#/components/parameters/QuizId'
     get:
-      tags: [Learning]
+      tags: [Quiz Results & History]
       summary: Get the authenticated mentee's quiz results
       security:
         - bearerAuth: []
@@ -6852,7 +6420,7 @@ paths:
     parameters:
       - $ref: '#/components/parameters/QuizId'
     get:
-      tags: [Learning]
+      tags: [Quiz Results & History]
       summary: List the authenticated mentee's quiz attempts
       security:
         - bearerAuth: []
@@ -6871,7 +6439,7 @@ paths:
     parameters:
       - $ref: '#/components/parameters/QuizId'
     get:
-      tags: [Learning]
+      tags: [Answer Key]
       summary: Get the answer key for a quiz
       description: Facility Admin for quizzes in their facility. Mentors only if the Facility Admin granted learning.quiz.answer_key.view on the module and the mentor has an active assignment.
       security:
@@ -6891,7 +6459,7 @@ paths:
     parameters:
       - $ref: '#/components/parameters/QuizId'
     get:
-      tags: [Learning]
+      tags: [Quiz Question Management]
       summary: List questions in a quiz
       description: Facility Admin for quizzes in their facility. Mentors only if the Facility Admin granted learning.quiz.answer_key.view on the module. Returns question ids and A-D option ids needed to review or submit answers.
       security:
@@ -6908,7 +6476,7 @@ paths:
         '404':
           $ref: '#/components/responses/NotFound'
     post:
-      tags: [Learning]
+      tags: [Quiz Question Management]
       summary: Add a question to a quiz
       description: Facility Admin only. Include choices A-D and correctAnswer, or add options separately.
       security:
@@ -6948,7 +6516,7 @@ paths:
       - $ref: '#/components/parameters/QuizId'
       - $ref: '#/components/parameters/QuestionId'
     put:
-      tags: [Learning]
+      tags: [Quiz Question Management]
       summary: Replace a quiz question
       description: Facility Admin only.
       security:
@@ -6984,7 +6552,7 @@ paths:
         '404':
           $ref: '#/components/responses/NotFound'
     delete:
-      tags: [Learning]
+      tags: [Quiz Question Management]
       summary: Delete a quiz question
       security:
         - bearerAuth: []
@@ -7008,7 +6576,7 @@ paths:
     parameters:
       - $ref: '#/components/parameters/QuestionId'
     post:
-      tags: [Learning]
+      tags: [Quiz Question Management]
       summary: Add an answer option to a quiz question
       description: Facility Admin only. label A-D maps to existing option order.
       security:
@@ -7084,7 +6652,7 @@ paths:
       - $ref: '#/components/parameters/QuestionId'
       - $ref: '#/components/parameters/OptionId'
     put:
-      tags: [Learning]
+      tags: [Quiz Question Management]
       summary: Replace an answer option
       description: Facility Admin only.
       security:
@@ -7930,7 +7498,7 @@ paths:
   /api/v1/resources:
     get:
       summary: List learning resources
-      description: Retrieves a paginated list of learning resources. System Admin can view all; Facility Admin can view resources in their facility's thematic areas; Mentors with permission and Mentees with module access can view resources for their modules.
+      description: Retrieves a paginated list of learning resources. System Admin can view all; Facility Admin can view resources in their facility scope; Mentors can view all resources in modules they are authorized to access; Mentees can view only individually assigned resources.
       tags:
         - Resources
       security:
@@ -7994,7 +7562,7 @@ paths:
                 $ref: '#/components/schemas/ErrorResponse'
     post:
       summary: Create a learning resource
-      description: Creates a new learning resource associated with an uploaded file, module, and thematic area. Only facility management roles can create resources.
+      description: Creates a regular resource associated with an uploaded file, module, and thematic area. Only System Admin can create resources.
       tags:
         - Resources
       security:
@@ -8184,10 +7752,342 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
 
+  /api/v1/resources/{id}/mentees/{menteeId}:
+    post:
+      summary: Assign a resource to a mentee
+      description: Mentors may assign individual resources linked to an authorized learning module to their own actively assigned mentees when they have permission to access that module. Resource assignment is separate from module access.
+      tags:
+        - Resource Assignments
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+            minimum: 1
+        - in: path
+          name: menteeId
+          required: true
+          schema:
+            type: integer
+            minimum: 1
+      responses:
+        '201':
+          description: Resource assigned
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: object
+                    properties:
+                      resourceId:
+                        type: integer
+                      menteeId:
+                        type: integer
+                      assignmentId:
+                        type: integer
+                      assigned:
+                        type: boolean
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    delete:
+      summary: Revoke a mentee's resource assignment
+      description: Revokes this individual resource assignment without changing the mentee's separate learning-module access.
+      tags:
+        - Resource Assignments
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+            minimum: 1
+        - in: path
+          name: menteeId
+          required: true
+          schema:
+            type: integer
+            minimum: 1
+      responses:
+        '200':
+          description: Resource assignment revoked
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: object
+                    properties:
+                      assignmentId:
+                        type: integer
+                      revoked:
+                        type: boolean
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /api/v1/learning/modules/{moduleId}/resources/{resourceId}/assignments:
+    post:
+      summary: Assign a resource to a mentee
+      description: Assigns one resource from this published module to an actively assigned mentee. The mentor must have active Facility Admin-granted module access. Module access makes the module's resources visible to the mentor but does not automatically assign resources to mentees.
+      tags:
+        - Resource Assignments
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: moduleId
+          required: true
+          schema:
+            type: integer
+            minimum: 1
+        - in: path
+          name: resourceId
+          required: true
+          schema:
+            type: integer
+            minimum: 1
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ResourceAssignmentRequest'
+      responses:
+        '201':
+          description: Resource assignment created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResourceAssignmentResponse'
+        '200':
+          description: An active assignment already exists; no duplicate was created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResourceAssignmentResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    get:
+      summary: List resource assignment history and progress
+      description: Lists active, completed, and revoked assignment history for mentees currently assigned to the authenticated mentor in this module.
+      tags:
+        - Resource Assignments
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: moduleId
+          required: true
+          schema:
+            type: integer
+            minimum: 1
+        - in: path
+          name: resourceId
+          required: true
+          schema:
+            type: integer
+            minimum: 1
+      responses:
+        '200':
+          description: Assignment history for authorized mentees
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResourceAssignmentListResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /api/v1/learning/mentees/{menteeId}/resources:
+    get:
+      summary: List a mentee's resource assignments
+      description: Returns assignment history only when the authenticated mentor has an active mentor-mentee relationship and authorized access to each resource module.
+      tags:
+        - Resource Assignments
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: menteeId
+          required: true
+          schema:
+            type: integer
+            minimum: 1
+      responses:
+        '200':
+          description: Mentee resource assignment history
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResourceAssignmentListResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /api/v1/learning/resource-assignments/{assignmentId}/revoke:
+    post:
+      summary: Revoke a resource assignment
+      description: The assigning mentor may revoke their own assignment; administrators may revoke assignments within their permitted scope. Revocation does not change module access.
+      tags:
+        - Resource Assignments
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: assignmentId
+          required: true
+          schema:
+            type: integer
+            minimum: 1
+      responses:
+        '200':
+          description: Assignment revoked; history retained
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResourceAssignmentResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /api/v1/learning/my/resources:
+    get:
+      summary: List my active resource assignments
+      description: Returns only individually assigned resources that remain authorized and accessible to the authenticated mentee.
+      tags:
+        - Mentee Resource Access
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Active resource assignments and resource details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResourceAssignmentListResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /api/v1/learning/my/resources/{resourceId}:
+    get:
+      summary: Get an assigned resource
+      description: Returns resource metadata only when the mentee has a current active individual assignment and all module and mentor authorization checks still pass.
+      tags:
+        - Mentee Resource Access
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: resourceId
+          required: true
+          schema:
+            type: integer
+            minimum: 1
+      responses:
+        '200':
+          description: Assigned resource metadata
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResourceResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /api/v1/learning/my/resources/{resourceId}/content:
+    get:
+      summary: Download assigned resource content
+      description: Streams content through the storage abstraction after rechecking the mentee's active assignment and current module authorization.
+      tags:
+        - Mentee Resource Access
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: resourceId
+          required: true
+          schema:
+            type: integer
+            minimum: 1
+      responses:
+        '200':
+          description: Binary resource content
+          content:
+            application/octet-stream:
+              schema:
+                type: string
+                format: binary
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /api/v1/learning/my/resources/{resourceId}/complete:
+    post:
+      summary: Confirm resource completion
+      description: Marks only the authenticated mentee's active individual resource assignment as completed and preserves its history.
+      tags:
+        - Mentee Resource Access
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: resourceId
+          required: true
+          schema:
+            type: integer
+            minimum: 1
+      responses:
+        '200':
+          description: Resource assignment completed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResourceAssignmentResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
   /api/v1/resources/{id}/content:
     get:
       summary: Download resource file content
-      description: Streams the binary content of the file attached to the resource.
+      description: Streams the binary content of the file attached to the resource. Mentees must have an active individual assignment; module access alone does not grant resource content access.
       tags:
         - Resources
       security:

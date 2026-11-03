@@ -1,21 +1,22 @@
-module.exports = (sequelize, DataTypes) => sequelize.define('MenteeResourceAssignment', {
+module.exports = (sequelize, DataTypes) => sequelize.define('ResourceAssignment', {
 	id: { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true },
 	resource_id: { type: DataTypes.INTEGER, allowNull: false },
 	mentor_id: { type: DataTypes.INTEGER, allowNull: false },
 	mentee_id: { type: DataTypes.INTEGER, allowNull: false },
 	facility_id: { type: DataTypes.INTEGER, allowNull: true },
-	assignment_status: { 
-		type: DataTypes.ENUM('active', 'revoked'), 
-		default: 'active',
-		allowNull: false 
+	assignment_status: {
+		type: DataTypes.ENUM('active', 'revoked', 'completed'),
+		defaultValue: 'active',
+		allowNull: false,
 	},
 	assigned_by: { type: DataTypes.INTEGER, allowNull: false },
 	assigned_at: { type: DataTypes.DATE, allowNull: false },
+	completed_at: { type: DataTypes.DATE, allowNull: true },
 	revoked_at: { type: DataTypes.DATE, allowNull: true },
 	revoked_by: { type: DataTypes.INTEGER, allowNull: true },
 	learning_note: { type: DataTypes.TEXT, allowNull: true },
-}, { 
-	tableName: 'mentee_resource_assignments', 
+}, {
+	tableName: 'resource_assignments',
 	timestamps: false,
 	indexes: [
 		{ unique: true, fields: ['resource_id', 'mentee_id'], where: { assignment_status: 'active' } },
@@ -23,5 +24,7 @@ module.exports = (sequelize, DataTypes) => sequelize.define('MenteeResourceAssig
 		{ fields: ['mentee_id'] },
 		{ fields: ['resource_id'] },
 		{ fields: ['facility_id'] },
-	]
+		{ fields: ['mentee_id', 'assignment_status', 'assigned_at'] },
+		{ fields: ['mentor_id', 'resource_id', 'assignment_status'] },
+	],
 });

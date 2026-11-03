@@ -22,8 +22,7 @@
     "migrate": "node node_modules/sequelize-cli/lib/sequelize db:migrate",
     "migrate:production": "node node_modules/sequelize-cli/lib/sequelize db:migrate --env production",
     "migrate:undo": "node node_modules/sequelize-cli/lib/sequelize db:migrate:undo",
-    "test:resources": "node --test tests/unit/resources.test.js",
-    "test:hierarchical-resources": "node --test tests/unit/hierarchical-resources.test.js"
+    "test:resources": "node --test tests/unit/resources.test.js"
   },
   "keywords": [],
   "author": "",

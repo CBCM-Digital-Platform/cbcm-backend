@@ -20,6 +20,7 @@ const createUpload = async ({ actor, upload, context }) => {
 		const record = await repository.create({
 			owner_id: actor.id,
 			context: parseContext(context),
+			original_name: upload.originalName || null,
 			storage_key: stored.storageKey,
 			mime_type: stored.mimeType,
 			size_bytes: stored.sizeBytes,

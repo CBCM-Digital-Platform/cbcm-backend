@@ -104,14 +104,8 @@ const listModuleIdsForFacility = async (facilityId) => {
 };
 
 const isModuleInFacilityScope = async ({ moduleId, facilityId }) => {
-	const module = await models.LearningModule.findByPk(moduleId, { attributes: ['thematic_area_id', 'created_by'] });
+	const module = await models.LearningModule.findByPk(moduleId, { attributes: ['thematic_area_id'] });
 	if (!module) return false;
-	if (module.created_by) {
-		const creator = await models.User.findByPk(module.created_by, { attributes: ['role'] });
-		if (creator && String(creator.role).toLowerCase() === 'admin') {
-			return true;
-		}
-	}
 	if (!module.thematic_area_id || !facilityId) return false;
 	return isThematicAreaInFacilityScope({
 		thematicAreaId: module.thematic_area_id,
@@ -143,6 +137,7 @@ const getModuleById = async (moduleId, { learnerVisible = false } = {}) => model
 			as: 'contents',
 			...(learnerVisible ? { where: isLearnerVisible, required: false } : {}),
 			order: [['order_number', 'ASC'], ['id', 'ASC']],
+			include: [{ model: models.UploadedFile, as: 'file', attributes: ['id', 'original_name', 'mime_type', 'size_bytes'] }],
 		},
 		{
 			model: models.Quiz,
@@ -218,16 +213,20 @@ const deleteModule = async (moduleId) => models.sequelize.transaction(async (tra
 const listContents = async (moduleId, { learnerVisible = false } = {}) => models.LearningModuleContent.findAll({
 	where: { module_id: moduleId, ...(learnerVisible ? isLearnerVisible : {}) },
 	order: [['order_number', 'ASC'], ['id', 'ASC']],
+	include: [{ model: models.UploadedFile, as: 'file', attributes: ['id', 'original_name', 'mime_type', 'size_bytes'] }],
 });
 
-const getContentById = async (contentId) => models.LearningModuleContent.findByPk(contentId);
+const getContentById = async (contentId) => models.LearningModuleContent.findByPk(contentId, {
+	include: [{ model: models.UploadedFile, as: 'file', attributes: ['id', 'original_name', 'mime_type', 'size_bytes'] }],
+});
 
-const createContent = async ({ moduleId, title, type, contentText, contentUrl, orderNumber, isRequired, isPublished, isAuthorized, durationMinutes, createdBy }) => models.LearningModuleContent.create({
+const createContent = async ({ moduleId, title, type, contentText, contentUrl, fileId, orderNumber, isRequired, isPublished, isAuthorized, durationMinutes, createdBy }) => models.LearningModuleContent.create({
 	module_id: moduleId,
 	title,
 	type: type || 'article',
 	content_text: contentText ?? null,
 	content_url: contentUrl || null,
+	file_id: fileId || null,
 	order_number: orderNumber ?? 0,
 	is_required: isRequired ?? true,
 	is_published: isPublished ?? false,
@@ -245,6 +244,7 @@ const updateContent = async (moduleId, contentId, payload = {}) => {
 	const updatePayload = { ...payload };
 	if ('contentText' in updatePayload) updatePayload.content_text = updatePayload.contentText;
 	if ('contentUrl' in updatePayload) updatePayload.content_url = updatePayload.contentUrl;
+	if ('fileId' in updatePayload) updatePayload.file_id = updatePayload.fileId;
 	if ('orderNumber' in updatePayload) updatePayload.order_number = updatePayload.orderNumber;
 	if ('isRequired' in updatePayload) updatePayload.is_required = updatePayload.isRequired;
 	if ('isPublished' in updatePayload) updatePayload.is_published = updatePayload.isPublished;
@@ -264,6 +264,8 @@ const deleteContent = async (moduleId, contentId) => {
 	await models.LearningModuleContent.destroy({ where: { id: contentId, module_id: moduleId } });
 	return true;
 };
+
+const getUploadedFileById = async (fileId) => models.UploadedFile.findByPk(fileId);
 
 const activeModuleProgressWhere = (where) => ({
 	...where,
@@ -298,35 +300,6 @@ const listProgressForMentee = async (menteeId, { mentorId } = {}) => {
 		order: [['last_accessed_at', 'DESC'], ['id', 'DESC']],
 	});
 	return filterValidMentorGrantedAccess(records);
-};
-
-const grantModuleAccess = async ({ menteeId, moduleId, mentorId }) => {
-	const module = await getModuleById(moduleId);
-	if (!module) throw new AppError('Learning module not found.', 404, 'NOT_FOUND');
-	const [progress, created] = await models.LearningModuleProgress.findOrCreate({
-		where: { mentee_id: menteeId, module_id: moduleId },
-		defaults: {
-			mentee_id: menteeId,
-			module_id: moduleId,
-			assigned_by: mentorId,
-			assigned_at: new Date(),
-			status: 'not_started',
-			completion_percentage: 0,
-			started_at: new Date(),
-			last_accessed_at: new Date(),
-		},
-	});
-	if (!created) {
-		await progress.update({
-			assigned_by: mentorId,
-			assigned_at: new Date(),
-			status: progress.status === 'access_revoked'
-				? (progress.completed_at ? 'completed' : (Number(progress.completion_percentage || 0) > 0 ? 'in_progress' : 'not_started'))
-				: progress.status || 'not_started',
-			last_accessed_at: new Date(),
-		});
-	}
-	return progress;
 };
 
 const grantMentorModuleAccess = async ({ moduleId, mentorId, grantedBy }) => {
@@ -402,16 +375,25 @@ const listMentorModuleIds = async (mentorId) => {
 };
 
 const hasModuleMentorAccess = async ({ mentorId, moduleId }) => {
-	const permissionRecord = await models.LearningModuleMentorPermission.findOne({
+	const permissionRecords = await models.LearningModuleMentorPermission.findAll({
 		where: {
 			mentor_id: mentorId,
 			module_id: moduleId,
 			permission: LearningPermission.RESOURCES_VIEW,
-			revoked_at: null,
 		},
 		attributes: ['id'],
 	});
-	if (permissionRecord) return true;
+	if (permissionRecords.length) {
+		return Boolean(await models.LearningModuleMentorPermission.findOne({
+			where: {
+				mentor_id: mentorId,
+				module_id: moduleId,
+				permission: LearningPermission.RESOURCES_VIEW,
+				revoked_at: null,
+			},
+			attributes: ['id'],
+		}));
+	}
 	if (models.LearningModuleMentorAccess) {
 		const accessRecord = await models.LearningModuleMentorAccess.findOne({
 			where: {
@@ -427,15 +409,10 @@ const hasModuleMentorAccess = async ({ mentorId, moduleId }) => {
 };
 
 const hasModuleMentorPermission = async ({ mentorId, moduleId, permission }) => {
-	const permissionRecord = await models.LearningModuleMentorPermission.findOne({
+	return Boolean(await models.LearningModuleMentorPermission.findOne({
 		where: { mentor_id: mentorId, module_id: moduleId, permission, revoked_at: null },
 		attributes: ['id'],
-	});
-	if (permissionRecord) return true;
-	if (permission === LearningPermission.RESOURCES_VIEW) {
-		return hasModuleMentorAccess({ mentorId, moduleId });
-	}
-	return false;
+	}));
 };
 
 const grantModuleMentorPermission = async ({ moduleId, mentorId, permission, grantedBy }) => (
@@ -499,21 +476,6 @@ const revokeModuleMentorAccess = async ({ mentorId, moduleId, revokedBy }) => mo
 	);
 	return true;
 });
-
-const removeModuleAccess = async ({ menteeId, moduleId, mentorId }) => {
-	const [count] = await models.LearningModuleProgress.update(
-		{ status: 'access_revoked' },
-		{
-			where: {
-				mentee_id: menteeId,
-				module_id: moduleId,
-				...(mentorId ? { assigned_by: mentorId } : {}),
-				[Op.or]: [{ status: { [Op.ne]: 'access_revoked' } }, { status: null }],
-			},
-		}
-	);
-	return count > 0;
-};
 
 const hasValidMentorGrantedAccess = async (progress) => {
 	const mentorId = progress.assigned_by;
@@ -970,7 +932,7 @@ module.exports = {
 	createContent,
 	updateContent,
 	deleteContent,
-	grantModuleAccess,
+	getUploadedFileById,
 	grantMentorModuleAccess,
 	listModuleMentorAccess,
 	listMentorModuleIds,
@@ -981,7 +943,6 @@ module.exports = {
 	revokeModuleMentorPermission,
 	revokeModuleMentorAccess,
 	listModuleProgress,
-	removeModuleAccess,
 	getModuleProgress,
 	listProgressForMentee,
 	listProgressForMenteeInModule,

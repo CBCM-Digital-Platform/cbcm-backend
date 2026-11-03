@@ -22,7 +22,6 @@ function toResource(record) {
 		module_id: moduleId,
 		fileId,
 		file_id: fileId,
-		url: value.url || null,
 		createdBy,
 		created_by: createdBy,
 		updatedBy,

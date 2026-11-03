@@ -119,21 +119,19 @@ The migration is idempotent - it checks if the admin user already exists before 
 - `GET /api/v1/learning/modules/:moduleId/contents/:contentId` - Get content item
 - `PATCH /api/v1/learning/modules/:moduleId/contents/:contentId` - Update content item (Admins only)
 - `DELETE /api/v1/learning/modules/:moduleId/contents/:contentId` - Delete content item (Admins only)
-- `GET /api/v1/learning/modules/:moduleId/mentor-access` - List mentor module access grants (Admins only)
-- `POST /api/v1/learning/modules/:moduleId/mentor-access` - Grant mentor module access (Admins only)
-- `DELETE /api/v1/learning/modules/:moduleId/mentor-access/:mentorId` - Revoke mentor module access (Admins only)
-- `GET /api/v1/learning/modules/:moduleId/mentor-permissions` - List mentor permissions (Admins only)
-- `POST /api/v1/learning/modules/:moduleId/mentor-permissions` - Grant mentor permission (Admins only)
-- `DELETE /api/v1/learning/modules/:moduleId/mentor-permissions/:mentorId/:permission` - Revoke mentor permission (Admins only)
-- `POST /api/v1/learning/modules/:moduleId/access` - Assign module to mentee (Mentors only)
-- `GET /api/v1/learning/modules/:moduleId/access` - List mentee module assignments (Admins only)
-- `DELETE /api/v1/learning/modules/:moduleId/access/:menteeId` - Revoke mentee access (Admins and assigned Mentors)
+- `GET /api/v1/learning/modules/:moduleId/mentor-permissions` - List mentor module permissions (System Admin and Facility Admin)
+- `POST /api/v1/learning/modules/:moduleId/mentor-permissions` - Grant mentor module permission (Facility Admin only, within their facility)
+- `DELETE /api/v1/learning/modules/:moduleId/mentor-permissions/:mentorId` - Revoke mentor module access (Facility Admin only, within their facility)
 - `GET /api/v1/learning/mentees/:menteeId/modules` - List modules assigned to mentee
 - `GET /api/v1/learning/my/modules` - List modules for authenticated mentee
 - `GET /api/v1/learning/my/modules/:moduleId` - Get mentee module progress
 - `GET /api/v1/learning/my/modules/:moduleId/contents/progress` - Get content completion progress
 - `POST /api/v1/learning/my/modules/:moduleId/contents/:contentId/complete` - Mark content item as completed
 - `POST /api/v1/learning/my/modules/:moduleId/confirm-completion` - Confirm module completion
+- `POST /api/v1/learning/modules/:moduleId/resources/:resourceId/assignments` - Assign an individual resource to a mentee (Mentors only)
+- `GET /api/v1/learning/modules/:moduleId/resources/:resourceId/assignments` - List resource assignment history and progress (Mentors only)
+- `GET /api/v1/learning/mentees/:menteeId/resources` - List a mentee's resource assignments (Assigned mentor only)
+- `POST /api/v1/learning/resource-assignments/:assignmentId/revoke` - Revoke an individual resource assignment
 - `GET /api/v1/learning/modules/:moduleId/quiz` - Get quiz for module (Mentees only)
 - `POST /api/v1/learning/modules/:moduleId/quizzes` - Create quiz for module (Admins only)
 - `PATCH /api/v1/learning/quizzes/:quizId` - Update quiz (Admins only)
