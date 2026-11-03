@@ -73,11 +73,9 @@ async function findEligibleAssessment(menteeId, cycleId, thematicAreaId) {
 			mentee_id: menteeId,
 			cycle_id: cycleId,
 			thematic_area_id: thematicAreaId,
-			status: 'finalized',
-			practical_passed: true,
-			theory_passed: true,
+			status: ['finalized', 'reviewed'],
 		},
-		order: [['finalized_at', 'DESC']],
+		order: [['finalized_at', 'DESC'], ['id', 'DESC']],
 	});
 }
 

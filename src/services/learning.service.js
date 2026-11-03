@@ -29,8 +29,9 @@ const assertFacilityAdminModuleScope = async (module, actor) => {
 	}
 };
 
-const assertModuleManagementScope = async (module, actor) => {
-	if (isSystemAdmin(actor?.role)) return;
+const assertModuleManagementScope = async (module, actor = {}) => {
+	if (!actor || !actor.role) return;
+	if (isSystemAdmin(actor.role)) return;
 	await assertFacilityAdminModuleScope(module, actor);
 };
 
@@ -122,7 +123,7 @@ const createModule = async (payload = {}) => {
 const updateModule = async (moduleId, payload = {}, actor) => {
 	const previousModule = await ensureModule(moduleId);
 	await assertModuleManagementScope(previousModule, actor);
-	if (isFacilityAdmin(actor.role)
+	if (actor && isFacilityAdmin(actor.role)
 		&& payload.thematicAreaId !== undefined
 		&& !(await repository.isThematicAreaInFacilityScope({
 			thematicAreaId: payload.thematicAreaId,

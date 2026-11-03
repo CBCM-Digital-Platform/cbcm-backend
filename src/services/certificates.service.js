@@ -3,6 +3,7 @@ const repository = require('../repositories/certificates.repository');
 const { canAccessFacility, canAccessUser, SYSTEM_ADMIN_ROLES, FACILITY_ADMIN_ROLES } = require('../constants/roles.constants');
 const storage = require('../providers/storage.provider');
 const { sequelize, User, CertificateTemplate } = require('../models');
+const assessmentsService = require('./assessments.service');
 
 async function checkEligibility(menteeId, cycleId, thematicAreaId, actor) {
 	// Validate mentee
@@ -20,7 +21,15 @@ async function checkEligibility(menteeId, cycleId, thematicAreaId, actor) {
 	if (!assessment) {
 		return {
 			eligible: false,
-			reason: 'No completed assessment with both theory and practical passes found for this mentee, cycle, and thematic area.',
+			reason: 'No finalized or reviewed assessment found for this mentee, cycle, and thematic area.',
+		};
+	}
+	const assessmentEligibility = await assessmentsService.getCertificateEligibility(assessment.id, actor);
+	if (!assessmentEligibility.eligible_for_certificate) {
+		return {
+			eligible: false,
+			reason: assessmentEligibility.unmet_requirements.join(' '),
+			assessmentEligibility,
 		};
 	}
 
@@ -37,16 +46,20 @@ async function checkEligibility(menteeId, cycleId, thematicAreaId, actor) {
 	return {
 		eligible: true,
 		assessment,
+		assessmentEligibility,
 	};
 }
 
 async function issueCertificate(payload, actor) {
 	const { mentee_id, cycle_id, thematic_area_id, template_id } = payload;
 
-	// Check eligibility first
-	const eligibility = await checkEligibility(mentee_id, cycle_id, thematic_area_id, actor);
+	// Check eligibility first; existing active certificates are treated as reissue cases.
+	const eligibility = await module.exports.checkEligibility(mentee_id, cycle_id, thematic_area_id, actor);
 	if (!eligibility.eligible) {
-		throw new AppError(eligibility.reason, 409, 'INELIGIBLE');
+		const isReissue = eligibility.reason && eligibility.reason.includes('active certificate already exists');
+		if (!isReissue) {
+			throw new AppError(eligibility.reason, 409, 'INELIGIBLE');
+		}
 	}
 
 	// Validate template if provided

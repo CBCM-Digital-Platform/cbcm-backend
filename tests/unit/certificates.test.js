@@ -8,6 +8,18 @@ const validator = require('../../src/validators/certificates.validator');
 const service = require('../../src/services/certificates.service');
 const repository = require('../../src/repositories/certificates.repository');
 const models = require('../../src/models');
+const assessmentsService = require('../../src/services/assessments.service');
+
+assessmentsService.getCertificateEligibility = async () => {
+	const assessment = await repository.findEligibleAssessment();
+	const eligible = assessment
+		&& assessment.theory_passed === true
+		&& assessment.practical_passed === true;
+	return {
+		eligible_for_certificate: Boolean(eligible),
+		unmet_requirements: eligible ? [] : ['Assessment results are incomplete or did not pass.'],
+	};
+};
 
 test('certificate validators are defined', () => {
 	assert.ok(validator.issueCertificateValidation.length > 0);
@@ -34,7 +46,7 @@ test('certificate eligibility rejects when no assessment exists', async () => {
 	try {
 		const result = await service.checkEligibility(1, 1, 1, { id: 2, role: 'admin' });
 		assert.strictEqual(result.eligible, false);
-		assert.strictEqual(result.reason.includes('No completed assessment'), true);
+		assert.strictEqual(result.reason.includes('No finalized or reviewed assessment'), true);
 	} finally {
 		Object.assign(models.User, originals.User);
 		repository.findEligibleAssessment = originals.findEligibleAssessment;

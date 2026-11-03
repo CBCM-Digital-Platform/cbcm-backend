@@ -2897,9 +2897,118 @@ components:
             assessment:
               type: object
               nullable: true
+            assessmentEligibility:
+              allOf:
+                - $ref: '#/components/schemas/AssessmentCertificateEligibility'
+              nullable: true
             existingCertificate:
               type: object
               nullable: true
+    AssessmentCertificateEligibility:
+      type: object
+      required:
+        - mentee_id
+        - assessment_id
+        - eligibility_status
+        - eligible_for_certificate
+        - components
+        - unmet_requirements
+        - lifecycle_state
+        - prerequisites_met
+      properties:
+        mentee_id: { type: integer, example: 7 }
+        assessment_id: { type: integer, example: 41 }
+        eligibility_status: { type: string, enum: [pending, not_eligible, eligible] }
+        eligible_for_certificate: { type: boolean, example: false }
+        components:
+          type: object
+          required: [criteria, theory, practical]
+          properties:
+            criteria: { $ref: '#/components/schemas/AssessmentEligibilityComponent' }
+            theory: { $ref: '#/components/schemas/AssessmentEligibilityComponent' }
+            practical: { $ref: '#/components/schemas/AssessmentEligibilityComponent' }
+        unmet_requirements:
+          type: array
+          items: { type: string }
+        lifecycle_state: { type: string, example: finalized }
+        prerequisites_met: { type: boolean, example: true }
+    AssessmentEligibilityComponent:
+      type: object
+      required: [minimum_score, status]
+      properties:
+        score: { type: number, nullable: true, example: 86 }
+        minimum_score: { type: number, example: 85 }
+        status: { type: string, enum: [pending, passed, failed] }
+    AssessmentQuizSyncResponse:
+      type: object
+      required: [success, data]
+      properties:
+        success: { type: boolean, example: true }
+        data:
+          type: object
+          required: [synced]
+          properties:
+            synced: { type: boolean, example: true }
+            reason: { type: string, example: No valid completed quiz attempt found. }
+            criteria_score: { type: number, minimum: 0, maximum: 100, example: 86 }
+            criteria_passed: { type: boolean, example: true }
+            theory_score: { type: number, minimum: 0, maximum: 100, example: 90 }
+            theory_passed: { type: boolean, example: true }
+            quiz_id: { type: integer, example: 101 }
+            quiz_attempt_id: { type: integer, example: 2 }
+        meta: { type: object, example: {} }
+    AssessmentEligibilityResponse:
+      type: object
+      required: [success, data]
+      properties:
+        success: { type: boolean, example: true }
+        data: { $ref: '#/components/schemas/AssessmentCertificateEligibility' }
+        meta: { type: object, example: {} }
+    AssessmentPassingRule:
+      type: object
+      properties:
+        id: { type: integer, example: 12 }
+        cycle_id: { type: integer, nullable: true, example: 4 }
+        thematic_area_id: { type: integer, nullable: true, example: 2 }
+        criteria_min_score: { type: number, minimum: 0, maximum: 100, example: 70 }
+        theory_min_score: { type: number, minimum: 0, maximum: 100, example: 80 }
+        practical_min_score: { type: integer, minimum: 1, maximum: 5, example: 3 }
+        is_active: { type: boolean, example: true }
+        created_by: { type: integer, nullable: true }
+        updated_by: { type: integer, nullable: true }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+        cycle:
+          type: object
+          nullable: true
+          properties:
+            id: { type: integer }
+            name: { type: string }
+        thematicArea:
+          type: object
+          nullable: true
+          properties:
+            id: { type: integer }
+            name: { type: string }
+    AssessmentPassingRuleCreateRequest:
+      type: object
+      description: All fields are optional; omitted thresholds use 70, 80, and 3. Null cycle or thematic area means system-wide scope for that dimension.
+      properties:
+        cycle_id: { type: integer, minimum: 1, nullable: true }
+        thematic_area_id: { type: integer, minimum: 1, nullable: true }
+        criteria_min_score: { type: number, minimum: 0, maximum: 100, default: 70 }
+        theory_min_score: { type: number, minimum: 0, maximum: 100, default: 80 }
+        practical_min_score: { type: integer, minimum: 1, maximum: 5, default: 3 }
+    AssessmentPassingRuleUpdateRequest:
+      type: object
+      description: Only supplied properties are changed; setting is_active to false deactivates the rule.
+      properties:
+        cycle_id: { type: integer, minimum: 1, nullable: true }
+        thematic_area_id: { type: integer, minimum: 1, nullable: true }
+        criteria_min_score: { type: number, minimum: 0, maximum: 100 }
+        theory_min_score: { type: number, minimum: 0, maximum: 100 }
+        practical_min_score: { type: integer, minimum: 1, maximum: 5 }
+        is_active: { type: boolean }
     Faq:
       type: object
       properties:
@@ -3618,6 +3727,8 @@ tags:
     description: Mentee clinical procedure logbook entries and mentor review workflow
   - name: Assessments
     description: Clinical competency assessments, scoring, criteria, and evidence
+  - name: Assessment Passing Rules
+    description: System administrator configuration of criteria, theory, and practical score thresholds
   - name: Sessions
     description: Clinical encounter sessions, scheduling, notes, and virtual rooms
   - name: Hierarchical Resources
@@ -7372,12 +7483,298 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
+  /api/v1/assessment-passing-rules:
+    get:
+      summary: List assessment passing rules
+      description: Lists configured thresholds. System Admins can filter all scopes; Facility Admins can view only system-wide rules.
+      tags: [Assessment Passing Rules]
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: query
+          name: cycle_id
+          description: Filter by cycle (System Admin only; Facility Admin results remain system-wide).
+          schema: { type: integer, minimum: 1 }
+        - in: query
+          name: thematic_area_id
+          description: Filter by thematic area (System Admin only; Facility Admin results remain system-wide).
+          schema: { type: integer, minimum: 1 }
+        - in: query
+          name: is_active
+          schema: { type: boolean }
+      responses:
+        '200':
+          description: Passing rules
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean, example: true }
+                  data:
+                    type: array
+                    items: { $ref: '#/components/schemas/AssessmentPassingRule' }
+                  meta: { type: object }
+        '400':
+          description: Invalid query parameter
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '401':
+          description: Authentication required
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '403':
+          description: Role is not permitted to list passing rules
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+    post:
+      summary: Create an assessment passing rule
+      description: Creates an active rule for an optional cycle and thematic-area scope. Only System Admins can create rules. Omitted thresholds use the configured defaults of 70, 80, and 3.
+      tags: [Assessment Passing Rules]
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/AssessmentPassingRuleCreateRequest' }
+            example:
+              cycle_id: 4
+              thematic_area_id: 2
+              criteria_min_score: 75
+              theory_min_score: 80
+              practical_min_score: 3
+      responses:
+        '201':
+          description: Passing rule created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean, example: true }
+                  data: { $ref: '#/components/schemas/AssessmentPassingRule' }
+                  meta: { type: object }
+        '400':
+          description: Invalid threshold or request parameter
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '401':
+          description: Authentication required
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '403':
+          description: Only System Admins can create passing rules
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '404':
+          description: Cycle or thematic area not found
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '409':
+          description: An active rule already exists for this scope
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+  /api/v1/assessment-passing-rules/{id}:
+    parameters:
+      - in: path
+        name: id
+        required: true
+        description: Passing rule identifier
+        schema: { type: integer, minimum: 1 }
+    get:
+      summary: Get an assessment passing rule
+      description: Retrieves one passing rule. Facility Admins can retrieve only system-wide rules; System Admins can retrieve any rule.
+      tags: [Assessment Passing Rules]
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Passing rule
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean, example: true }
+                  data: { $ref: '#/components/schemas/AssessmentPassingRule' }
+                  meta: { type: object }
+        '400':
+          description: Invalid passing rule ID
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '401':
+          description: Authentication required
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '403':
+          description: Role or scope is not permitted
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '404':
+          description: Passing rule not found
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+    patch:
+      summary: Update an assessment passing rule
+      description: Updates the provided thresholds, scope, or active state. Only System Admins can update rules. Setting is_active to false deactivates the rule.
+      tags: [Assessment Passing Rules]
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/AssessmentPassingRuleUpdateRequest' }
+            example:
+              theory_min_score: 85
+              is_active: true
+      responses:
+        '200':
+          description: Passing rule updated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean, example: true }
+                  data: { $ref: '#/components/schemas/AssessmentPassingRule' }
+                  meta: { type: object }
+        '400':
+          description: Invalid threshold, ID, or request field
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '401':
+          description: Authentication required
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '403':
+          description: Only System Admins can update passing rules
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '404':
+          description: Passing rule, cycle, or thematic area not found
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '409':
+          description: An active rule already exists for the target scope
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+    delete:
+      summary: Deactivate an assessment passing rule
+      description: Soft-deactivates the rule to preserve its history. Only System Admins can deactivate a rule.
+      tags: [Assessment Passing Rules]
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Passing rule deactivated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean, example: true }
+                  data:
+                    type: object
+                    required: [deleted, deactivated, rule]
+                    properties:
+                      deleted: { type: boolean, example: true }
+                      deactivated: { type: boolean, example: true }
+                      rule: { $ref: '#/components/schemas/AssessmentPassingRule' }
+                  meta: { type: object }
+        '400':
+          description: Invalid passing rule ID
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '401':
+          description: Authentication required
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '403':
+          description: Only System Admins can deactivate passing rules
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '404':
+          description: Passing rule not found
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
   /api/v1/certificates/eligibility/{mentee_id}/{cycle_id}/{thematic_area_id}:
     get:
-      summary: Check certificate eligibility
-      description: Evaluates whether a mentee is eligible for a certificate in a specific cycle and thematic area. Requires a finalized assessment with theory_passed=true and practical_passed=true, and no existing active certificate.
+      summary: Check certificate issuance eligibility
+      description: Checks the latest finalized or reviewed assessment in the requested mentee, cycle, and thematic-area scope using the same criteria-quiz, theory-quiz, practical-result, prerequisite, and lifecycle requirements as the assessment eligibility endpoint. Admin and in-scope Facility Admin only. This check does not issue a certificate.
       tags:
         - Certificates
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: mentee_id
+          required: true
+          description: Mentee user ID
+          schema: { type: integer, minimum: 1 }
+        - in: path
+          name: cycle_id
+          required: true
+          description: Mentorship cycle ID
+          schema: { type: integer, minimum: 1 }
+        - in: path
+          name: thematic_area_id
+          required: true
+          description: Thematic area ID
+          schema: { type: integer, minimum: 1 }
+      responses:
+        '200':
+          description: Eligibility decision
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CertificateEligibilityResponse'
+        '400':
+          description: Invalid path parameter or selected user is not a mentee
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Authentication required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Role or facility scope is not permitted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Mentee not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
   /api/v1/analytics/dashboard:
     get:
       summary: Get dashboard metrics
@@ -7386,41 +7783,13 @@ paths:
         - Analytics
       security:
         - bearerAuth: []
-      parameters:
-        - in: path
-          name: mentee_id
-          required: true
-          schema:
-            type: integer
-            minimum: 1
-          description: Mentee user ID
-        - in: path
-          name: cycle_id
-          required: true
-          schema:
-            type: integer
-            minimum: 1
-          description: Mentorship cycle ID
-        - in: path
-          name: thematic_area_id
-          required: true
-          schema:
-            type: integer
-            minimum: 1
-          description: Thematic area ID
       responses:
         '200':
-          description: Eligibility check result
+          description: Dashboard metrics
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/CertificateEligibilityResponse'
-        '400':
-          description: Invalid parameters or user is not a mentee
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
+                $ref: '#/components/schemas/DashboardMetricsResponse'
         '401':
           description: Authentication required
           content:

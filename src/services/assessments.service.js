@@ -1,5 +1,6 @@
 // src/services/assessments.service.js
 const { sequelize, Assessment, AssessmentCriteriaScore, AssessmentChecklistItem, AssessmentEvidence, User, Facility, MentorshipCycle, ThematicArea, Assignment } = require('../models');
+const { Op } = require('sequelize');
 const AppError = require('../errors/app-error');
 const { canAccessFacility, canAccessUser, SYSTEM_ADMIN_ROLES, FACILITY_ADMIN_ROLES } = require('../constants/roles.constants');
 const AssessmentStatus = require('../enums/assessment-status.enum');
@@ -11,7 +12,7 @@ const progressService = require('./progress.service');
 const Role = require('../enums/role.enum');
 const { logActivity } = require('../utils/activity-logger.util');
 
-const ASSESSMENT_FIELDS = ['mentee_id', 'mentor_id', 'facility_id', 'cycle_id', 'thematic_area_id', 'status', 'aggregate_score', 'feedback', 'prerequisites_met', 'practical_passed', 'theory_score', 'theory_passed', 'finalized_at'];
+const ASSESSMENT_FIELDS = ['mentee_id', 'mentor_id', 'facility_id', 'cycle_id', 'thematic_area_id', 'status', 'aggregate_score', 'feedback', 'prerequisites_met', 'practical_passed', 'practical_score', 'practical_assessed_by', 'practical_assessed_at', 'practical_feedback', 'theory_score', 'theory_passed', 'finalized_at'];
 
 function toAssessmentResponse(assessment) {
 	if (!assessment) return null;
@@ -80,6 +81,106 @@ function calculatePracticalPass(checklistItems) {
 	// Check if any required item scored below 3
 	const hasLowScore = requiredItems.some((item) => item.score < 3);
 	return !hasLowScore;
+}
+
+function assertCanManageAssessmentResults(assessment, actor) {
+	if (!actor) throw new AppError('You do not have permission to manage this assessment.', 403, 'FORBIDDEN');
+	if (SYSTEM_ADMIN_ROLES.includes(actor.role)) return;
+	if (actor.role === Role.MENTOR && Number(assessment.mentor_id) === Number(actor.id)) return;
+	if (actor.role === Role.FACILITY_ADMIN && canAccessFacility(actor, assessment.facility_id)) return;
+	throw new AppError('You do not have permission to manage this assessment.', 403, 'FORBIDDEN');
+}
+
+async function getMappedQuizAttempt(assessment, component) {
+	if (assessment.thematic_area_id === null || assessment.thematic_area_id === undefined) {
+		return { configured: false, reason: 'Assessment has no thematic area mapped.' };
+	}
+
+	const { LearningModule, Quiz, QuizAttempt } = require('../models');
+	const modules = await LearningModule.findAll({
+		where: {
+			thematic_area_id: assessment.thematic_area_id,
+			status: 'published',
+			is_published: true,
+			is_authorized: true,
+		},
+		attributes: ['id'],
+	});
+	const moduleIds = modules.map((module) => module.id);
+	if (moduleIds.length === 0) {
+		return { configured: false, reason: 'No published and authorized learning module found for thematic area.' };
+	}
+
+	const quizzes = await Quiz.findAll({
+		where: {
+			module_id: { [Op.in]: moduleIds },
+			assessment_component: component,
+			is_published: true,
+			is_authorized: true,
+		},
+		order: [['id', 'ASC']],
+	});
+	if (quizzes.length === 0) {
+		return { configured: false, reason: `No published and authorized ${component} quiz is mapped for this assessment.` };
+	}
+	if (quizzes.length > 1) {
+		return {
+			configured: true,
+			ambiguous: true,
+			reason: `Multiple ${component} quizzes are mapped for this assessment scope.`,
+		};
+	}
+
+	const quiz = quizzes[0];
+	const attemptNumberWhere = Number(quiz.attempt_limit) > 0
+		? { [Op.between]: [1, Number(quiz.attempt_limit)] }
+		: { [Op.gte]: 1 };
+	const attempt = await QuizAttempt.findOne({
+		where: {
+			quiz_id: quiz.id,
+			mentee_id: assessment.mentee_id,
+			status: 'completed',
+			completed_at: { [Op.ne]: null },
+			attempt_number: attemptNumberWhere,
+		},
+		order: [['completed_at', 'DESC'], ['attempt_number', 'DESC'], ['id', 'DESC']],
+	});
+
+	if (!attempt
+		|| Number(attempt.quiz_id) !== Number(quiz.id)
+		|| Number(attempt.mentee_id) !== Number(assessment.mentee_id)
+		|| attempt.status !== 'completed'
+		|| !attempt.completed_at
+		|| !Number.isInteger(Number(attempt.attempt_number))
+		|| Number(attempt.attempt_number) < 1
+		|| (Number(quiz.attempt_limit) > 0 && Number(attempt.attempt_number) > Number(quiz.attempt_limit))) {
+		return { configured: true, quiz, reason: 'No valid completed quiz attempt found.' };
+	}
+
+	if (attempt.score === null || attempt.score === undefined || attempt.score === '') {
+		return { configured: true, quiz, reason: 'Completed quiz attempt has an invalid score.' };
+	}
+	const score = Number(attempt.score);
+	if (!Number.isFinite(score) || score < 0 || score > 100) {
+		return { configured: true, quiz, reason: 'Completed quiz attempt has an invalid score.' };
+	}
+	return { configured: true, quiz, attempt, score };
+}
+
+async function hasMappedQuiz(assessment, component) {
+	if (assessment.thematic_area_id === null || assessment.thematic_area_id === undefined) return false;
+	const { LearningModule, Quiz } = require('../models');
+	const modules = await LearningModule.findAll({
+		where: { thematic_area_id: assessment.thematic_area_id },
+		attributes: ['id'],
+	});
+	if (modules.length === 0) return false;
+	return (await Quiz.count({
+		where: {
+			module_id: { [Op.in]: modules.map((module) => module.id) },
+			assessment_component: component,
+		},
+	})) > 0;
 }
 
 async function listAssessments({ page = 1, limit = 20, mentee_id, mentor_id, facility_id, cycle_id, thematic_area_id, status }, actor) {
@@ -298,12 +399,34 @@ async function finalizeAssessment(id, actor) {
 		throw new AppError('Prerequisites must be met before finalization.', 400, 'PREREQUISITES_NOT_MET');
 	}
 
-	// Calculate aggregate score (simple average of criteria scores) - preserve existing behavior
+	// Get active passing rule
+	const passingRulesService = require('./assessment-passing-rules.service');
+	const passingRule = await passingRulesService.getActivePassingRule(assessment.cycle_id, assessment.thematic_area_id);
+	if (!passingRule) {
+		throw new AppError('No active passing rule found. Please contact an administrator.', 500, 'NO_PASSING_RULE');
+	}
+
+	// Calculate aggregate score (simple average of criteria scores)
 	const totalScore = criteriaScores.reduce((sum, cs) => sum + cs.score, 0);
 	const aggregateScore = totalScore / criteriaScores.length;
 
-	// Calculate practical pass/fail based on required checklist items
-	const practicalPassed = calculatePracticalPass(checklistItems);
+	// Calculate criteria pass status
+	const criteria_passed = aggregateScore >= passingRule.criteria_min_score;
+
+	// Calculate practical pass status based on practical_score (1-5 scale) if available
+	let practicalPassed = null;
+	if (assessment.practical_score !== null && assessment.practical_score !== undefined) {
+		practicalPassed = assessment.practical_score >= passingRule.practical_min_score;
+	} else {
+		// Fallback to checklist-based calculation if no practical_score
+		practicalPassed = calculatePracticalPass(checklistItems);
+	}
+
+	// Calculate theory pass status based on theory_score if available
+	let theoryPassed = assessment.theory_passed;
+	if (assessment.theory_score !== null && assessment.theory_score !== undefined) {
+		theoryPassed = assessment.theory_score >= passingRule.theory_min_score;
+	}
 
 	await sequelize.transaction(async (transaction) => {
 		await Assessment.update(
@@ -311,6 +434,7 @@ async function finalizeAssessment(id, actor) {
 				status: AssessmentStatus.FINALIZED,
 				aggregate_score: aggregateScore,
 				practical_passed: practicalPassed,
+				theory_passed: theoryPassed,
 				finalized_at: new Date(),
 				updated_by: actor.id,
 			},
@@ -378,15 +502,9 @@ async function setCriteriaScore(id, payload, actor) {
 	const assessment = await repository.findById(id);
 	if (!assessment) throw new AppError('Assessment was not found.', 404, 'ASSESSMENT_NOT_FOUND');
 
-	// Authorization check
-	if (actor && actor.role === Role.MENTOR && assessment.mentor_id !== actor.id) {
-		throw new AppError('You can only score assessments for your mentees.', 403, 'FORBIDDEN');
-	}
-	if (actor && actor.role === Role.MENTEE) {
-		throw new AppError('Mentees cannot score assessments.', 403, 'FORBIDDEN');
-	}
-	if (actor && actor.role === Role.FACILITY_ADMIN && !canAccessFacility(actor, assessment.facility_id)) {
-		throw new AppError('You can only score assessments at your facility.', 403, 'FORBIDDEN');
+	assertCanManageAssessmentResults(assessment, actor);
+	if (await hasMappedQuiz(assessment, 'criteria')) {
+		throw new AppError('Criteria scores are derived from the completed quiz and cannot be overridden manually.', 400, 'MANUAL_OVERRIDE_FORBIDDEN');
 	}
 
 	// Only draft or in-review assessments can be scored
@@ -444,15 +562,9 @@ async function setTheoryScore(id, payload, actor) {
 	const assessment = await repository.findById(id);
 	if (!assessment) throw new AppError('Assessment was not found.', 404, 'ASSESSMENT_NOT_FOUND');
 
-	// Authorization check
-	if (actor && actor.role === Role.MENTOR && assessment.mentor_id !== actor.id) {
-		throw new AppError('You can only update theory scores for your mentees.', 403, 'FORBIDDEN');
-	}
-	if (actor && actor.role === Role.MENTEE) {
-		throw new AppError('Mentees cannot update theory scores.', 403, 'FORBIDDEN');
-	}
-	if (actor && actor.role === Role.FACILITY_ADMIN && !canAccessFacility(actor, assessment.facility_id)) {
-		throw new AppError('You can only update theory scores at your facility.', 403, 'FORBIDDEN');
+	assertCanManageAssessmentResults(assessment, actor);
+	if (await hasMappedQuiz(assessment, 'theory')) {
+		throw new AppError('Theory scores are derived from the completed quiz and cannot be overridden manually.', 400, 'MANUAL_OVERRIDE_FORBIDDEN');
 	}
 
 	// Only draft or in-review assessments can be updated
@@ -467,8 +579,15 @@ async function setTheoryScore(id, payload, actor) {
 		}
 	}
 
-	// Calculate theory_passed based on 80/100 threshold
-	const theory_passed = theory_score !== null && theory_score !== undefined ? theory_score >= 80 : null;
+	// Get active passing rule for theory threshold
+	const passingRulesService = require('./assessment-passing-rules.service');
+	const passingRule = await passingRulesService.getActivePassingRule(assessment.cycle_id, assessment.thematic_area_id);
+	if (!passingRule) {
+		throw new AppError('No active passing rule found. Please contact an administrator.', 500, 'NO_PASSING_RULE');
+	}
+
+	// Calculate theory_passed based on configured threshold
+	const theory_passed = theory_score !== null && theory_score !== undefined ? theory_score >= passingRule.theory_min_score : null;
 
 	await sequelize.transaction(async (transaction) => {
 		await Assessment.update(
@@ -596,6 +715,234 @@ async function addEvidence(id, payload, actor) {
 	};
 }
 
+async function setPracticalResult(id, payload, actor) {
+	const assessment = await repository.findById(id);
+	if (!assessment) throw new AppError('Assessment was not found.', 404, 'ASSESSMENT_NOT_FOUND');
+
+	if (!actor || actor.role !== Role.MENTOR || Number(assessment.mentor_id) !== Number(actor.id)) {
+		throw new AppError('Only the assigned mentor can submit a practical assessment.', 403, 'FORBIDDEN');
+	}
+
+	// Only draft or in-review assessments can be updated
+	if (assessment.status !== AssessmentStatus.DRAFT && assessment.status !== AssessmentStatus.IN_REVIEW) {
+		throw new AppError('Only draft or in-review assessments can be updated.', 400, 'INVALID_STATUS');
+	}
+
+	const { practical_score, assessment_date, practical_feedback } = payload;
+
+	// Validate practical score (1-5 scale)
+	if (practical_score === undefined || practical_score === null) {
+		throw new AppError('Practical score is required.', 400, 'MISSING_SCORE');
+	}
+	if (!Number.isInteger(practical_score) || practical_score < 1 || practical_score > 5) {
+		throw new AppError('Practical score must be an integer between 1 and 5.', 400, 'INVALID_SCORE');
+	}
+
+	// Get active passing rule for practical threshold
+	const passingRulesService = require('./assessment-passing-rules.service');
+	const passingRule = await passingRulesService.getActivePassingRule(assessment.cycle_id, assessment.thematic_area_id);
+	if (!passingRule) {
+		throw new AppError('No active passing rule found. Please contact an administrator.', 500, 'NO_PASSING_RULE');
+	}
+
+	const practical_passed = practical_score >= passingRule.practical_min_score;
+
+	await sequelize.transaction(async (transaction) => {
+		await Assessment.update(
+			{
+				practical_score,
+				practical_passed,
+				practical_assessed_by: actor.id,
+				practical_assessed_at: assessment_date ? new Date(assessment_date) : new Date(),
+				practical_feedback: practical_feedback || null,
+				updated_by: actor.id,
+			},
+			{ where: { id }, transaction }
+		);
+	});
+
+	const updated = await repository.findWithIncludes(id);
+	return toAssessmentDetailResponse(updated);
+}
+
+async function syncCriteriaScoresFromQuiz(assessmentId, actor) {
+	const assessment = await repository.findById(assessmentId);
+	if (!assessment) throw new AppError('Assessment was not found.', 404, 'ASSESSMENT_NOT_FOUND');
+	assertCanManageAssessmentResults(assessment, actor);
+	if (assessment.status !== AssessmentStatus.DRAFT && assessment.status !== AssessmentStatus.IN_REVIEW) {
+		throw new AppError('Only draft or in-review assessments can be updated.', 400, 'INVALID_STATUS');
+	}
+
+	const result = await getMappedQuizAttempt(assessment, 'criteria');
+	if (!result.configured) return { synced: false, reason: result.reason };
+	if (result.ambiguous) {
+		throw new AppError(result.reason, 409, 'AMBIGUOUS_ASSESSMENT_QUIZZES');
+	}
+	if (!result.attempt) return { synced: false, reason: result.reason };
+
+	const passingRulesService = require('./assessment-passing-rules.service');
+	const passingRule = await passingRulesService.getActivePassingRule(assessment.cycle_id, assessment.thematic_area_id);
+	const score = result.score;
+	await sequelize.transaction(async (transaction) => {
+		await AssessmentCriteriaScore.destroy({ where: { assessment_id: assessmentId }, transaction });
+		await AssessmentCriteriaScore.create({
+			assessment_id: assessmentId,
+			criterion: `quiz:${result.quiz.id}:attempt:${result.attempt.id}`,
+			score,
+		}, { transaction });
+		await Assessment.update({
+			aggregate_score: score,
+			status: assessment.status === AssessmentStatus.DRAFT ? AssessmentStatus.IN_REVIEW : assessment.status,
+			updated_by: actor.id,
+		}, { where: { id: assessmentId }, transaction });
+	});
+
+	return {
+		synced: true,
+		criteria_score: score,
+		criteria_passed: score >= passingRule.criteria_min_score,
+		quiz_id: result.quiz.id,
+		quiz_attempt_id: result.attempt.id,
+	};
+}
+
+async function syncTheoryScoreFromQuiz(assessmentId, actor) {
+	const assessment = await repository.findById(assessmentId);
+	if (!assessment) throw new AppError('Assessment was not found.', 404, 'ASSESSMENT_NOT_FOUND');
+	assertCanManageAssessmentResults(assessment, actor);
+	if (assessment.status !== AssessmentStatus.DRAFT && assessment.status !== AssessmentStatus.IN_REVIEW) {
+		throw new AppError('Only draft or in-review assessments can be updated.', 400, 'INVALID_STATUS');
+	}
+
+	const result = await getMappedQuizAttempt(assessment, 'theory');
+	if (!result.configured) return { synced: false, reason: result.reason };
+	if (result.ambiguous) {
+		throw new AppError(result.reason, 409, 'AMBIGUOUS_ASSESSMENT_QUIZZES');
+	}
+	if (!result.attempt) return { synced: false, reason: result.reason };
+
+	// Get active passing rule
+	const passingRulesService = require('./assessment-passing-rules.service');
+	const passingRule = await passingRulesService.getActivePassingRule(assessment.cycle_id, assessment.thematic_area_id);
+	if (!passingRule) {
+		return { synced: false, reason: 'No active passing rule found' };
+	}
+
+	const authoritativeScore = result.score;
+	const theory_passed = authoritativeScore >= passingRule.theory_min_score;
+
+	// Update assessment with quiz result
+	await Assessment.update(
+		{
+			theory_score: authoritativeScore,
+			theory_passed,
+			updated_by: actor.id,
+		},
+		{ where: { id: assessmentId } }
+	);
+
+	return {
+		synced: true,
+		theory_score: authoritativeScore,
+		theory_passed,
+		quiz_id: result.quiz.id,
+		quiz_attempt_id: result.attempt.id,
+	};
+}
+
+async function getCertificateEligibility(assessmentId, actor) {
+	const assessment = await repository.findWithIncludes(assessmentId);
+	if (!assessment) throw new AppError('Assessment was not found.', 404, 'ASSESSMENT_NOT_FOUND');
+
+	// Authorization check
+	if (actor && actor.role === Role.MENTOR && assessment.mentor_id !== actor.id) {
+		throw new AppError('You can only view eligibility for your mentees.', 403, 'FORBIDDEN');
+	}
+	if (actor && actor.role === Role.MENTEE && assessment.mentee_id !== actor.id) {
+		throw new AppError('You can only view your own eligibility.', 403, 'FORBIDDEN');
+	}
+	if (actor && actor.role === Role.FACILITY_ADMIN && !canAccessFacility(actor, assessment.facility_id)) {
+		throw new AppError('You can only view eligibility at your facility.', 403, 'FORBIDDEN');
+	}
+
+	// Get active passing rule
+	const passingRulesService = require('./assessment-passing-rules.service');
+	const passingRule = await passingRulesService.getActivePassingRule(assessment.cycle_id, assessment.thematic_area_id);
+	if (!passingRule) {
+		throw new AppError('No active passing rule found. Please contact an administrator.', 500, 'NO_PASSING_RULE');
+	}
+
+	const criteriaQuizResult = await getMappedQuizAttempt(assessment, 'criteria');
+	const criteriaScore = criteriaQuizResult.attempt ? criteriaQuizResult.score : null;
+	const criteriaCompleted = criteriaScore !== null;
+	const criteriaStatus = criteriaQuizResult.ambiguous
+		? 'pending'
+		: !criteriaCompleted ? 'pending' : criteriaScore >= passingRule.criteria_min_score ? 'passed' : 'failed';
+
+	const theoryQuizResult = await getMappedQuizAttempt(assessment, 'theory');
+	const theoryScore = theoryQuizResult.attempt ? theoryQuizResult.score : null;
+	const theoryCompleted = theoryScore !== null;
+	const theoryStatus = theoryQuizResult.ambiguous
+		? 'pending'
+		: !theoryCompleted ? 'pending' : theoryScore >= passingRule.theory_min_score ? 'passed' : 'failed';
+
+	// Eligibility requires a recorded practical result, not checklist-only scores.
+	const practicalCompleted = assessment.practical_score !== null && assessment.practical_score !== undefined;
+	const practicalStatus = !practicalCompleted
+		? 'pending'
+		: assessment.practical_score >= passingRule.practical_min_score ? 'passed' : 'failed';
+
+	// Prerequisites
+	const prerequisitesMet = assessment.prerequisites_met;
+
+	// Assessment lifecycle state
+	const lifecycleReady = assessment.status === AssessmentStatus.FINALIZED || assessment.status === AssessmentStatus.REVIEWED;
+
+	// Overall eligibility
+	const allComponentsCompleted = criteriaCompleted && theoryCompleted && practicalCompleted;
+	const allComponentsPassed = criteriaStatus === 'passed' && theoryStatus === 'passed' && practicalStatus === 'passed';
+	const eligible = allComponentsCompleted && allComponentsPassed && prerequisitesMet && lifecycleReady;
+
+	const eligibilityStatus = !lifecycleReady ? 'pending' : !allComponentsCompleted ? 'pending' : !eligible ? 'not_eligible' : 'eligible';
+
+	const unmetRequirements = [];
+	if (!prerequisitesMet) unmetRequirements.push('Prerequisites are not met.');
+	if (!lifecycleReady) unmetRequirements.push('Assessment must be finalized or reviewed.');
+	if (criteriaStatus === 'failed') unmetRequirements.push('Criteria score is below the required minimum.');
+	if (theoryStatus === 'failed') unmetRequirements.push('Theory score is below the required minimum.');
+	if (practicalStatus === 'failed') unmetRequirements.push('Practical score is below the required minimum.');
+	if (criteriaStatus === 'pending') unmetRequirements.push('Criteria assessment is incomplete.');
+	if (theoryStatus === 'pending') unmetRequirements.push('Theory assessment is incomplete.');
+	if (practicalStatus === 'pending') unmetRequirements.push('Practical assessment is incomplete.');
+
+	return {
+		mentee_id: assessment.mentee_id,
+		assessment_id: assessment.id,
+		eligibility_status: eligibilityStatus,
+		eligible_for_certificate: eligible,
+		components: {
+			criteria: {
+				score: criteriaScore,
+				minimum_score: passingRule.criteria_min_score,
+				status: criteriaStatus,
+			},
+			theory: {
+				score: theoryScore,
+				minimum_score: passingRule.theory_min_score,
+				status: theoryStatus,
+			},
+			practical: {
+				score: assessment.practical_score,
+				minimum_score: passingRule.practical_min_score,
+				status: practicalStatus,
+			},
+		},
+		unmet_requirements: unmetRequirements,
+		lifecycle_state: assessment.status,
+		prerequisites_met: prerequisitesMet,
+	};
+}
+
 module.exports = {
 	listAssessments,
 	getAssessment,
@@ -607,4 +954,8 @@ module.exports = {
 	setTheoryScore,
 	setChecklistItems,
 	addEvidence,
+	setPracticalResult,
+	syncTheoryScoreFromQuiz,
+	syncCriteriaScoresFromQuiz,
+	getCertificateEligibility,
 };
