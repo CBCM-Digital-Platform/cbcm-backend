@@ -1,6 +1,9 @@
 const models = require('../models');
 
-const createNotifications = (notifications) => models.Notification.bulkCreate(notifications);
+const createNotifications = (notifications, options = {}) => models.Notification.bulkCreate(notifications, {
+		...options,
+		ignoreDuplicates: true,
+	});
 
 const listNotificationsForUser = (userId) => models.Notification.findAll({
 	where: { user_id: userId },

@@ -4,6 +4,21 @@ const { canAccessFacility, canAccessUser, SYSTEM_ADMIN_ROLES, FACILITY_ADMIN_ROL
 const { sequelize } = require('../models');
 const { User, ClinicalEncounter, Assignment } = require('../models');
 const LogbookStatus = require('../enums/logbook-status.enum');
+const notificationService = require('./notifications.service');
+
+async function getLogbookAssignmentRecipients(entry) {
+	const assignments = await Assignment.findAll({
+		where: { mentee_id: entry.mentee_id, status: 'assigned' },
+		attributes: ['mentor_id', 'facility_id'],
+	});
+	return {
+		mentorIds: assignments.map((assignment) => assignment.mentor_id),
+		facilityIds: [
+			...assignments.map((assignment) => assignment.facility_id),
+			entry.mentee?.facility_id,
+		].filter(Boolean),
+	};
+}
 
 function toLogbookResponse(entry) {
 	if (!entry) return null;
@@ -317,6 +332,15 @@ async function submitLogbook(id, actor) {
 	});
 
 	const updated = await repository.findById(id);
+	const recipients = await getLogbookAssignmentRecipients(updated);
+	await notificationService.publishEventSafely({
+		eventType: 'logbook.submitted',
+		eventKey: `logbook:${updated.id}:submitted`,
+		referenceType: 'logbook_entry',
+		referenceId: updated.id,
+		userIds: recipients.mentorIds,
+		facilityIds: recipients.facilityIds,
+	});
 	return toLogbookResponse(updated);
 }
 
@@ -363,6 +387,15 @@ async function approveLogbook(id, actor) {
 	});
 
 	const updated = await repository.findById(id);
+	const recipients = await getLogbookAssignmentRecipients(updated);
+	await notificationService.publishEventSafely({
+		eventType: 'logbook.approved',
+		eventKey: `logbook:${updated.id}:approved`,
+		referenceType: 'logbook_entry',
+		referenceId: updated.id,
+		userIds: [updated.mentee_id],
+		facilityIds: recipients.facilityIds,
+	});
 	return toLogbookResponse(updated);
 }
 
@@ -411,6 +444,15 @@ async function requestRevision(id, payload, actor) {
 	});
 
 	const updated = await repository.findById(id);
+	const recipients = await getLogbookAssignmentRecipients(updated);
+	await notificationService.publishEventSafely({
+		eventType: 'logbook.revision_requested',
+		eventKey: `logbook:${updated.id}:revision_requested`,
+		referenceType: 'logbook_entry',
+		referenceId: updated.id,
+		userIds: [updated.mentee_id],
+		facilityIds: recipients.facilityIds,
+	});
 	return toLogbookResponse(updated);
 }
 

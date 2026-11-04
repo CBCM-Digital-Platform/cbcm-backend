@@ -2,14 +2,20 @@ const AppError = require('../errors/app-error');
 const repository = require('../repositories/certificates.repository');
 const { canAccessFacility, canAccessUser, SYSTEM_ADMIN_ROLES, FACILITY_ADMIN_ROLES } = require('../constants/roles.constants');
 const storage = require('../providers/storage.provider');
-const { sequelize, User, CertificateTemplate } = require('../models');
+const { sequelize, User, CertificateTemplate, Assignment } = require('../models');
 const assessmentsService = require('./assessments.service');
+const notificationService = require('./notifications.service');
 
 async function checkEligibility(menteeId, cycleId, thematicAreaId, actor) {
 	// Validate mentee
 	const mentee = await User.findByPk(menteeId);
 	if (!mentee) throw new AppError('Mentee was not found.', 404, 'MENTEE_NOT_FOUND');
 	if (mentee.role !== 'mentee') throw new AppError('Selected user is not a mentee.', 400, 'INVALID_ROLE');
+
+	// Mentee can only check their own eligibility
+	if (actor && actor.role === 'mentee' && Number(actor.id) !== Number(menteeId)) {
+		throw new AppError('You can only check your own certificate eligibility.', 403, 'FORBIDDEN');
+	}
 
 	// Authorization for facility admin
 	if (actor && actor.role === 'facility_admin' && !canAccessUser(actor, mentee)) {
@@ -113,6 +119,23 @@ async function issueCertificate(payload, actor) {
 	});
 
 	const issued = await repository.findById(certificate.id);
+	let assignments = [];
+	try {
+		assignments = await Assignment.findAll({
+			where: { mentee_id, cycle_id, status: 'assigned' },
+			attributes: ['mentor_id', 'facility_id'],
+		});
+	} catch (error) {
+		console.error(`Unable to resolve certificate recipients for ${certificate.id}:`, error.message);
+	}
+	await notificationService.publishEventSafely({
+		eventType: 'certificate.issued',
+		eventKey: `certificate:${certificate.id}:issued`,
+		referenceType: 'certificate',
+		referenceId: certificate.id,
+		userIds: [mentee_id, ...assignments.map((assignment) => assignment.mentor_id)],
+		facilityIds: [mentee.facility_id, ...assignments.map((assignment) => assignment.facility_id)],
+	});
 	return issued;
 }
 

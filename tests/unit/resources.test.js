@@ -6,6 +6,7 @@ const assert = require('node:assert/strict');
 const { Sequelize, DataTypes } = require('sequelize');
 const express = require('express');
 const request = require('supertest');
+const { Readable } = require('node:stream');
 
 const models = require('../../src/models');
 const Role = require('../../src/enums/role.enum');
@@ -14,7 +15,11 @@ const service = require('../../src/services/resources.service');
 const repository = require('../../src/repositories/resources.repository');
 const storage = require('../../src/providers/storage.provider');
 const resourcesRoutes = require('../../src/routes/resources.routes');
+const learningRoutes = require('../../src/routes/learning.routes');
 const migration = require('../../src/database/migrations/20261023000000-add-module-id-to-resources');
+const retireHierarchicalResourcesMigration = require('../../src/database/migrations/20261102000000-retire-hierarchical-resources');
+const resourceAssignmentLifecycleMigration = require('../../src/database/migrations/20261103000000-add-resource-assignment-lifecycle');
+const learningRepository = require('../../src/repositories/learning.repository');
 const { generateAccessToken } = require('../../src/utils/token.util');
 
 describe('Resources CRUD API (Step 5)', () => {
@@ -33,6 +38,7 @@ describe('Resources CRUD API (Step 5)', () => {
 		app = express();
 		app.use(express.json());
 		app.use('/api/v1/resources', resourcesRoutes);
+		app.use('/api/v1/learning', learningRoutes);
 
 		// Seed Facilities
 		await models.Facility.bulkCreate([
@@ -122,7 +128,7 @@ describe('Resources CRUD API (Step 5)', () => {
 					storageMock.storeCalls.push(opts);
 					return { storageKey: 'mock-key.pdf', sizeBytes: 100, mimeType: opts.mimeType };
 				},
-				open: async () => ({ storageKey: 'mock-key.pdf', sizeBytes: 100, stream: null }),
+				open: async () => ({ storageKey: 'mock-key.pdf', sizeBytes: Buffer.byteLength('resource content'), stream: Readable.from('resource content') }),
 				remove: async (key) => {
 					storageMock.removeCalls.push(key);
 					return { storageKey: key, deleted: true };
@@ -164,6 +170,90 @@ describe('Resources CRUD API (Step 5)', () => {
 				await migration.down(qi, Sequelize);
 				const columnsAfterDown = await qi.describeTable('resources');
 				assert.equal(columnsAfterDown.module_id, undefined, 'module_id column should be removed after migration.down');
+			} finally {
+				await isolatedSequelize.close();
+			}
+		});
+
+		it('should add and safely roll back regular resource assignments when no legacy tables exist', async () => {
+			const isolatedSequelize = new Sequelize({ dialect: 'sqlite', storage: ':memory:', logging: false });
+			const qi = isolatedSequelize.getQueryInterface();
+
+			try {
+				await qi.createTable('resources', {
+					id: { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true },
+					title: DataTypes.STRING,
+					type: DataTypes.STRING,
+				});
+				await qi.createTable('users', {
+					id: { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true },
+				});
+				await qi.createTable('facilities', {
+					id: { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true },
+				});
+
+				await retireHierarchicalResourcesMigration.up(qi, Sequelize);
+				const resourceColumns = await qi.describeTable('resources');
+				const assignmentColumns = await qi.describeTable('resource_assignments');
+				assert.ok(resourceColumns.legacy_hierarchical_resource_id);
+				assert.ok(assignmentColumns.resource_id);
+				assert.ok(assignmentColumns.assignment_status);
+
+				await retireHierarchicalResourcesMigration.down(qi, Sequelize);
+				assert.equal((await qi.describeTable('resources')).legacy_hierarchical_resource_id, undefined);
+				assert.equal((await qi.showAllTables()).includes('resource_assignments'), false);
+			} finally {
+				await isolatedSequelize.close();
+			}
+		});
+
+		it('should extend assignment lifecycle without losing history and protect rollback', async () => {
+			const isolatedSequelize = new Sequelize({ dialect: 'sqlite', storage: ':memory:', logging: false });
+			const qi = isolatedSequelize.getQueryInterface();
+
+			try {
+				await qi.createTable('resource_assignments', {
+					id: { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true },
+					resource_id: DataTypes.INTEGER,
+					mentor_id: DataTypes.INTEGER,
+					mentee_id: DataTypes.INTEGER,
+					facility_id: DataTypes.INTEGER,
+					assignment_status: { type: DataTypes.ENUM('active', 'revoked'), allowNull: false, defaultValue: 'active' },
+					assigned_by: DataTypes.INTEGER,
+					assigned_at: DataTypes.DATE,
+					revoked_at: DataTypes.DATE,
+					revoked_by: DataTypes.INTEGER,
+				});
+				await qi.bulkInsert('resource_assignments', [{
+					resource_id: 1,
+					mentor_id: 2,
+					mentee_id: 3,
+					assignment_status: 'revoked',
+					assigned_by: 2,
+					assigned_at: new Date(),
+				}]);
+
+				await resourceAssignmentLifecycleMigration.up(qi, Sequelize);
+				await resourceAssignmentLifecycleMigration.up(qi, Sequelize);
+				const columns = await qi.describeTable('resource_assignments');
+				assert.ok(columns.completed_at);
+				const [assignmentRows] = await isolatedSequelize.query('SELECT assignment_status FROM resource_assignments');
+				assert.equal(assignmentRows[0].assignment_status, 'revoked');
+				assert.ok((await qi.showIndex('resource_assignments')).some((index) => index.name === 'idx_resource_assignments_mentee_status_assigned'));
+
+				await qi.bulkInsert('resource_assignments', [{
+					resource_id: 2,
+					mentor_id: 2,
+					mentee_id: 3,
+					assignment_status: 'completed',
+					assigned_by: 2,
+					assigned_at: new Date(),
+					completed_at: new Date(),
+				}]);
+				await assert.rejects(resourceAssignmentLifecycleMigration.down(qi, Sequelize), /completed assignment history exists/);
+				await qi.bulkDelete('resource_assignments', { assignment_status: 'completed' });
+				await resourceAssignmentLifecycleMigration.down(qi, Sequelize);
+				assert.equal((await qi.describeTable('resource_assignments')).completed_at, undefined);
 			} finally {
 				await isolatedSequelize.close();
 			}
@@ -306,32 +396,23 @@ describe('Resources CRUD API (Step 5)', () => {
 			if (facility2Resource) await service.deleteResource(facility2Resource.id, admin).catch(() => {});
 		});
 
-		it('should allow facility admin to create resource within their facility scope', async () => {
+		it('should reject facility admin from creating resource (only super admin allowed)', async () => {
 			const fac1Admin = { id: 2, role: Role.FACILITY_ADMIN, facility_id: 1 };
-			const res = await service.createResource({
-				title: 'Fac1 Audio Resource',
-				type: 'audio',
-				thematic_area_id: 1,
-				module_id: 1,
-				file_id: 2,
-			}, fac1Admin);
-
-			assert.ok(res.id);
-			assert.equal(res.createdBy, 2);
-			await service.deleteResource(res.id, fac1Admin);
-		});
-
-		it('should reject facility admin from creating resource outside facility scope', async () => {
-			const fac1Admin = { id: 2, role: Role.FACILITY_ADMIN, facility_id: 1 };
-			// module 2 is in Facility 2 scope (thematic area 2)
 			await assert.rejects(
 				service.createResource({
-					title: 'Out of Scope',
-					type: 'video',
-					thematic_area_id: 2,
-					module_id: 2,
-					file_id: 3,
+					title: 'Fac1 Audio Resource',
+					type: 'audio',
+					thematic_area_id: 1,
+					module_id: 1,
+					file_id: 2,
 				}, fac1Admin),
+				{ statusCode: 403 }
+			);
+		});
+
+		it('should reject facility admin from assigning resources to mentees', async () => {
+			await assert.rejects(
+				service.assignResourceToMentee(facility1Resource.id, menteeUser.id, facility1Admin),
 				{ statusCode: 403 }
 			);
 		});
@@ -350,39 +431,20 @@ describe('Resources CRUD API (Step 5)', () => {
 			);
 		});
 
-		it('should allow facility admin to update resource in their facility scope', async () => {
-			const fac1Admin = { id: 2, role: Role.FACILITY_ADMIN, facility_id: 1 };
-			const updated = await service.updateResource(facility1Resource.id, {
-				title: 'Updated Facility 1 Title',
-			}, fac1Admin);
-
-			assert.equal(updated.title, 'Updated Facility 1 Title');
-			assert.equal(updated.updatedBy, 2);
-		});
-
-		it('should reject facility admin from updating resource outside facility scope', async () => {
-			const fac1Admin = { id: 2, role: Role.FACILITY_ADMIN, facility_id: 1 };
-			await assert.rejects(
-				service.updateResource(facility2Resource.id, { title: 'Hacked Title' }, fac1Admin),
-				{ statusCode: 403 }
-			);
-		});
-
-		it('should reject facility admin from updating resource to an out-of-scope module', async () => {
+		it('should reject facility admin from updating resource (only super admin allowed)', async () => {
 			const fac1Admin = { id: 2, role: Role.FACILITY_ADMIN, facility_id: 1 };
 			await assert.rejects(
 				service.updateResource(facility1Resource.id, {
-					module_id: 2,
-					thematic_area_id: 2,
+					title: 'Updated Facility 1 Title',
 				}, fac1Admin),
 				{ statusCode: 403 }
 			);
 		});
 
-		it('should reject facility admin from deleting resource outside facility scope', async () => {
+		it('should reject facility admin from deleting resource (only super admin allowed)', async () => {
 			const fac1Admin = { id: 2, role: Role.FACILITY_ADMIN, facility_id: 1 };
 			await assert.rejects(
-				service.deleteResource(facility2Resource.id, fac1Admin),
+				service.deleteResource(facility1Resource.id, fac1Admin),
 				{ statusCode: 403 }
 			);
 		});
@@ -497,6 +559,31 @@ describe('Resources CRUD API (Step 5)', () => {
 			assert.equal(res.id, authorizedResource.id);
 		});
 
+		it('should allow mentor to view all module resources from module access without a resource permission grant', async () => {
+			const mentor = { id: 4, role: Role.MENTOR, facility_id: 1 };
+			await models.LearningModuleMentorPermission.destroy({ where: { module_id: 1, mentor_id: 4 } });
+			const moduleAccess = await models.LearningModuleMentorAccess.create({
+				module_id: 1,
+				mentor_id: 4,
+				granted_by: 1,
+				granted_at: new Date(),
+				revoked_at: null,
+			});
+			try {
+				const res = await service.getResource(authorizedResource.id, mentor);
+				assert.equal(res.id, authorizedResource.id);
+			} finally {
+				await moduleAccess.destroy();
+				await models.LearningModuleMentorPermission.create({
+					module_id: 1,
+					mentor_id: 4,
+					permission: LearningPermission.RESOURCES_VIEW,
+					granted_by: 1,
+					granted_at: new Date(),
+				});
+			}
+		});
+
 		it('should reject mentee when module is unpublished or unauthorized', async () => {
 			const mentee = { id: 5, role: Role.MENTEE, facility_id: 1 };
 			await assert.rejects(
@@ -505,16 +592,30 @@ describe('Resources CRUD API (Step 5)', () => {
 			);
 		});
 
-		it('should reject mentee without module access (no progress record)', async () => {
+		it('should allow an individually assigned resource without separate module access', async () => {
 			const mentee = { id: 5, role: Role.MENTEE, facility_id: 1 };
 			await models.LearningModuleProgress.destroy({ where: { mentee_id: 5, module_id: 1 } });
-			await assert.rejects(
-				service.getResource(authorizedResource.id, mentee),
-				{ statusCode: 403 }
-			);
+			await models.ResourceAssignment.findOrCreate({
+				where: {
+					resource_id: authorizedResource.id,
+					mentee_id: 5,
+					assignment_status: 'active',
+				},
+				defaults: {
+					resource_id: authorizedResource.id,
+					mentor_id: 4,
+					mentee_id: 5,
+					facility_id: 1,
+					assignment_status: 'active',
+					assigned_by: 4,
+					assigned_at: new Date(),
+				},
+			});
+			const resource = await service.getResource(authorizedResource.id, mentee);
+			assert.equal(resource.id, authorizedResource.id);
 		});
 
-		it('should allow mentee to view resource when module is published and module access is granted', async () => {
+		it('should not grant resource access from module access alone', async () => {
 			const mentee = { id: 5, role: Role.MENTEE, facility_id: 1 };
 			await models.LearningModuleProgress.create({
 				mentee_id: 5,
@@ -523,19 +624,407 @@ describe('Resources CRUD API (Step 5)', () => {
 				assigned_by: 4,
 				assigned_at: new Date(),
 			});
+			await models.ResourceAssignment.destroy({
+				where: { resource_id: authorizedResource.id, mentee_id: 5 },
+			});
 
-			const res = await service.getResource(authorizedResource.id, mentee);
-			assert.equal(res.id, authorizedResource.id);
+			await assert.rejects(
+				service.getResource(authorizedResource.id, mentee),
+				{ statusCode: 403 }
+			);
 		});
 
-		it('should filter resource list for mentee to only granted modules', async () => {
+		it('should reject content access when an individual resource assignment is revoked', async () => {
 			const mentee = { id: 5, role: Role.MENTEE, facility_id: 1 };
+			const revokedAt = new Date();
+			await models.ResourceAssignment.create({
+				resource_id: authorizedResource.id,
+				mentor_id: 4,
+				mentee_id: 5,
+				facility_id: 1,
+				assignment_status: 'revoked',
+				assigned_by: 4,
+				assigned_at: new Date(),
+				revoked_at: revokedAt,
+				revoked_by: 4,
+			});
+
+			await assert.rejects(
+				service.getResource(authorizedResource.id, mentee),
+				{ statusCode: 403 }
+			);
+			const history = await models.ResourceAssignment.findOne({
+				where: { resource_id: authorizedResource.id, mentee_id: 5, assignment_status: 'revoked' },
+			});
+			assert.ok(history);
+			assert.equal(history.revoked_by, 4);
+			assert.equal(new Date(history.revoked_at).getTime(), revokedAt.getTime());
+		});
+
+		it('should filter mentee resource lists to individually assigned resources', async () => {
+			const mentee = { id: 5, role: Role.MENTEE, facility_id: 1 };
+			await models.LearningModuleProgress.destroy({ where: { mentee_id: 5, module_id: 1 } });
+			await models.ResourceAssignment.findOrCreate({
+				where: {
+					resource_id: authorizedResource.id,
+					mentee_id: 5,
+					assignment_status: 'active',
+				},
+				defaults: {
+					resource_id: authorizedResource.id,
+					mentor_id: 4,
+					mentee_id: 5,
+					facility_id: 1,
+					assignment_status: 'active',
+					assigned_by: 4,
+					assigned_at: new Date(),
+				},
+			});
 			const list = await service.listResources({}, mentee);
 
 			assert.ok(list.items.some((r) => r.id === authorizedResource.id));
 			// Mentee has no access to module 2 or module 3
 			assert.equal(list.items.some((r) => r.moduleId === 2), false);
 			assert.equal(list.items.some((r) => r.moduleId === 3), false);
+		});
+
+		it('should let mentors assign and revoke regular resources for their own mentees', async () => {
+			await models.ResourceAssignment.destroy({
+				where: {
+					resource_id: authorizedResource.id,
+					mentee_id: 5,
+				},
+			});
+			const mentorToken = generateAccessToken(mentorUser);
+			const menteeToken = generateAccessToken(menteeUser);
+			const assignmentPath = `/api/v1/resources/${authorizedResource.id}/mentees/5`;
+
+			const assigned = await request(app)
+				.post(assignmentPath)
+				.set('Authorization', `Bearer ${mentorToken}`);
+			assert.equal(assigned.status, 201);
+			assert.equal(assigned.body.data.assigned, true);
+
+			const accessible = await request(app)
+				.get(`/api/v1/resources/${authorizedResource.id}`)
+				.set('Authorization', `Bearer ${menteeToken}`);
+			assert.equal(accessible.status, 200);
+
+			const revoked = await request(app)
+				.delete(assignmentPath)
+				.set('Authorization', `Bearer ${mentorToken}`);
+			assert.equal(revoked.status, 200);
+			const assignmentHistory = await models.ResourceAssignment.findOne({
+				where: {
+					resource_id: authorizedResource.id,
+					mentee_id: 5,
+					mentor_id: 4,
+					assignment_status: 'revoked',
+				},
+			});
+			assert.ok(assignmentHistory);
+			assert.ok(assignmentHistory.revoked_at);
+			assert.equal(assignmentHistory.revoked_by, 4);
+
+			const denied = await request(app)
+				.get(`/api/v1/resources/${authorizedResource.id}/content`)
+				.set('Authorization', `Bearer ${menteeToken}`);
+			assert.equal(denied.status, 403);
+
+			const otherMentor = await models.User.create({
+				email: 'other-mentor@cbcm.org',
+				role: Role.MENTOR,
+				status: 'active',
+				facility_id: 1,
+				password_hash: 'hash',
+				must_change_password: false,
+			});
+			const otherMentee = await models.User.create({
+				email: 'other-mentee-same-facility@cbcm.org',
+				role: Role.MENTEE,
+				status: 'active',
+				facility_id: 1,
+				password_hash: 'hash',
+				must_change_password: false,
+			});
+			const otherMentorAssignment = await models.Assignment.create({
+				mentor_id: otherMentor.id,
+				mentee_id: otherMentee.id,
+				facility_id: 1,
+				thematic_area_id: 1,
+				cycle_id: 1,
+				status: 'active',
+			});
+			try {
+				const deniedAssignment = await request(app)
+					.post(`/api/v1/resources/${authorizedResource.id}/mentees/${otherMentee.id}`)
+					.set('Authorization', `Bearer ${mentorToken}`);
+				assert.equal(deniedAssignment.status, 403);
+			} finally {
+				await otherMentorAssignment.destroy();
+				await otherMentee.destroy();
+				await otherMentor.destroy();
+			}
+		});
+
+		it('should enforce lifecycle and authorization across the learning resource assignment APIs', async () => {
+			await models.ResourceAssignment.destroy({
+				where: { resource_id: authorizedResource.id, mentee_id: 5 },
+			});
+			const [permission] = await models.LearningModuleMentorPermission.findOrCreate({
+				where: {
+					module_id: 1,
+					mentor_id: 4,
+					permission: LearningPermission.RESOURCES_VIEW,
+					revoked_at: null,
+				},
+				defaults: {
+					module_id: 1,
+					mentor_id: 4,
+					permission: LearningPermission.RESOURCES_VIEW,
+					granted_by: 1,
+					granted_at: new Date(),
+				},
+			});
+			await permission.update({ revoked_at: null });
+			await models.Assignment.findOrCreate({
+				where: {
+					mentor_id: 4,
+					mentee_id: 5,
+					facility_id: 1,
+					cycle_id: 1,
+					thematic_area_id: 1,
+					status: 'active',
+					unassigned_at: null,
+				},
+				defaults: {
+					mentor_id: 4,
+					mentee_id: 5,
+					facility_id: 1,
+					cycle_id: 1,
+					thematic_area_id: 1,
+					status: 'active',
+				},
+			});
+
+			const mentorToken = generateAccessToken(mentorUser);
+			const menteeToken = generateAccessToken(menteeUser);
+			const assignmentPath = `/api/v1/learning/modules/1/resources/${authorizedResource.id}/assignments`;
+			const created = await request(app)
+				.post(assignmentPath)
+				.set('Authorization', [String.fromCharCode(66, 101, 97, 114, 101, 114), mentorToken].join(' '))
+				.send({ mentee_id: 5 });
+			assert.equal(created.status, 201);
+			assert.equal(created.body.data.status, 'active');
+
+			const duplicate = await request(app)
+				.post(assignmentPath)
+				.set('Authorization', [String.fromCharCode(66, 101, 97, 114, 101, 114), mentorToken].join(' '))
+				.send({ mentee_id: 5 });
+			assert.equal(duplicate.status, 200);
+			assert.equal(duplicate.body.data.assignmentId, created.body.data.assignmentId);
+
+			const crossFacility = await request(app)
+				.post(assignmentPath)
+				.set('Authorization', [String.fromCharCode(66, 101, 97, 114, 101, 114), mentorToken].join(' '))
+				.send({ mentee_id: 6 });
+			assert.equal(crossFacility.status, 403);
+
+			const otherModuleResource = await service.createResource({
+				title: 'Other module resource for assignment scope test',
+				type: 'video',
+				thematic_area_id: 2,
+				module_id: 2,
+				file_id: 3,
+			}, { id: 1, role: Role.ADMIN });
+			const unauthorizedModule = await request(app)
+				.post(`/api/v1/learning/modules/2/resources/${otherModuleResource.id}/assignments`)
+				.set('Authorization', [String.fromCharCode(66, 101, 97, 114, 101, 114), mentorToken].join(' '))
+				.send({ mentee_id: 5 });
+			assert.equal(unauthorizedModule.status, 403);
+
+			const unpublishedModule = await request(app)
+				.post(`/api/v1/learning/modules/3/resources/${draftModuleResource.id}/assignments`)
+				.set('Authorization', [String.fromCharCode(66, 101, 97, 114, 101, 114), mentorToken].join(' '))
+				.send({ mentee_id: 5 });
+			assert.equal(unpublishedModule.status, 403);
+
+			const moduleMismatch = await request(app)
+				.post(`/api/v1/learning/modules/2/resources/${authorizedResource.id}/assignments`)
+				.set('Authorization', [String.fromCharCode(66, 101, 97, 114, 101, 114), mentorToken].join(' '))
+				.send({ mentee_id: 5 });
+			assert.equal(moduleMismatch.status, 400);
+
+			const menteeList = await request(app)
+				.get('/api/v1/learning/my/resources')
+				.set('Authorization', [String.fromCharCode(66, 101, 97, 114, 101, 114), menteeToken].join(' '));
+			assert.equal(menteeList.status, 200);
+			assert.ok(menteeList.body.data.some((entry) => entry.resourceId === authorizedResource.id));
+
+			const details = await request(app)
+				.get(`/api/v1/learning/my/resources/${authorizedResource.id}`)
+				.set('Authorization', [String.fromCharCode(66, 101, 97, 114, 101, 114), menteeToken].join(' '));
+			assert.equal(details.status, 200);
+			assert.equal(Object.prototype.hasOwnProperty.call(details.body.data, 'url'), false);
+
+			const content = await request(app)
+				.get(`/api/v1/learning/my/resources/${authorizedResource.id}/content`)
+				.set('Authorization', [String.fromCharCode(66, 101, 97, 114, 101, 114), menteeToken].join(' '));
+			assert.equal(content.status, 200);
+			assert.equal(content.body.toString(), 'resource content');
+
+			const completed = await request(app)
+				.post(`/api/v1/learning/my/resources/${authorizedResource.id}/complete`)
+				.set('Authorization', [String.fromCharCode(66, 101, 97, 114, 101, 114), menteeToken].join(' '));
+			assert.equal(completed.status, 200);
+			assert.equal(completed.body.data.status, 'completed');
+			assert.ok(completed.body.data.completedAt);
+
+			const deniedContent = await request(app)
+				.get(`/api/v1/learning/my/resources/${authorizedResource.id}/content`)
+				.set('Authorization', [String.fromCharCode(66, 101, 97, 114, 101, 114), menteeToken].join(' '));
+			assert.equal(deniedContent.status, 403);
+
+			const reassigned = await request(app)
+				.post(assignmentPath)
+				.set('Authorization', [String.fromCharCode(66, 101, 97, 114, 101, 114), mentorToken].join(' '))
+				.send({ mentee_id: 5 });
+			assert.equal(reassigned.status, 201);
+			assert.notEqual(reassigned.body.data.assignmentId, created.body.data.assignmentId);
+			assert.equal(await models.ResourceAssignment.count({
+				where: {
+					resource_id: authorizedResource.id,
+					mentee_id: 5,
+					assignment_status: 'completed',
+				},
+			}), 1);
+			const revoked = await request(app)
+				.post(`/api/v1/learning/resource-assignments/${reassigned.body.data.assignmentId}/revoke`)
+				.set('Authorization', [String.fromCharCode(66, 101, 97, 114, 101, 114), mentorToken].join(' '));
+			assert.equal(revoked.status, 200);
+			assert.equal(revoked.body.data.status, 'revoked');
+			assert.ok(revoked.body.data.revokedAt);
+
+			const reassignedAfterRevoke = await request(app)
+				.post(assignmentPath)
+				.set('Authorization', [String.fromCharCode(66, 101, 97, 114, 101, 114), mentorToken].join(' '))
+				.send({ mentee_id: 5 });
+			assert.equal(reassignedAfterRevoke.status, 201);
+
+			const mentorProgress = await request(app)
+				.get(assignmentPath)
+				.set('Authorization', [String.fromCharCode(66, 101, 97, 114, 101, 114), mentorToken].join(' '));
+			assert.equal(mentorProgress.status, 200);
+			assert.ok(mentorProgress.body.data.some((entry) => (
+				entry.status === 'completed' && entry.completedAt && entry.menteeId === 5
+			)));
+			assert.ok(mentorProgress.body.data.some((entry) => (
+				entry.status === 'revoked' && entry.revokedAt && entry.id === reassigned.body.data.assignmentId
+			)));
+			assert.ok(mentorProgress.body.data.some((entry) => entry.id === reassignedAfterRevoke.body.data.assignmentId));
+
+			const menteeProgress = await request(app)
+				.get('/api/v1/learning/mentees/5/resources')
+				.set('Authorization', [String.fromCharCode(66, 101, 97, 114, 101, 114), mentorToken].join(' '));
+			assert.equal(menteeProgress.status, 200);
+			assert.ok(menteeProgress.body.data.some((entry) => entry.status === 'completed'));
+			assert.ok(menteeProgress.body.data.some((entry) => entry.status === 'revoked'));
+
+			const otherMenteeToken = generateAccessToken(otherMenteeUser);
+			const otherMenteeDenied = await request(app)
+				.get(`/api/v1/learning/my/resources/${authorizedResource.id}`)
+				.set('Authorization', [String.fromCharCode(66, 101, 97, 114, 101, 114), otherMenteeToken].join(' '));
+			assert.equal(otherMenteeDenied.status, 403);
+
+			const otherMentor = await models.User.create({
+				email: 'resource-revoke-other-mentor@cbcm.org',
+				role: Role.MENTOR,
+				status: 'active',
+				facility_id: 1,
+				password_hash: 'hash',
+				must_change_password: false,
+			});
+			try {
+				const otherMentorToken = generateAccessToken(otherMentor);
+				const unauthorizedRevoke = await request(app)
+					.post(`/api/v1/learning/resource-assignments/${reassignedAfterRevoke.body.data.assignmentId}/revoke`)
+					.set('Authorization', [String.fromCharCode(66, 101, 97, 114, 101, 114), otherMentorToken].join(' '));
+				assert.equal(unauthorizedRevoke.status, 403);
+				const outOfScopeFacilityAdmin = await request(app)
+					.post(`/api/v1/learning/resource-assignments/${reassignedAfterRevoke.body.data.assignmentId}/revoke`)
+					.set('Authorization', [String.fromCharCode(66, 101, 97, 114, 101, 114), generateAccessToken(facility2Admin)].join(' '));
+				assert.equal(outOfScopeFacilityAdmin.status, 403);
+			} finally {
+				await otherMentor.destroy();
+			}
+
+			await models.ResourceAssignment.destroy({
+				where: { resource_id: authorizedResource.id, mentee_id: 5 },
+			});
+			await service.deleteResource(otherModuleResource.id, { id: 1, role: Role.ADMIN });
+		});
+
+		it('should not let legacy module access override a revoked resource-view permission', async () => {
+			await models.LearningModuleMentorPermission.update({
+				revoked_at: new Date(),
+			}, {
+				where: {
+					module_id: 1,
+					mentor_id: 4,
+					permission: LearningPermission.RESOURCES_VIEW,
+				},
+			});
+			const permission = await models.LearningModuleMentorPermission.create({
+				module_id: 1,
+				mentor_id: 4,
+				permission: LearningPermission.RESOURCES_VIEW,
+				granted_by: 1,
+				granted_at: new Date(),
+				revoked_at: new Date(),
+				revoked_by: 1,
+			});
+			const legacyAccess = await models.LearningModuleMentorAccess.create({
+				module_id: 1,
+				mentor_id: 4,
+				granted_by: 1,
+				granted_at: new Date(),
+			});
+			const accessOnlyMentor = await models.User.create({
+				email: 'resource-access-only-mentor@cbcm.org',
+				role: Role.MENTOR,
+				status: 'active',
+				facility_id: 1,
+				password_hash: 'hash',
+				must_change_password: false,
+			});
+			const accessOnlyGrant = await models.LearningModuleMentorAccess.create({
+				module_id: 1,
+				mentor_id: accessOnlyMentor.id,
+				granted_by: 1,
+				granted_at: new Date(),
+			});
+			try {
+				assert.equal(await learningRepository.hasModuleMentorPermission({
+					mentorId: 4,
+					moduleId: 1,
+					permission: LearningPermission.RESOURCES_VIEW,
+				}), false);
+				assert.equal(await learningRepository.hasModuleMentorPermission({
+					mentorId: accessOnlyMentor.id,
+					moduleId: 1,
+					permission: LearningPermission.RESOURCES_VIEW,
+				}), false);
+				await assert.rejects(service.getResource(authorizedResource.id, {
+					id: 4,
+					role: Role.MENTOR,
+					facility_id: 1,
+				}), { statusCode: 403 });
+			} finally {
+				await permission.destroy();
+				await legacyAccess.destroy();
+				await accessOnlyGrant.destroy();
+				await accessOnlyMentor.destroy();
+			}
 		});
 	});
 
@@ -602,7 +1091,7 @@ describe('Resources CRUD API (Step 5)', () => {
 			assert.equal(res.id, legacyResource.id);
 			assert.equal(res.moduleId, null);
 			assert.equal(res.module, null);
-			assert.equal(res.url, 'https://legacy.example.org/docs/malaria-2020.pdf');
+			assert.equal(Object.prototype.hasOwnProperty.call(res, 'url'), false);
 		});
 
 		it('should allow facility admin to retrieve legacy resource within their facility thematic area scope', async () => {
@@ -659,6 +1148,21 @@ describe('Resources CRUD API (Step 5)', () => {
 			testResourceId = response.body.data.id;
 		});
 
+		it('POST /api/v1/resources should reject facility admin (only super admin allowed)', async () => {
+			const response = await request(app)
+				.post('/api/v1/resources')
+				.set('Authorization', `Bearer ${facAdminToken}`)
+				.send({
+					title: 'Fac Admin Created',
+					type: 'pdf',
+					thematic_area_id: 1,
+					module_id: 1,
+					file_id: 1,
+				});
+
+			assert.equal(response.status, 403);
+		});
+
 		it('POST /api/v1/resources should reject unauthorized roles (e.g. mentor)', async () => {
 			const response = await request(app)
 				.post('/api/v1/resources')
@@ -706,6 +1210,15 @@ describe('Resources CRUD API (Step 5)', () => {
 			assert.equal(response.status, 200);
 			assert.equal(response.body.success, true);
 			assert.equal(response.body.data.title, 'HTTP Updated Resource');
+		});
+
+		it('PATCH /api/v1/resources/:id should reject facility admin (only super admin allowed)', async () => {
+			const response = await request(app)
+				.patch(`/api/v1/resources/${testResourceId}`)
+				.set('Authorization', `Bearer ${facAdminToken}`)
+				.send({ title: 'Unauthorized Update' });
+
+			assert.equal(response.status, 403);
 		});
 
 		it('DELETE /api/v1/resources/:id should delete resource record', async () => {

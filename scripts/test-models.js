@@ -51,10 +51,7 @@ const expectedModels = [
   ['ActivityLog', 'activity_logs'],
   ['UploadedFile', 'uploaded_files'],
   ['AssessmentEvidence', 'assessment_evidence'],
-  ['HierarchicalResource', 'hierarchical_resources'],
-  ['FacilityResourceGrant', 'facility_resource_grants'],
-  ['MentorResourceGrant', 'mentor_resource_grants'],
-  ['MenteeResourceAssignment', 'mentee_resource_assignments'],
+  ['ResourceAssignment', 'resource_assignments'],
 ];
 
 function main() {

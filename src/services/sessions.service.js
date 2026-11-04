@@ -164,18 +164,14 @@ async function createSession(payload, actor) {
 
 	// Notify both participants when a session is scheduled
 	if (session.status === 'scheduled' || session.scheduled_at) {
-		try {
-			await notificationService.createNotifications({
-				userIds: [session.mentor_id, session.mentee_id],
-				type: NotificationType.SESSION_SCHEDULED,
-				title: 'Clinical session scheduled',
-				body: 'A clinical session has been scheduled.',
-				referenceType: 'clinical_session',
-				referenceId: session.id,
-			});
-		} catch (e) {
-			// do not fail session creation
-		}
+		await notificationService.publishEventSafely({
+			eventType: 'session.scheduled',
+			eventKey: `session:${session.id}:scheduled`,
+			referenceType: 'clinical_session',
+			referenceId: session.id,
+			userIds: [session.mentor_id, session.mentee_id],
+			facilityIds: [session.facility_id],
+		});
 	}
 
 	return toSessionResponse(session);
@@ -248,6 +244,16 @@ async function updateSession(id, payload, actor) {
 	if (payload.status !== undefined) updateData.status = payload.status;
 
 	const updated = await repository.update(id, updateData);
+	if (payload.status || payload.scheduled_at !== undefined) {
+		await notificationService.publishEventSafely({
+			eventType: 'session.status_changed',
+			eventKey: `session:${id}:updated:${updated.updated_at || Date.now()}`,
+			referenceType: 'clinical_session',
+			referenceId: id,
+			userIds: [updated.mentor_id, updated.mentee_id],
+			facilityIds: [updated.facility_id],
+		});
+	}
 	return toSessionResponse(updated);
 }
 

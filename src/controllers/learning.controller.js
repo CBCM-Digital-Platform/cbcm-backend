@@ -29,7 +29,7 @@ module.exports = {
 		return res.json({ success: true, data: moduleDto.toModule(moduleRecord) });
 	}),
 	createModule: asyncHandler(async (req, res) => {
-		const moduleRecord = await service.createModule({ ...req.learningInput, createdBy: req.user.id, updatedBy: req.user.id });
+		const moduleRecord = await service.createModule({ ...req.learningInput, createdBy: req.user.id, updatedBy: req.user.id }, req.user);
 		return res.status(201).json({ success: true, data: moduleDto.toModule(moduleRecord) });
 	}),
 	updateModule: asyncHandler(async (req, res) => {
@@ -51,6 +51,14 @@ module.exports = {
 		}
 		return res.json({ success: true, data: content });
 	}),
+	downloadContentFile: asyncHandler(async (req, res, next) => {
+		const file = await service.openContentFile(req.params.moduleId, req.params.contentId, req.user);
+		res.setHeader('Content-Type', file.mimeType);
+		res.setHeader('Content-Length', String(file.sizeBytes || 0));
+		res.setHeader('Content-Disposition', 'inline');
+		file.stream.on('error', next);
+		return file.stream.pipe(res);
+	}),
 	createContent: asyncHandler(async (req, res) => {
 		const content = await service.createContent({
 			...req.learningInput,
@@ -68,31 +76,6 @@ module.exports = {
 		await service.deleteContent(req.params.moduleId, req.params.contentId, req.user);
 		return res.json({ success: true, data: { deleted: true } });
 	}),
-	grantModuleAccess: asyncHandler(async (req, res) => {
-		const menteeId = req.learningInput.menteeId;
-		const result = await service.grantModuleAccess({ moduleId: req.params.moduleId, menteeId, mentorId: req.user.id });
-		return res.status(201).json({ success: true, data: learningMapper.toProgress(result) });
-	}),
-	grantMentorModuleAccess: asyncHandler(async (req, res) => {
-		const grant = await service.grantMentorModuleAccess({
-			moduleId: req.params.moduleId,
-			mentorId: req.learningInput.mentorId,
-			actor: req.user,
-		});
-		return res.status(201).json({ success: true, data: learningMapper.toMentorAccess(grant) });
-	}),
-	getModuleMentorAccess: asyncHandler(async (req, res) => {
-		const grants = await service.getModuleMentorAccess(req.params.moduleId, req.user);
-		return res.json({ success: true, data: grants.map(learningMapper.toMentorAccess) });
-	}),
-	revokeModuleMentorAccess: asyncHandler(async (req, res) => {
-		const revoked = await service.revokeModuleMentorAccess({
-			moduleId: req.params.moduleId,
-			mentorId: req.params.mentorId,
-			actor: req.user,
-		});
-		return res.json({ success: true, data: { revoked } });
-	}),
 	getModuleMentorPermissions: asyncHandler(async (req, res) => {
 		const permissions = await service.listModuleMentorPermissions(req.params.moduleId, req.user);
 		return res.json({ success: true, data: permissions.map(learningMapper.toMentorPermission) });
@@ -101,7 +84,6 @@ module.exports = {
 		const grant = await service.grantModuleMentorPermission({
 			moduleId: req.params.moduleId,
 			mentorId: req.learningInput.mentorId,
-			permission: req.learningInput.permission,
 			actor: req.user,
 		});
 		return res.status(201).json({ success: true, data: learningMapper.toMentorPermission(grant) });
@@ -110,7 +92,6 @@ module.exports = {
 		const revoked = await service.revokeModuleMentorPermission({
 			moduleId: req.params.moduleId,
 			mentorId: req.params.mentorId,
-			permission: req.params.permission,
 			actor: req.user,
 		});
 		return res.json({ success: true, data: { revoked } });
@@ -127,23 +108,6 @@ module.exports = {
 				req.user
 			)).map(learningMapper.toProgress),
 		});
-	}),
-	getModuleAccess: asyncHandler(async (req, res) => {
-		const records = await service.getModuleAccess(req.params.moduleId, req.user);
-		return res.json({ success: true, data: records.map(learningMapper.toProgress) });
-	}),
-	revokeModuleAccess: asyncHandler(async (req, res) => {
-		const menteeId = req.params.menteeId;
-		if (String(req.user.role).toLowerCase() === 'mentor') {
-			await service.assertMentorCanAccessMentee({ mentorId: req.user.id, menteeId });
-		}
-		const deleted = await service.revokeModuleAccess({
-			menteeId,
-			moduleId: req.params.moduleId,
-			mentorId: String(req.user.role).toLowerCase() === 'mentor' ? req.user.id : undefined,
-			actor: req.user,
-		});
-		return res.json({ success: true, data: { deleted } });
 	}),
 	getMyModules: asyncHandler(async (req, res) => {
 		const records = await service.getMyModules(req.user.id);

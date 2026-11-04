@@ -165,6 +165,28 @@ const validateList = (query = {}) => {
 	};
 };
 
+const parseResourceAssignment = (body = {}) => {
+	if (!body || typeof body !== 'object') {
+		throw invalid('Request payload is required.');
+	}
+	return {
+		mentee_id: parseId(body.mentee_id ?? body.menteeId, 'mentee_id'),
+	};
+};
+
+const parseResourceAssignments = (body = {}) => {
+	if (!body || typeof body !== 'object' || !Array.isArray(body.mentee_ids ?? body.menteeIds)) {
+		throw invalid('mentee_ids must be an array.');
+	}
+	const menteeIds = body.mentee_ids ?? body.menteeIds;
+	if (menteeIds.length === 0) {
+		throw invalid('At least one mentee_id is required.');
+	}
+	return {
+		mentee_ids: [...new Set(menteeIds.map((id) => parseId(id, 'mentee_id')))],
+	};
+};
+
 module.exports = {
 	ALLOWED_TYPES,
 	parseId,
@@ -173,4 +195,6 @@ module.exports = {
 	validateCreate,
 	validateUpdate,
 	validateList,
+	parseResourceAssignment,
+	parseResourceAssignments,
 };

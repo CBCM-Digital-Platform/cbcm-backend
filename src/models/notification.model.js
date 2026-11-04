@@ -2,6 +2,7 @@ module.exports = (sequelize, DataTypes) => sequelize.define('Notification', {
 	id: { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true },
 	user_id: { type: DataTypes.INTEGER },
 	type: { type: DataTypes.STRING },
+	event_key: { type: DataTypes.STRING },
 	title: { type: DataTypes.STRING },
 	body: { type: DataTypes.TEXT },
 	is_read: { type: DataTypes.BOOLEAN },

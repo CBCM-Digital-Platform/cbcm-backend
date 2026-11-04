@@ -53,6 +53,7 @@ const parseContent = (body = {}) => {
 		type: body.type || 'article',
 		contentText: typeof body.contentText === 'string' ? body.contentText : (typeof body.content_text === 'string' ? body.content_text : null),
 		contentUrl: typeof body.contentUrl === 'string' ? body.contentUrl : (typeof body.content_url === 'string' ? body.content_url : null),
+		fileId: body.fileId == null && body.file_id == null ? null : parseId(body.fileId ?? body.file_id, 'fileId'),
 		orderNumber,
 		isRequired: parseBoolean(body.isRequired ?? body.is_required, true, 'isRequired'),
 		isPublished: parseBoolean(body.isPublished ?? body.is_published, false, 'isPublished'),
@@ -114,6 +115,7 @@ const parseContentPatch = (body = {}) => parsePartial(parseContent, body, {
 	type: ['type'],
 	contentText: ['contentText', 'content_text'],
 	contentUrl: ['contentUrl', 'content_url'],
+	fileId: ['fileId', 'file_id'],
 	orderNumber: ['orderNumber', 'order_number'],
 	isRequired: ['isRequired', 'is_required'],
 	isPublished: ['isPublished', 'is_published'],
@@ -135,15 +137,7 @@ const parseQuizPatch = (body = {}) => {
 	return parsed;
 };
 
-const parseAccessGrant = (body = {}) => {
-	const menteeId = Number(body.menteeId ?? body.mentee_id ?? body.userId ?? body.user_id ?? null);
-	if (!Number.isSafeInteger(menteeId) || menteeId <= 0) {
-		throw invalid('menteeId is required and must be a positive integer.');
-	}
-	return { menteeId };
-};
-
-const parseMentorAccessGrant = (body = {}) => {
+const parseMentorId = (body = {}) => {
 	const mentorId = Number(body.mentorId ?? body.mentor_id ?? null);
 	if (!Number.isSafeInteger(mentorId) || mentorId <= 0) {
 		throw invalid('mentorId is required and must be a positive integer.');
@@ -159,11 +153,8 @@ const parseLearningPermission = (permission) => {
 };
 
 const parseMentorPermissionGrant = (body = {}) => {
-	const { mentorId } = parseMentorAccessGrant(body);
-	return {
-		mentorId,
-		permission: parseLearningPermission(body.permission),
-	};
+	const { mentorId } = parseMentorId(body);
+	return { mentorId };
 };
 
 const parseQuizSubmission = (body = {}) => {
@@ -307,8 +298,7 @@ module.exports = {
 	parseContentPatch,
 	parseQuiz,
 	parseQuizPatch,
-	parseAccessGrant,
-	parseMentorAccessGrant,
+	parseMentorId,
 	parseLearningPermission,
 	parseMentorPermissionGrant,
 	parseQuizSubmission,

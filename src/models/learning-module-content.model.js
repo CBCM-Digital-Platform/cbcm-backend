@@ -5,6 +5,7 @@ module.exports = (sequelize, DataTypes) => sequelize.define('LearningModuleConte
 	type: { type: DataTypes.STRING, defaultValue: 'article' },
 	content_text: { type: DataTypes.TEXT },
 	content_url: { type: DataTypes.STRING },
+	file_id: { type: DataTypes.INTEGER },
 	order_number: { type: DataTypes.INTEGER, defaultValue: 0 },
 	is_required: { type: DataTypes.BOOLEAN, defaultValue: true },
 	is_published: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: false },

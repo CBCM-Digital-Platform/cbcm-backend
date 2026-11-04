@@ -8,6 +8,13 @@ const toContent = (content = {}) => ({
 	type: content.type || 'article',
 	contentText: content.content_text ?? content.contentText ?? null,
 	contentUrl: content.content_url ?? content.contentUrl ?? null,
+	fileId: content.file_id ?? content.fileId ?? null,
+	file: content.file ? {
+		id: content.file.id,
+		originalName: content.file.original_name ?? content.file.originalName ?? null,
+		mimeType: content.file.mime_type ?? content.file.mimeType ?? null,
+		sizeBytes: Number(content.file.size_bytes ?? content.file.sizeBytes ?? 0),
+	} : null,
 	orderNumber: content.order_number ?? content.orderNumber ?? 0,
 	isRequired: Boolean(content.is_required ?? content.isRequired ?? true),
 	isPublished: Boolean(content.is_published ?? content.isPublished),

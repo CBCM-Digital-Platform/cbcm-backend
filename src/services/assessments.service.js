@@ -11,6 +11,7 @@ const assignmentsRepository = require('../repositories/assignments.repository');
 const progressService = require('./progress.service');
 const Role = require('../enums/role.enum');
 const { logActivity } = require('../utils/activity-logger.util');
+const notificationService = require('./notifications.service');
 
 const ASSESSMENT_FIELDS = ['mentee_id', 'mentor_id', 'facility_id', 'cycle_id', 'thematic_area_id', 'status', 'aggregate_score', 'feedback', 'prerequisites_met', 'practical_passed', 'practical_score', 'practical_assessed_by', 'practical_assessed_at', 'practical_feedback', 'theory_score', 'theory_passed', 'finalized_at'];
 
@@ -443,6 +444,14 @@ async function finalizeAssessment(id, actor) {
 	});
 
 	const updated = await repository.findById(id);
+	await notificationService.publishEventSafely({
+		eventType: 'assessment.finalized',
+		eventKey: `assessment:${id}:finalized`,
+		referenceType: 'assessment',
+		referenceId: id,
+		userIds: [updated.mentee_id, updated.mentor_id],
+		facilityIds: [updated.facility_id],
+	});
 
 	// Create progress snapshot after successful finalization
 	try {
@@ -495,6 +504,14 @@ async function reviewAssessment(id, payload, actor) {
 	if (aggregate_score !== undefined) updateData.aggregate_score = aggregate_score;
 
 	const updated = await repository.update(id, updateData);
+	await notificationService.publishEventSafely({
+		eventType: 'assessment.reviewed',
+		eventKey: `assessment:${id}:reviewed`,
+		referenceType: 'assessment',
+		referenceId: id,
+		userIds: [updated.mentee_id, updated.mentor_id],
+		facilityIds: [updated.facility_id],
+	});
 	return toAssessmentResponse(updated);
 }
 

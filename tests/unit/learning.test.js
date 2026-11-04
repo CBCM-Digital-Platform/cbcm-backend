@@ -9,6 +9,7 @@ const service = require('../../src/services/learning.service');
 const repository = require('../../src/repositories/learning.repository');
 const notificationService = require('../../src/services/notifications.service');
 const NotificationType = require('../../src/enums/notification-type.enum');
+const LearningPermission = require('../../src/enums/learning-permission.enum');
 const models = require('../../src/models');
 
 const restore = (target, key, value) => {
@@ -27,7 +28,7 @@ test('learning service rejects missing module ids and empty payloads', async () 
   repository.getModuleById = async () => null;
   try {
     await assert.rejects(service.getModule(22), { statusCode: 404 });
-    await assert.rejects(service.createModule({ title: '' }), { statusCode: 400 });
+    await assert.rejects(service.createModule({ title: '' }, { role: 'admin' }), { statusCode: 400 });
   } finally {
     repository.getModuleById = original;
   }
@@ -44,7 +45,7 @@ test('learning service ensures title trimming for create and update', async () =
   repository.getModuleById = async (moduleId) => ({ id: moduleId, status: 'draft', is_published: false, is_authorized: false });
 
   try {
-    const created = await service.createModule({ title: '  Intro to CBCM  ' });
+    const created = await service.createModule({ title: '  Intro to CBCM  ' }, { role: 'admin', id: 1 });
     assert.equal(created.title, 'Intro to CBCM');
     assert.deepEqual(createdPayload.title, 'Intro to CBCM');
 
@@ -57,7 +58,7 @@ test('learning service ensures title trimming for create and update', async () =
     };
     notificationService.createNotifications = async () => [];
     try {
-      const updated = await service.updateModule(3, { title: '  Updated title  ' });
+      const updated = await service.updateModule(3, { title: '  Updated title  ' }, { role: 'admin' });
       assert.equal(updated.title, 'Updated title');
     } finally {
       repository.updateModule = originalUpdate;
@@ -69,153 +70,99 @@ test('learning service ensures title trimming for create and update', async () =
   }
 });
 
-test('publishing a module notifies only mentees with access after the update succeeds', async () => {
+test('resource-view permission grants require a published authorized module and active mentor assignment', async () => {
   const originals = {
-    getModuleById: repository.getModuleById,
-    updateModule: repository.updateModule,
-    listModuleProgress: repository.listModuleProgress,
-    createNotifications: notificationService.createNotifications,
-  };
-  const actions = [];
-  let notificationInput;
-  repository.getModuleById = async (id) => ({
-    id,
-    title: 'Module A',
-    status: 'draft',
-    is_published: false,
-    is_authorized: true,
-  });
-  repository.updateModule = async (id) => {
-    actions.push('update');
-    return {
-      id,
-      title: 'Module A',
-      status: 'published',
-      is_published: true,
-      is_authorized: true,
-    };
-  };
-  repository.listModuleProgress = async () => {
-    actions.push('access');
-    return [{ mentee_id: 8 }, { mentee_id: 9 }];
-  };
-  notificationService.createNotifications = async (input) => {
-    actions.push('notification');
-    notificationInput = input;
-  };
-
-  try {
-    await service.updateModule(3, { status: 'published', isPublished: true });
-    assert.deepEqual(actions, ['update', 'access', 'notification']);
-    assert.deepEqual(notificationInput, {
-      userIds: [8, 9],
-      type: NotificationType.LEARNING_MODULE_PUBLISHED,
-      title: 'Learning module published',
-      body: 'Module A is now available.',
-      referenceType: 'learning_module',
-      referenceId: 3,
-    });
-  } finally {
-    Object.assign(repository, originals);
-  }
-});
-
-test('granting module access notifies the mentee only for a new active assignment', async () => {
-  const originals = {
-    isMentee: repository.isMentee,
     isMentor: repository.isMentor,
     hasActiveMentorAssignment: repository.hasActiveMentorAssignment,
-    hasModuleMentorAccess: repository.hasModuleMentorAccess,
+    isModuleInFacilityScope: repository.isModuleInFacilityScope,
+    getUserById: repository.getUserById,
     getModuleById: repository.getModuleById,
-    getModuleProgress: repository.getModuleProgress,
-    grantModuleAccess: repository.grantModuleAccess,
-    createNotification: notificationService.createNotification,
-  };
-  const calls = [];
-  repository.isMentee = async () => true;
-  repository.isMentor = async () => true;
-  repository.hasActiveMentorAssignment = async () => true;
-  repository.hasModuleMentorAccess = async () => true;
-  repository.getModuleById = async (id) => ({
-    id,
-    title: 'Module A',
-    status: 'published',
-    is_published: true,
-    is_authorized: true,
-  });
-  repository.getModuleProgress = async () => null;
-  repository.grantModuleAccess = async () => {
-    calls.push('assignment');
-    return { mentee_id: 8, module_id: 3 };
-  };
-  notificationService.createNotification = async (input) => {
-    calls.push('notification');
-    calls.push(input);
-  };
-
-  try {
-    await service.grantModuleAccess({ menteeId: 8, moduleId: 3, mentorId: 2 });
-    assert.deepEqual(calls, [
-      'assignment',
-      'notification',
-      {
-        userId: 8,
-        type: NotificationType.LEARNING_MODULE_ASSIGNED,
-        title: 'Learning module assigned',
-        body: 'You have been assigned the learning module "Module A".',
-        referenceType: 'learning_module',
-        referenceId: 3,
-      },
-    ]);
-  } finally {
-    Object.assign(repository, originals);
-  }
-});
-
-test('admins cannot grant module access directly to mentees', async () => {
-  const originals = {
-    isMentee: repository.isMentee,
-    isMentor: repository.isMentor,
-    grantModuleAccess: repository.grantModuleAccess,
-  };
-  repository.isMentee = async () => true;
-  repository.isMentor = async () => false;
-  repository.grantModuleAccess = async () => {
-    throw new Error('admin must not directly assign a module to a mentee');
-  };
-  try {
-    await assert.rejects(
-      service.grantModuleAccess({ menteeId: 8, moduleId: 3, mentorId: 2 }),
-      { statusCode: 403 }
-    );
-  } finally {
-    Object.assign(repository, originals);
-  }
-});
-
-test('admins can grant only published and authorized modules to mentors', async () => {
-  const originals = {
-    isLearningAdmin: repository.isLearningAdmin,
-    isMentor: repository.isMentor,
-    getModuleById: repository.getModuleById,
-    grantMentorModuleAccess: repository.grantMentorModuleAccess,
+    grantModuleMentorPermission: repository.grantModuleMentorPermission,
   };
   let grantInput;
-  repository.isLearningAdmin = async () => true;
   repository.isMentor = async () => true;
+  repository.hasActiveMentorAssignment = async () => true;
+  repository.isModuleInFacilityScope = async () => true;
+  repository.getUserById = async (id) => ({ id, role: 'mentor', facility_id: 1 });
   repository.getModuleById = async () => ({
     id: 3,
     status: 'published',
     is_published: true,
     is_authorized: true,
   });
-  repository.grantMentorModuleAccess = async (input) => {
+  repository.grantModuleMentorPermission = async (input) => {
     grantInput = input;
     return input;
   };
   try {
-    await service.grantMentorModuleAccess({ moduleId: 3, mentorId: 8, grantedBy: 2 });
-    assert.deepEqual(grantInput, { moduleId: 3, mentorId: 8, grantedBy: 2 });
+    await service.grantModuleMentorPermission({
+      moduleId: 3,
+      mentorId: 8,
+      permission: LearningPermission.RESOURCES_VIEW,
+      actor: { id: 2, role: 'facility_admin', facility_id: 1 },
+    });
+    assert.deepEqual(grantInput, {
+      moduleId: 3,
+      mentorId: 8,
+      permission: LearningPermission.RESOURCES_VIEW,
+      grantedBy: 2,
+    });
+    repository.getModuleById = async () => ({
+      id: 3,
+      status: 'draft',
+      is_published: false,
+      is_authorized: false,
+    });
+    await assert.rejects(service.grantModuleMentorPermission({
+      moduleId: 3,
+      mentorId: 8,
+      permission: LearningPermission.RESOURCES_VIEW,
+      actor: { id: 2, role: 'facility_admin', facility_id: 1 },
+    }), { statusCode: 409 });
+  } finally {
+    Object.assign(repository, originals);
+  }
+});
+
+test('only a facility administrator can grant or revoke mentor module permissions', async () => {
+  const originals = {
+    getModuleById: repository.getModuleById,
+    isModuleInFacilityScope: repository.isModuleInFacilityScope,
+    isMentor: repository.isMentor,
+    getUserById: repository.getUserById,
+    hasActiveMentorAssignment: repository.hasActiveMentorAssignment,
+    revokeModuleMentorAccess: repository.revokeModuleMentorAccess,
+  };
+  repository.getModuleById = async () => ({ id: 3, status: 'published', is_published: true, is_authorized: true });
+  repository.isModuleInFacilityScope = async () => true;
+  repository.isMentor = async () => true;
+  repository.getUserById = async (id) => ({ id, role: 'mentor', facility_id: 1 });
+  repository.hasActiveMentorAssignment = async () => true;
+  repository.revokeModuleMentorAccess = async () => true;
+  try {
+    await assert.rejects(service.grantModuleMentorPermission({
+      moduleId: 3,
+      mentorId: 8,
+      permission: LearningPermission.RESOURCES_VIEW,
+      actor: { id: 1, role: 'admin', facility_id: 1 },
+    }), { statusCode: 403 });
+    await assert.rejects(service.revokeModuleMentorPermission({
+      moduleId: 3,
+      mentorId: 8,
+      permission: LearningPermission.RESOURCES_VIEW,
+      actor: { id: 1, role: 'admin', facility_id: 1 },
+    }), { statusCode: 403 });
+    await assert.rejects(service.grantModuleMentorPermission({
+      moduleId: 3,
+      mentorId: 8,
+      permission: LearningPermission.RESOURCES_VIEW,
+      actor: { id: 8, role: 'mentor', facility_id: 1 },
+    }), { statusCode: 403 });
+    await service.revokeModuleMentorPermission({
+      moduleId: 3,
+      mentorId: 8,
+      actor: { id: 2, role: 'facility_admin', facility_id: 1 },
+    });
   } finally {
     Object.assign(repository, originals);
   }
@@ -341,16 +288,10 @@ test('learning routes expose the required aliases and omit the undefined hint en
     'GET /modules/:moduleId/contents/:contentId',
     'PUT /modules/:moduleId/contents/:contentId',
     'GET /mentees/:menteeId/modules',
-    'GET /modules/:moduleId/access',
-    'DELETE /modules/:moduleId/access/:menteeId',
-    'GET /modules/:moduleId/mentor-access',
-    'POST /modules/:moduleId/mentor-access',
-    'DELETE /modules/:moduleId/mentor-access/:mentorId',
     'GET /modules/:moduleId/mentor-permissions',
     'POST /modules/:moduleId/mentor-permissions',
-    'DELETE /modules/:moduleId/mentor-permissions/:mentorId/:permission',
+    'DELETE /modules/:moduleId/mentor-permissions/:mentorId',
     'GET /quizzes/:quizId/answer-key',
-    'POST /modules/:moduleId/access',
     'POST /modules/:moduleId/quizzes',
     'PATCH /quizzes/:quizId',
     'GET /my/modules/:moduleId/progress',
@@ -364,6 +305,12 @@ test('learning routes expose the required aliases and omit the undefined hint en
     'PUT /questions/:questionId/options/:optionId',
   ];
   for (const route of expected) assert.ok(registered.includes(route), `${route} should be registered`);
+  assert.equal(registered.some((route) => route.includes('/modules/:moduleId/access')), false);
+  assert.equal(typeof service.grantModuleAccess, 'undefined');
+  assert.equal(typeof service.getModuleAccess, 'undefined');
+  assert.equal(typeof service.revokeModuleAccess, 'undefined');
+  assert.equal(typeof validator.parseAccessGrant, 'undefined');
+  assert.equal(registered.some((route) => route.includes('/mentor-access')), false);
   assert.ok(!registered.some((route) => route.includes('/hint')));
 });
 
@@ -432,8 +379,8 @@ test('learning validators preserve false booleans and reject malformed answer ID
   assert.equal(validator.parseContent({ title: 'Reading', isRequired: false }).isRequired, false);
   assert.equal(validator.parseContent({ title: 'Reading', isPublished: false, isAuthorized: false }).isAuthorized, false);
   assert.equal(validator.parseQuiz({ title: 'Check', isPublished: true, isAuthorized: false }).isAuthorized, false);
-  assert.deepEqual(validator.parseMentorAccessGrant({ mentorId: '12' }), { mentorId: 12 });
-  assert.throws(() => validator.parseMentorAccessGrant({ mentorId: 'bad' }), { statusCode: 400 });
+  assert.deepEqual(validator.parseMentorId({ mentorId: '12' }), { mentorId: 12 });
+  assert.throws(() => validator.parseMentorId({ mentorId: 'bad' }), { statusCode: 400 });
   assert.throws(() => validator.parseContent({ title: 'Reading', isRequired: 'sometimes' }), { statusCode: 400 });
   assert.throws(() => validator.parseQuizSubmission({ answers: [{ questionId: 2, selectedOptionId: 'bad' }] }), { statusCode: 400 });
 });
@@ -443,29 +390,6 @@ test('learning publication patches change only the fields explicitly supplied', 
   assert.deepEqual(validator.parseContentPatch({ isPublished: true }), { isPublished: true });
   assert.deepEqual(validator.parseQuizPatch({ isAuthorized: true }), { isAuthorized: true });
   assert.throws(() => validator.parseModulePatch({}), { statusCode: 400 });
-});
-
-test('only published and authorized modules can be assigned to mentees', async () => {
-  const originals = {
-    isMentee: repository.isMentee,
-    isMentor: repository.isMentor,
-    getModuleById: repository.getModuleById,
-    grantModuleAccess: repository.grantModuleAccess,
-  };
-  repository.isMentee = async () => true;
-  repository.isMentor = async () => true;
-  repository.getModuleById = async () => ({ id: 3, status: 'published', is_published: true, is_authorized: false });
-  repository.grantModuleAccess = async () => {
-    throw new Error('must not assign an unapproved module');
-  };
-  try {
-    await assert.rejects(
-      service.grantModuleAccess({ menteeId: 8, moduleId: 3, mentorId: 2 }),
-      { statusCode: 409 }
-    );
-  } finally {
-    Object.assign(repository, originals);
-  }
 });
 
 test('mentees cannot mark unpublished or unauthorized content complete', async () => {
@@ -559,7 +483,13 @@ test('learning quiz persistence stores multi-select answers once per question an
     granted_at: new Date(),
   });
   await models.Assignment.create({ mentor_id: mentor.id, mentee_id: mentee.id, status: 'active' });
-  await repository.grantModuleAccess({ menteeId: otherMentee.id, moduleId: moduleRecord.id, mentorId: admin.id });
+  await models.LearningModuleProgress.create({
+    mentee_id: otherMentee.id,
+    module_id: moduleRecord.id,
+    assigned_by: admin.id,
+    assigned_at: new Date(),
+    status: 'not_started',
+  });
   assert.equal(await repository.getModuleProgress({ menteeId: otherMentee.id, moduleId: moduleRecord.id }), null);
   assert.equal((await repository.listProgressForMentee(otherMentee.id)).length, 0);
   const content = await models.LearningModuleContent.create({
@@ -593,13 +523,25 @@ test('learning quiz persistence stores multi-select answers once per question an
   const wrongOption = await models.QuizQuestionOption.create({ question_id: question.id, text: 'Incorrect', is_correct: false });
   const unrelatedOption = await models.QuizQuestionOption.create({ question_id: otherQuestion.id, text: 'Unrelated', is_correct: true });
 
-  await repository.grantModuleAccess({ menteeId: mentee.id, moduleId: moduleRecord.id, mentorId: mentor.id });
+  await models.LearningModuleProgress.create({
+    mentee_id: mentee.id,
+    module_id: moduleRecord.id,
+    assigned_by: mentor.id,
+    assigned_at: new Date(),
+    status: 'not_started',
+  });
   await service.completeContent({ menteeId: mentee.id, moduleId: moduleRecord.id, contentId: content.id });
   await service.confirmModuleCompletion({ menteeId: mentee.id, moduleId: moduleRecord.id });
-  await repository.removeModuleAccess({ menteeId: mentee.id, moduleId: moduleRecord.id });
+  await models.LearningModuleProgress.update(
+    { status: 'access_revoked' },
+    { where: { mentee_id: mentee.id, module_id: moduleRecord.id } }
+  );
   assert.equal(await repository.getModuleProgress({ menteeId: mentee.id, moduleId: moduleRecord.id }), null);
   assert.equal(await models.LearningModuleProgress.count({ where: { mentee_id: mentee.id, module_id: moduleRecord.id } }), 1);
-  await repository.grantModuleAccess({ menteeId: mentee.id, moduleId: moduleRecord.id, mentorId: mentor.id });
+  await models.LearningModuleProgress.update(
+    { assigned_by: mentor.id, status: 'completed' },
+    { where: { mentee_id: mentee.id, module_id: moduleRecord.id } }
+  );
   assert.equal((await repository.getModuleProgress({ menteeId: mentee.id, moduleId: moduleRecord.id })).assigned_by, mentor.id);
   const learnerQuiz = await service.getQuiz(quiz.id, mentee.id);
   const learnerOption = learnerQuiz.questions[0].options[0].get
@@ -755,6 +697,10 @@ test('learning mentor-permissions migration creates indexed permission grants an
 
   try {
     await queryInterface.createTable('users', { id: idColumn });
+    await queryInterface.bulkInsert('users', [
+      { id: 2 },
+      { id: 5 },
+    ]);
     await queryInterface.createTable('learning_modules', { id: idColumn, title: DataTypes.STRING });
     await queryInterface.createTable('learning_module_mentor_access', {
       id: idColumn,
@@ -795,4 +741,3 @@ test('learning mentor-permissions migration creates indexed permission grants an
     await sequelize.close();
   }
 });
-

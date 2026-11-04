@@ -5,14 +5,17 @@ const service = require('../services/certificates.service');
 async function checkEligibility(req, res) {
 	try {
 		const { mentee_id, cycle_id, thematic_area_id } = req.params;
+		console.log('DEBUG cert checkEligibility start', mentee_id, cycle_id, thematic_area_id);
 		const result = await service.checkEligibility(
 			Number(mentee_id),
 			Number(cycle_id),
 			Number(thematic_area_id),
 			req.user
 		);
+		console.log('DEBUG cert checkEligibility result', result);
 		return successResponse(res, 200, result);
 	} catch (error) {
+		console.log('DEBUG cert checkEligibility error', error && error.message);
 		return controllerError(res, error, 'Unable to check eligibility.');
 	}
 }

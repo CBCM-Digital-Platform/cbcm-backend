@@ -5,6 +5,7 @@ const AppError = require('../errors/app-error');
 const { canAccessFacility, canAccessUser } = require('../constants/roles.constants');
 const AssignmentStatus = require('../enums/assignment-status.enum');
 const repository = require('../repositories/assignments.repository');
+const notificationService = require('./notifications.service');
 
 const ASSIGNMENT_FIELDS = ['mentor_id', 'mentee_id', 'facility_id', 'cycle_id', 'thematic_area_id', 'priority_score', 'matching_reason'];
 
@@ -162,6 +163,14 @@ async function createAssignment(payload, actor) {
 	console.log('Creating assignment with values:', values);
 	const assignment = await sequelize.transaction((transaction) => repository.create(values, { transaction }));
 	console.log('Assignment created:', assignment.id);
+	await notificationService.publishEventSafely({
+		eventType: 'assignment.created',
+		eventKey: `assignment:${assignment.id}:created`,
+		referenceType: 'assignment',
+		referenceId: assignment.id,
+		userIds: [assignment.mentor_id, assignment.mentee_id],
+		facilityIds: [assignment.facility_id],
+	});
 	return toAssignmentResponse(assignment);
 }
 
@@ -196,6 +205,14 @@ async function updateAssignment(id, payload, actor) {
 	}
 
 	const updated = await sequelize.transaction((transaction) => repository.update(id, values, { transaction }));
+	await notificationService.publishEventSafely({
+		eventType: 'assignment.updated',
+		eventKey: `assignment:${id}:updated:${updated.updated_at || Date.now()}`,
+		referenceType: 'assignment',
+		referenceId: id,
+		userIds: [updated.mentor_id, updated.mentee_id],
+		facilityIds: [updated.facility_id],
+	});
 	return toAssignmentResponse(updated);
 }
 
@@ -227,6 +244,14 @@ async function updateAssignmentStatus(id, newStatus, actor) {
 	}
 
 	const updated = await sequelize.transaction((transaction) => repository.update(id, values, { transaction }));
+	await notificationService.publishEventSafely({
+		eventType: 'assignment.status_changed',
+		eventKey: `assignment:${id}:status:${newStatus}`,
+		referenceType: 'assignment',
+		referenceId: id,
+		userIds: [updated.mentor_id, updated.mentee_id],
+		facilityIds: [updated.facility_id],
+	});
 	return toAssignmentResponse(updated);
 }
 
@@ -245,6 +270,14 @@ async function unassignAssignment(id, actor) {
 
 	const values = { status: AssignmentStatus.CANCELLED, unassigned_at: new Date() };
 	const updated = await sequelize.transaction((transaction) => repository.update(id, values, { transaction }));
+	await notificationService.publishEventSafely({
+		eventType: 'assignment.status_changed',
+		eventKey: `assignment:${id}:status:cancelled`,
+		referenceType: 'assignment',
+		referenceId: id,
+		userIds: [updated.mentor_id, updated.mentee_id],
+		facilityIds: [updated.facility_id],
+	});
 	return toAssignmentResponse(updated);
 }
 
