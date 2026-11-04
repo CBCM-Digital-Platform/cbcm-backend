@@ -7,6 +7,7 @@ const Role = require('../enums/role.enum');
 const { hasAnyRole, SYSTEM_ADMIN_ROLES } = require('../constants/roles.constants');
 const { ALLOWED_RESOURCE_MIME_TYPES } = require('../config/multer');
 const repository = require('../repositories/resources.repository');
+const notificationService = require('./notifications.service');
 const { toResource } = require('../dtos/response/resource.response.dto');
 const {
 	validateCreate,
@@ -354,7 +355,7 @@ async function assignResourceToMentee(resourceId, menteeId, actor) {
 		throw new AppError('Mentee is not actively assigned to you for this module.', 403, 'FORBIDDEN');
 	}
 
-	return sequelize.transaction(async (transaction) => {
+	const result = await sequelize.transaction(async (transaction) => {
 		const [assignment, created] = await models.ResourceAssignment.findOrCreate({
 			where: {
 				resource_id: resourceId,
@@ -381,6 +382,15 @@ async function assignResourceToMentee(resourceId, menteeId, actor) {
 		assigned: created,
 			created,
 		}));
+	await notificationService.publishEventSafely({
+		eventType: 'resource.assigned',
+		eventKey: `resource-assignment:${result.assignmentId}:created`,
+		referenceType: 'resource_assignment',
+		referenceId: result.assignmentId,
+		userIds: [result.menteeId, actor.id],
+		facilityIds: [actor.facility_id],
+	});
+	return result;
 }
 
 async function assignResourceToMenteeInModule(moduleId, resourceId, menteeId, actor) {

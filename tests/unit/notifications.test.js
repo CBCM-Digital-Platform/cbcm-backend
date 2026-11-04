@@ -159,6 +159,50 @@ test('notification creation rejects malformed recipients and payloads', async ()
 	);
 });
 
+test('event publishing creates one isolated record per resolved recipient', async () => {
+	let created;
+	replace(models.User, 'findAll', async ({ where }) => {
+		assert.ok(where.role);
+		assert.ok(where[require('sequelize').Op.or]);
+		return [{ id: 7 }, { id: 8 }, { id: 8 }];
+	});
+	replace(repository, 'createNotifications', async (notifications) => {
+		created = notifications;
+		return notifications;
+	});
+
+	await service.publishEvent({
+		eventType: 'assignment.created',
+		eventKey: 'assignment:12:created',
+		referenceType: 'assignment',
+		referenceId: 12,
+		userIds: [3, 3],
+		facilityIds: [4],
+	});
+
+	assert.deepEqual(created.map((notification) => notification.user_id), [3, 7, 8]);
+	assert.ok(created.every((notification) => notification.event_key === 'assignment:12:created'));
+});
+
+test('event publishing never resolves facility-scoped roles globally', async () => {
+	let userLookupCount = 0;
+	replace(models.User, 'findAll', async () => {
+		userLookupCount += 1;
+		return [{ id: 99 }];
+	});
+	replace(repository, 'createNotifications', async (notifications) => notifications);
+
+	const created = await service.publishEvent({
+		eventType: 'learning.module_access_granted',
+		eventKey: 'learning-module:12:mentor:3:access-granted',
+		userIds: [3],
+		roles: ['facility_admin'],
+	});
+
+	assert.equal(userLookupCount, 0);
+	assert.deepEqual(created.map((notification) => notification.user_id), [3]);
+});
+
 test('mark-read routes use authenticated ownership and repeated marks are safe', async () => {
 	replace(models.User, 'findByPk', async (id) => ({
 		id: Number(id),

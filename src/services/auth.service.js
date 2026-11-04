@@ -8,6 +8,7 @@ const emailUtil = require('../utils/email.util');
 const env = require('../config/env');
 const { USER_ROLES, canAssignRole, canAccessUser } = require('../constants/roles.constants');
 const { logActivity } = require('../utils/activity-logger.util');
+const notificationService = require('./notifications.service');
 
 const USER_SYSTEM_ROLES = new Set(USER_ROLES);
 const RESET_MESSAGE = 'If that email exists, a reset link will be sent.';
@@ -521,6 +522,14 @@ async function createUserByAdmin(payload) {
   }
 
   await logActivity({ actorId: payload.created_by, action: 'user_provisioned', entityType: 'user', entityId: user.id, facilityId: user.facility_id, outcome: 'success' });
+	await notificationService.publishEventSafely({
+		eventType: 'user.account_created',
+		eventKey: `user:${user.id}:account-created`,
+		referenceType: 'user',
+		referenceId: user.id,
+		userIds: [user.id],
+		facilityIds: [user.facility_id],
+	});
 
   return sanitizeUser(user);
 }
@@ -547,6 +556,14 @@ async function updateUserStatus(userId, status, updatedBy) {
   });
   if (status !== 'active') await authRepository.revokeAllUserRefreshTokens(user.id);
   await logActivity({ actorId: updatedBy, action: 'user_status_changed', entityType: 'user', entityId: user.id, facilityId: user.facility_id, outcome: 'success' });
+	await notificationService.publishEventSafely({
+		eventType: 'user.status_changed',
+		eventKey: `user:${user.id}:status:${status}`,
+		referenceType: 'user',
+		referenceId: user.id,
+		userIds: [user.id],
+		facilityIds: [user.facility_id],
+	});
   return sanitizeUser(user);
 }
 

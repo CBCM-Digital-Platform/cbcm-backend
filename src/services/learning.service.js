@@ -131,6 +131,15 @@ const updateModule = async (moduleId, payload = {}, actor) => {
 		payload = { ...payload, title: trimmedTitle };
 	}
 	const module = await repository.updateModule(moduleId, payload);
+	if (!isModulePublishedAndAuthorized(previousModule) && isModulePublishedAndAuthorized(module)) {
+		await notificationService.publishEventSafely({
+			eventType: 'learning.module_access_granted',
+			eventKey: `learning-module:${moduleId}:published`,
+			referenceType: 'learning_module',
+			referenceId: moduleId,
+			facilityIds: [module.facility_id].filter(Boolean),
+		});
+	}
 	return module;
 };
 
@@ -262,12 +271,21 @@ const grantModuleMentorPermission = async ({ mentorId, moduleId, actor, grantedB
 		throw new AppError('Resource-view permission can only be granted for a published and authorized module.', 409, 'CONFLICT');
 	}
 	await assertMentorEligibleForModule({ mentorId, moduleId, actor });
-	return repository.grantModuleMentorPermission({
+	const grant = await repository.grantModuleMentorPermission({
 		moduleId,
 		mentorId,
 		permission,
 		grantedBy: actor?.id || grantedBy,
 	});
+	await notificationService.publishEventSafely({
+		eventType: 'learning.module_access_granted',
+		eventKey: `learning-module:${moduleId}:mentor:${mentorId}:access-granted`,
+		referenceType: 'learning_module',
+		referenceId: moduleId,
+		userIds: [mentorId],
+		facilityIds: [actor?.facility_id],
+	});
+	return grant;
 };
 
 const revokeModuleMentorPermission = async ({ mentorId, moduleId, actor, revokedBy }) => {

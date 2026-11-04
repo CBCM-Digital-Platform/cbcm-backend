@@ -4,6 +4,7 @@ const AppError = require('../errors/app-error');
 const CycleStatus = require('../enums/cycle-status.enum');
 const { canAccessFacility } = require('../constants/roles.constants');
 const repository = require('../repositories/cycles.repository');
+const notificationService = require('./notifications.service');
 
 const CYCLE_FIELDS = ['name', 'start_date', 'end_date'];
 const transitions = Object.freeze({
@@ -119,6 +120,14 @@ async function updateCycleStatus(id, nextStatus, actorId) {
 		const [updatedCount] = await repository.updateStatusIfCurrent(id, cycle.status, nextStatus, actorId, transaction);
 		if (!updatedCount) throw new AppError('Cycle status changed concurrently; reload and retry.', 409, 'CYCLE_STATUS_CONFLICT');
 		result = toCycleResponse(await repository.findById(id, { transaction }));
+	});
+	const facilities = await repository.listFacilities(id);
+	await notificationService.publishEventSafely({
+		eventType: 'cycle.status_changed',
+		eventKey: `cycle:${id}:status:${result.status}`,
+		referenceType: 'mentorship_cycle',
+		referenceId: id,
+		facilityIds: facilities.map((facility) => facility.facility_id),
 	});
 	return result;
 }
