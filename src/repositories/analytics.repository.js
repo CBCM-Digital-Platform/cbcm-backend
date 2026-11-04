@@ -47,14 +47,41 @@ async function getFacilityCount(where = {}) {
 }
 
 async function getActiveFacilityCount(where = {}) {
-	return Facility.count({ where: { ...where, status: 'active' } });
+	// Facility model doesn't have a status column, so just return total count
+	return Facility.count({ where });
 }
 
 async function getMentorshipCycleCount(where = {}) {
+	// If filtering by facility_id, need to join with cycle_facilities table
+	if (where.facility_id) {
+		const { CycleFacility } = require('../models');
+		return MentorshipCycle.count({
+			where: { ...where, facility_id: undefined },
+			include: [{
+				model: CycleFacility,
+				as: 'cycleFacilitiesForFilter',
+				where: { facility_id: where.facility_id },
+				required: true
+			}]
+		});
+	}
 	return MentorshipCycle.count({ where });
 }
 
 async function getActiveMentorshipCycleCount(where = {}) {
+	// If filtering by facility_id, need to join with cycle_facilities table
+	if (where.facility_id) {
+		const { CycleFacility } = require('../models');
+		return MentorshipCycle.count({
+			where: { ...where, facility_id: undefined, status: 'active' },
+			include: [{
+				model: CycleFacility,
+				as: 'cycleFacilitiesForFilter',
+				where: { facility_id: where.facility_id },
+				required: true
+			}]
+		});
+	}
 	return MentorshipCycle.count({ where: { ...where, status: 'active' } });
 }
 
@@ -69,8 +96,41 @@ async function getActivityLogCountByAction(action, where = {}) {
 }
 
 async function getActivityLogCountByOutcome(outcome, where = {}) {
-	const { ActivityLog } = require('../models');
-	return ActivityLog.count({ where: { ...where, details: { [Op.like]: `%"outcome":"${outcome}"%` } } });
+	const { ActivityLog, sequelize } = require('../models');
+	// Build WHERE clause with JSON pattern matching for TEXT column
+	const conditions = [];
+	const replacements = {};
+	
+	if (where.actor_id) {
+		conditions.push('actor_id = :actor_id');
+		replacements.actor_id = where.actor_id;
+	}
+	if (where.facility_id) {
+		conditions.push('facility_id = :facility_id');
+		replacements.facility_id = where.facility_id;
+	}
+	if (where.action) {
+		conditions.push('action = :action');
+		replacements.action = where.action;
+	}
+	
+	// Escape the outcome string for the LIKE pattern
+	const escapedOutcome = outcome.replace(/'/g, "''");
+	conditions.push("details LIKE '%\"outcome\":\"" + escapedOutcome + "\"%'");
+	
+	let whereClause = '';
+	if (conditions.length > 0) {
+		whereClause = `WHERE ${conditions.join(' AND ')}`;
+	}
+	
+	const result = await sequelize.query(
+		`SELECT COUNT(*) as count FROM activity_logs ${whereClause}`,
+		{ 
+			type: sequelize.QueryTypes.SELECT,
+			replacements
+		}
+	);
+	return result[0].count;
 }
 
 async function getActivityLogCountByDateRange(startDate, endDate, where = {}) {

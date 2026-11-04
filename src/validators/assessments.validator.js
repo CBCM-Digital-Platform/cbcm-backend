@@ -46,6 +46,13 @@ const addEvidenceValidation = [
 	body('file_id').isInt({ min: 1 }).withMessage('File ID must be a positive integer.'),
 ];
 
+const setPracticalResultValidation = [
+	...assessmentIdValidation,
+	body('practical_score').isInt({ min: 1, max: 5 }).withMessage('Practical score must be an integer between 1 and 5.').toInt(),
+	body('assessment_date').optional().isISO8601({ strict: true }).withMessage('Assessment date must be a valid ISO 8601 date.'),
+	body('practical_feedback').optional().isString().withMessage('Practical feedback must be a string.'),
+];
+
 const reviewAssessmentValidation = [
 	...assessmentIdValidation,
 	body('feedback').optional().trim().isLength({ max: 5000 }).withMessage('Feedback must not exceed 5000 characters.'),
@@ -71,6 +78,7 @@ module.exports = {
 	setTheoryScoreValidation,
 	setChecklistItemsValidation,
 	addEvidenceValidation,
+	setPracticalResultValidation,
 	reviewAssessmentValidation,
 	listAssessmentsValidation,
 };

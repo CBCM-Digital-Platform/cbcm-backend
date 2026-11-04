@@ -7,38 +7,48 @@ module.exports = {
 			String(typeof entry === 'string' ? entry : entry.tableName || entry.table_name).toLowerCase()
 				=== 'learning_module_mentor_permissions'
 		));
+		const dialect = queryInterface.sequelize && queryInterface.sequelize.getDialect && queryInterface.sequelize.getDialect();
+		const hasForeignKeyReferences = dialect && dialect !== 'sqlite';
 		if (!tableExists) {
 			await queryInterface.createTable('learning_module_mentor_permissions', {
 				id: { type: Sequelize.INTEGER, primaryKey: true, autoIncrement: true },
 				module_id: {
 					type: Sequelize.INTEGER,
 					allowNull: false,
-					references: { model: 'learning_modules', key: 'id' },
-					onUpdate: 'CASCADE',
-					onDelete: 'CASCADE',
+					...(hasForeignKeyReferences ? {
+						references: { model: 'learning_modules', key: 'id' },
+						onUpdate: 'CASCADE',
+						onDelete: 'CASCADE',
+					} : {}),
 				},
 				mentor_id: {
 					type: Sequelize.INTEGER,
 					allowNull: false,
-					references: { model: 'users', key: 'id' },
-					onUpdate: 'CASCADE',
-					onDelete: 'CASCADE',
+					...(hasForeignKeyReferences ? {
+						references: { model: 'users', key: 'id' },
+						onUpdate: 'CASCADE',
+						onDelete: 'CASCADE',
+					} : {}),
 				},
 				permission: { type: Sequelize.STRING, allowNull: false },
 				granted_by: {
 					type: Sequelize.INTEGER,
 					allowNull: false,
-					references: { model: 'users', key: 'id' },
-					onUpdate: 'CASCADE',
-					onDelete: 'RESTRICT',
+					...(hasForeignKeyReferences ? {
+						references: { model: 'users', key: 'id' },
+						onUpdate: 'CASCADE',
+						onDelete: 'RESTRICT',
+					} : {}),
 				},
 				granted_at: { type: Sequelize.DATE, allowNull: false },
 				revoked_by: {
 					type: Sequelize.INTEGER,
 					allowNull: true,
-					references: { model: 'users', key: 'id' },
-					onUpdate: 'CASCADE',
-					onDelete: 'RESTRICT',
+					...(hasForeignKeyReferences ? {
+						references: { model: 'users', key: 'id' },
+						onUpdate: 'CASCADE',
+						onDelete: 'RESTRICT',
+					} : {}),
 				},
 				revoked_at: { type: Sequelize.DATE, allowNull: true },
 			});

@@ -6,7 +6,7 @@ const controllerError = require('../utils/controller-error.util');
 
 async function list(req, res) {
 	try {
-		const result = await service.listAssessments(matchedData(req, { locations: ['query'] }), req.user);
+		const result = await service.listAssessments(matchedData(req, { locations: ['query'] }) || {}, req.user);
 		return successResponse(res, 200, result.items, { page: result.page, limit: result.limit, total: result.total, totalPages: result.totalPages });
 	} catch (error) {
 		return controllerError(res, error, 'Unable to list assessments.');
@@ -92,6 +92,39 @@ async function addEvidence(req, res) {
 	}
 }
 
+async function setPracticalResult(req, res) {
+	try {
+		const payload = matchedData(req, { locations: ['body'] });
+		return successResponse(res, 200, await service.setPracticalResult(Number(req.params.id), payload, req.user));
+	} catch (error) {
+		return controllerError(res, error, 'Unable to set practical result.');
+	}
+}
+
+async function syncTheoryScore(req, res) {
+	try {
+		return successResponse(res, 200, await service.syncTheoryScoreFromQuiz(Number(req.params.id), req.user));
+	} catch (error) {
+		return controllerError(res, error, 'Unable to sync theory score from quiz.');
+	}
+}
+
+async function syncCriteriaScores(req, res) {
+	try {
+		return successResponse(res, 200, await service.syncCriteriaScoresFromQuiz(Number(req.params.id), req.user));
+	} catch (error) {
+		return controllerError(res, error, 'Unable to sync criteria scores from quiz.');
+	}
+}
+
+async function getCertificateEligibility(req, res) {
+	try {
+		return successResponse(res, 200, await service.getCertificateEligibility(Number(req.params.id), req.user));
+	} catch (error) {
+		return controllerError(res, error, 'Unable to check certificate eligibility.');
+	}
+}
+
 module.exports = {
 	list,
 	getById,
@@ -103,4 +136,8 @@ module.exports = {
 	setTheoryScore,
 	setChecklistItems,
 	addEvidence,
+	setPracticalResult,
+	syncTheoryScore,
+	syncCriteriaScores,
+	getCertificateEligibility,
 };

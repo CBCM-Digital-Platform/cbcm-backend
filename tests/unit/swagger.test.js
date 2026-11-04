@@ -108,4 +108,64 @@ describe('Swagger / OpenAPI Configuration Validation', () => {
 		assert.equal(itemPath.patch.summary, 'Update a user guide');
 		assert.equal(itemPath.delete.summary, 'Delete a user guide');
 	});
+
+	it('documents every registered assessment, passing-rule, and certificate route method', () => {
+		const { swaggerSpec } = require('../../src/config/swagger');
+		const routeGroups = [
+			['/api/v1/assessments', require('../../src/routes/assessments.routes')],
+			['/api/v1/assessment-passing-rules', require('../../src/routes/assessment-passing-rules.routes')],
+			['/api/v1/certificates', require('../../src/routes/certificates.routes')],
+		];
+		const missing = [];
+
+		for (const [prefix, router] of routeGroups) {
+			for (const layer of router.stack) {
+				if (!layer.route) continue;
+				const pathName = `${prefix}${layer.route.path === '/' ? '' : layer.route.path}`
+					.replace(/:([A-Za-z0-9_]+)/g, '{$1}');
+				for (const method of Object.keys(layer.route.methods)) {
+					if (layer.route.methods[method] && !swaggerSpec.paths[pathName]?.[method]) {
+						missing.push(`${method.toUpperCase()} ${pathName}`);
+					}
+				}
+			}
+		}
+
+		assert.deepEqual(missing, [], `Undocumented registered routes: ${missing.join(', ')}`);
+	});
+
+	it('documents passing-rule role security, schemas, and soft-deactivation response', () => {
+		const raw = fs.readFileSync(specPath, 'utf8');
+		const doc = yaml.load(raw);
+		const collection = doc.paths['/api/v1/assessment-passing-rules'];
+		const item = doc.paths['/api/v1/assessment-passing-rules/{id}'];
+
+		assert.ok(collection.get && collection.post);
+		assert.ok(item.get && item.patch && item.delete);
+		assert.deepEqual(collection.get.security, [{ bearerAuth: [] }]);
+		assert.deepEqual(collection.post.requestBody.content['application/json'].schema, {
+			$ref: '#/components/schemas/AssessmentPassingRuleCreateRequest',
+		});
+		assert.deepEqual(item.patch.requestBody.content['application/json'].schema, {
+			$ref: '#/components/schemas/AssessmentPassingRuleUpdateRequest',
+		});
+		assert.ok(item.delete.responses['200'].content['application/json'].schema.properties.data.properties.deactivated);
+	});
+
+	it('documents certificate issuance eligibility at its registered path with all path parameters', () => {
+		const raw = fs.readFileSync(specPath, 'utf8');
+		const doc = yaml.load(raw);
+		const operation = doc.paths['/api/v1/certificates/eligibility/{mentee_id}/{cycle_id}/{thematic_area_id}'].get;
+
+		assert.ok(operation);
+		assert.deepEqual(operation.security, [{ bearerAuth: [] }]);
+		assert.deepEqual(operation.parameters.map((parameter) => parameter.name), [
+			'mentee_id',
+			'cycle_id',
+			'thematic_area_id',
+		]);
+		assert.ok(operation.responses['200'].content['application/json'].schema.$ref
+			=== '#/components/schemas/CertificateEligibilityResponse');
+		assert.ok(operation.responses['401'] && operation.responses['403']);
+	});
 });

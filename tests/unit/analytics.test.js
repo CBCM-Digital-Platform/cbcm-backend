@@ -34,7 +34,7 @@ test('dashboard metrics returns aggregate data for system admin', async () => {
 	repository.getFinalizedAssessmentCount = async () => 150;
 	repository.getSnapshotCount = async () => 500;
 	repository.getFacilityCount = async () => 10;
-	repository.getActiveFacilityCount = async () => 8;
+	repository.getActiveFacilityCount = async () => 10; // Facility model doesn't have status column
 	repository.getMentorshipCycleCount = async () => 5;
 	repository.getActiveMentorshipCycleCount = async () => 3;
 	repository.getLearningModuleCount = async () => 25;
@@ -55,7 +55,7 @@ test('dashboard metrics returns aggregate data for system admin', async () => {
 		assert.strictEqual(result.assessments.draft, 50);
 		assert.strictEqual(result.progress.total_snapshots, 500);
 		assert.strictEqual(result.facilities.total, 10);
-		assert.strictEqual(result.facilities.active, 8);
+		assert.strictEqual(result.facilities.active, 10); // Facility model doesn't have status column
 		assert.strictEqual(result.cycles.total, 5);
 		assert.strictEqual(result.cycles.active, 3);
 		assert.strictEqual(result.learning.total_modules, 25);
@@ -111,9 +111,9 @@ test('dashboard metrics enforces facility scope for facility admin', async () =>
 	repository.getFinalizedAssessmentCount = async (where) => { whereUsed = where; return 45; };
 	repository.getSnapshotCount = async (where) => { whereUsed = where; return 150; };
 	repository.getFacilityCount = async () => 10;
-	repository.getActiveFacilityCount = async () => 8;
-	repository.getMentorshipCycleCount = async () => 5;
-	repository.getActiveMentorshipCycleCount = async () => 3;
+	repository.getActiveFacilityCount = async () => 10; // Facility model doesn't have status column
+	repository.getMentorshipCycleCount = async (where) => { whereUsed = where; return 5; };
+	repository.getActiveMentorshipCycleCount = async (where) => { whereUsed = where; return 3; };
 	repository.getLearningModuleCount = async () => 25;
 
 	try {

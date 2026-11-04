@@ -3066,6 +3066,33 @@ components:
         updated_at:
           type: string
           format: date-time
+    AssessmentPassingRule:
+      type: object
+      properties:
+        id: { type: integer }
+        cycle_id: { type: integer, nullable: true }
+        thematic_area_id: { type: integer, nullable: true }
+        criteria_min_score: { type: integer, minimum: 0, maximum: 100 }
+        theory_min_score: { type: integer, minimum: 0, maximum: 100 }
+        practical_min_score: { type: integer, minimum: 1, maximum: 5 }
+        is_active: { type: boolean }
+    AssessmentPassingRuleCreateRequest:
+      type: object
+      properties:
+        cycle_id: { type: integer, minimum: 1 }
+        thematic_area_id: { type: integer, minimum: 1 }
+        criteria_min_score: { type: integer, minimum: 0, maximum: 100 }
+        theory_min_score: { type: integer, minimum: 0, maximum: 100 }
+        practical_min_score: { type: integer, minimum: 1, maximum: 5 }
+    AssessmentPassingRuleUpdateRequest:
+      type: object
+      properties:
+        cycle_id: { type: integer, minimum: 1 }
+        thematic_area_id: { type: integer, minimum: 1 }
+        criteria_min_score: { type: integer, minimum: 0, maximum: 100 }
+        theory_min_score: { type: integer, minimum: 0, maximum: 100 }
+        practical_min_score: { type: integer, minimum: 1, maximum: 5 }
+        is_active: { type: boolean }
     CreateGuideRequest:
       type: object
       required:
@@ -3592,6 +3619,8 @@ tags:
     description: Mentee clinical procedure logbook entries and mentor review workflow
   - name: Assessments
     description: Clinical competency assessments, scoring, criteria, and evidence
+  - name: Assessment Passing Rules
+    description: System administrator configuration of criteria, theory, and practical score thresholds
   - name: Sessions
     description: Clinical encounter sessions, scheduling, notes, and virtual rooms
 paths:
@@ -6940,6 +6969,85 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
+  /api/v1/assessment-passing-rules:
+    get:
+      summary: List assessment passing rules
+      tags: [Assessment Passing Rules]
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Passing rules
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean }
+                  data:
+                    type: array
+                    items: { $ref: '#/components/schemas/AssessmentPassingRule' }
+    post:
+      summary: Create an assessment passing rule
+      tags: [Assessment Passing Rules]
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/AssessmentPassingRuleCreateRequest' }
+      responses:
+        '201':
+          description: Passing rule created
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AssessmentPassingRule' }
+  /api/v1/assessment-passing-rules/{id}:
+    get:
+      summary: Get an assessment passing rule
+      tags: [Assessment Passing Rules]
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Passing rule
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AssessmentPassingRule' }
+    patch:
+      summary: Update an assessment passing rule
+      tags: [Assessment Passing Rules]
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/AssessmentPassingRuleUpdateRequest' }
+      responses:
+        '200':
+          description: Passing rule updated
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AssessmentPassingRule' }
+    delete:
+      summary: Deactivate an assessment passing rule
+      tags: [Assessment Passing Rules]
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Passing rule deactivated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      deactivated: { type: boolean }
   /api/v1/certificates/eligibility/{mentee_id}/{cycle_id}/{thematic_area_id}:
     get:
       summary: Check certificate eligibility
@@ -6970,6 +7078,25 @@ paths:
           description: Thematic area ID
       security:
         - bearerAuth: []
+      responses:
+        '200':
+          description: Certificate eligibility result
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CertificateEligibilityResponse'
+        '401':
+          description: Authentication required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Role or facility scope is not permitted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
   /api/v1/analytics/dashboard:
     get:
       summary: Get dashboard metrics

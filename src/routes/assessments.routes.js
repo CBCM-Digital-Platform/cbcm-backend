@@ -13,6 +13,7 @@ const {
 	addEvidenceValidation,
 	reviewAssessmentValidation,
 	listAssessmentsValidation,
+	setPracticalResultValidation,
 } = require('../validators/assessments.validator');
 
 const router = express.Router();
@@ -446,5 +447,157 @@ router.post('/:id/checklist-items', setChecklistItemsValidation, validateRequest
  *         description: Assessment not found
  */
 router.post('/:id/evidence', addEvidenceValidation, validateRequest, controller.addEvidence);
+
+/**
+ * @openapi
+ * /api/v1/assessments/{id}/practical-result:
+ *   post:
+ *     summary: Set practical assessment result
+ *     description: The assigned mentor records the practical assessment result (1-5 scale) for an assessment.
+ *     tags: [Assessments]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema: { type: integer, minimum: 1 }
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - practical_score
+ *             properties:
+ *               practical_score:
+ *                 type: integer
+ *                 minimum: 1
+ *                 maximum: 5
+ *               assessment_date:
+ *                 type: string
+ *                 format: date
+ *               practical_feedback:
+ *                 type: string
+ *     responses:
+ *       200:
+ *         description: Practical result set
+ *       400:
+ *         description: Invalid status or validation error
+ *       401:
+ *         description: Authentication required
+ *       403:
+ *         description: Authorization failed
+ *       404:
+ *         description: Assessment not found
+ */
+router.post('/:id/practical-result', setPracticalResultValidation, validateRequest, controller.setPracticalResult);
+
+/**
+ * @openapi
+ * /api/v1/assessments/{id}/sync-criteria:
+ *   post:
+ *     summary: Synchronize criteria score from quiz
+ *     description: Uses the latest valid completed attempt within the configured attempt limit from the uniquely mapped, published, authorized criteria quiz for the assessment thematic area. Multiple mapped criteria quizzes are rejected as ambiguous because no aggregation rule exists. Repeated synchronization replaces the prior quiz-derived criteria result. System Admins, the assigned Mentor, and Facility Admins in the assessment facility may synchronize.
+ *     tags: [Assessments]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema: { type: integer, minimum: 1 }
+ *     responses:
+ *       200:
+ *         description: Criteria score synchronization result
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/AssessmentQuizSyncResponse'
+ *       400:
+ *         description: Assessment cannot be updated in its current state
+ *       401:
+ *         description: Authentication required
+ *       403:
+ *         description: Authorization failed
+ *       404:
+ *         description: Assessment not found
+ *       409:
+ *         description: Multiple criteria quizzes are mapped to this assessment scope
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ */
+router.post('/:id/sync-criteria', assessmentIdValidation, validateRequest, controller.syncCriteriaScores);
+
+/**
+ * @openapi
+ * /api/v1/assessments/{id}/sync-theory:
+ *   post:
+ *     summary: Sync theory score from quiz
+ *     description: Synchronizes the theory score from the latest valid completed attempt within the configured attempt limit from the uniquely mapped, published, authorized theory quiz for the assessment thematic area. System Admins, the assigned Mentor, and Facility Admins in the assessment facility may synchronize.
+ *     tags: [Assessments]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema: { type: integer, minimum: 1 }
+ *     responses:
+ *       200:
+ *         description: Theory score synced
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/AssessmentQuizSyncResponse'
+ *       400:
+ *         description: Sync failed
+ *       401:
+ *         description: Authentication required
+ *       403:
+ *         description: Authorization failed
+ *       404:
+ *         description: Assessment not found
+ *       409:
+ *         description: Multiple theory quizzes are mapped to this assessment scope
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ */
+router.post('/:id/sync-theory', assessmentIdValidation, validateRequest, controller.syncTheoryScore);
+
+/**
+ * @openapi
+ * /api/v1/assessments/{id}/certificate-eligibility:
+ *   get:
+ *     summary: Get certificate eligibility
+ *     description: Returns criteria-quiz, theory-quiz, and practical results against configured passing thresholds, plus prerequisite and finalized/reviewed lifecycle requirements. Mentors may view their mentees' assessments, mentees their own, Facility Admins assessments in their facility, and System Admins within their permitted scope.
+ *     tags: [Assessments]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema: { type: integer, minimum: 1 }
+ *     responses:
+ *       200:
+ *         description: Certificate eligibility details
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/AssessmentEligibilityResponse'
+ *       401:
+ *         description: Authentication required
+ *       403:
+ *         description: Authorization failed
+ *       404:
+ *         description: Assessment not found
+ */
+router.get('/:id/certificate-eligibility', assessmentIdValidation, validateRequest, controller.getCertificateEligibility);
 
 module.exports = router;

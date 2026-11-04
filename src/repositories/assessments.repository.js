@@ -53,7 +53,7 @@ async function findWithIncludes(id) {
 }
 
 async function findManyWithIncludes(where, options = {}) {
-	return Assessment.findAll({
+	return Assessment.findAndCountAll({
 		where,
 		include: [
 			{ model: User, as: 'mentee', attributes: ['id', 'full_name', 'email', 'role', 'facility_id'], required: false },

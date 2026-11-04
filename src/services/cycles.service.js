@@ -32,8 +32,31 @@ function paginationValues(page = 1, limit = 20) {
 	return { page: Number(page), limit: Number(limit), offset: (Number(page) - 1) * Number(limit) };
 }
 
-async function listCycles({ page = 1, limit = 20, status } = {}) {
+async function listCycles({ page = 1, limit = 20, status } = {}, actor) {
 	const where = status ? { status } : {};
+
+	// Enforce facility scope for Facility Admin
+	if (actor && actor.role === 'facility_admin') {
+		if (!actor.facility_id) {
+			throw new AppError('Facility administrator must be assigned to a facility.', 403, 'FORBIDDEN');
+		}
+		// Only show cycles that are assigned to this facility
+		const facilityCycles = await repository.listFacilitiesByFacility(actor.facility_id);
+		const cycleIds = facilityCycles.map(fc => fc.cycle_id);
+		if (cycleIds.length > 0) {
+			where.id = { [require('sequelize').Op.in]: cycleIds };
+		} else {
+			// If no cycles assigned, return empty result
+			return {
+				items: [],
+				total: 0,
+				page: paginationValues(page, limit).page,
+				limit: paginationValues(page, limit).limit,
+				totalPages: 0,
+			};
+		}
+	}
+
 	const pagination = paginationValues(page, limit);
 	const { count, rows } = await repository.list({ where, limit: pagination.limit, offset: pagination.offset });
 	return {

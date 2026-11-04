@@ -11,6 +11,7 @@ const { canAccessFacility, SYSTEM_ADMIN_ROLES, FACILITY_ADMIN_ROLES } = require(
 const notificationService = require('./notifications.service');
 const NotificationType = require('../enums/notification-type.enum');
 const Role = require('../enums/role.enum');
+const env = require('../config/env');
 
 function paginationValues(page = 1, limit = 20) {
 	return { page: Number(page), limit: Number(limit), offset: (Number(page) - 1) * Number(limit) };
@@ -350,12 +351,12 @@ async function generateJoinToken(id, actor) {
 	}
 
 	// Public development mode (no JWT)
-	if (env.JITSI_PUBLIC_MODE) {
+	if (env.JITSI_PUBLIC_MODE && env.JITSI_DOMAIN) {
 		return {
-			domain: 'meet.jit.si',
+			domain: env.JITSI_DOMAIN || 'meet.jit.si',
 			room: session.jitsi_room_id,
 			token: null,
-			url: `https://meet.jit.si/${session.jitsi_room_id}`,
+			url: `https://${env.JITSI_DOMAIN || 'meet.jit.si'}/${session.jitsi_room_id}`,
 			expires_at: null,
 		};
 	}

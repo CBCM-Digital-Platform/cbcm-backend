@@ -38,6 +38,12 @@ function listFacilities(cycleId) {
 	});
 }
 
+function listFacilitiesByFacility(facilityId) {
+	return CycleFacility.findAll({
+		where: { facility_id: facilityId },
+	});
+}
+
 function findFacilityAssignment(cycleId, facilityId, transaction) {
 	return CycleFacility.findOne({
 		where: { cycle_id: cycleId, facility_id: facilityId },
@@ -89,6 +95,7 @@ module.exports = {
 	update,
 	updateStatusIfCurrent,
 	listFacilities,
+	listFacilitiesByFacility,
 	findFacilityAssignment,
 	createFacilityAssignment,
 	removeFacilityAssignment,
