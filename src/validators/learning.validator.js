@@ -157,6 +157,11 @@ const parseMentorPermissionGrant = (body = {}) => {
 	return { mentorId };
 };
 
+const parseMenteeId = (body = {}) => {
+	const menteeId = parseId(body.menteeId ?? body.mentee_id, 'menteeId');
+	return { menteeId };
+};
+
 const parseQuizSubmission = (body = {}) => {
 	const answers = Array.isArray(body.answers) ? body.answers : [];
 	if (answers.length === 0) {
@@ -301,6 +306,7 @@ module.exports = {
 	parseMentorId,
 	parseLearningPermission,
 	parseMentorPermissionGrant,
+	parseMenteeId,
 	parseQuizSubmission,
 	parseQuestion,
 	parseOption,

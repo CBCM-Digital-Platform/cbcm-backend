@@ -423,12 +423,10 @@ describe('Resources CRUD API (Step 5)', () => {
 			assert.equal(res.id, facility1Resource.id);
 		});
 
-		it('should reject facility admin from reading resource outside facility scope (knowing ID does not grant access)', async () => {
+		it('should allow facility admin to read resources outside their facility scope', async () => {
 			const fac1Admin = { id: 2, role: Role.FACILITY_ADMIN, facility_id: 1 };
-			await assert.rejects(
-				service.getResource(facility2Resource.id, fac1Admin),
-				{ statusCode: 403 }
-			);
+			const res = await service.getResource(facility2Resource.id, fac1Admin);
+			assert.equal(res.id, facility2Resource.id);
 		});
 
 		it('should reject facility admin from updating resource (only super admin allowed)', async () => {
@@ -449,12 +447,12 @@ describe('Resources CRUD API (Step 5)', () => {
 			);
 		});
 
-		it('should enforce facility boundaries on listing resources', async () => {
+		it('should allow facility admin to list resources across all facilities', async () => {
 			const fac1Admin = { id: 2, role: Role.FACILITY_ADMIN, facility_id: 1 };
 			const list = await service.listResources({}, fac1Admin);
 
 			assert.ok(list.items.some((r) => r.id === facility1Resource.id));
-			assert.equal(list.items.some((r) => r.id === facility2Resource.id), false);
+			assert.ok(list.items.some((r) => r.id === facility2Resource.id));
 		});
 	});
 
@@ -592,7 +590,7 @@ describe('Resources CRUD API (Step 5)', () => {
 			);
 		});
 
-		it('should allow an individually assigned resource without separate module access', async () => {
+		it('should allow an individually assigned resource without a mentee permission grant', async () => {
 			const mentee = { id: 5, role: Role.MENTEE, facility_id: 1 };
 			await models.LearningModuleProgress.destroy({ where: { mentee_id: 5, module_id: 1 } });
 			await models.ResourceAssignment.findOrCreate({
@@ -613,6 +611,36 @@ describe('Resources CRUD API (Step 5)', () => {
 			});
 			const resource = await service.getResource(authorizedResource.id, mentee);
 			assert.equal(resource.id, authorizedResource.id);
+		});
+
+		it('should allow an active mentee assignment after the mentor module grant is revoked', async () => {
+			const mentee = { id: 5, role: Role.MENTEE, facility_id: 1 };
+			await models.ResourceAssignment.findOrCreate({
+				where: {
+					resource_id: authorizedResource.id,
+					mentee_id: 5,
+					assignment_status: 'active',
+				},
+				defaults: {
+					resource_id: authorizedResource.id,
+					mentor_id: 4,
+					mentee_id: 5,
+					facility_id: 1,
+					assignment_status: 'active',
+					assigned_by: 4,
+					assigned_at: new Date(),
+				},
+			});
+			const grants = await models.LearningModuleMentorPermission.findAll({ where: { module_id: 1, mentor_id: 4 } });
+			const legacyGrant = await models.LearningModuleMentorAccess.findOne({ where: { module_id: 1, mentor_id: 4 } });
+			await models.LearningModuleMentorPermission.destroy({ where: { module_id: 1, mentor_id: 4 } });
+			if (legacyGrant) await legacyGrant.destroy();
+			try {
+				const resource = await service.getResource(authorizedResource.id, mentee);
+				assert.equal(resource.id, authorizedResource.id);
+			} finally {
+				await models.LearningModuleMentorPermission.bulkCreate(grants.map((grant) => grant.get({ plain: true })));
+			}
 		});
 
 		it('should not grant resource access from module access alone', async () => {

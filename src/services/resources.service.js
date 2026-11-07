@@ -67,15 +67,10 @@ async function isMenteeAssignmentAuthorized(assignment, resource) {
 	if (!assignment || !resource?.module_id || assignment.assignment_status !== 'active') return false;
 	const module = await repository.getModuleById(resource.module_id);
 	if (!isModulePublishedAndAuthorized(module)) return false;
-	const [hasModuleAccess, hasMentorAssignment] = await Promise.all([
-		repository.hasModuleMentorAccess({ mentorId: assignment.mentor_id, moduleId: resource.module_id }),
-		repository.hasActiveMentorAssignment({
-			mentorId: assignment.mentor_id,
-			menteeId: assignment.mentee_id,
-			moduleId: resource.module_id,
-		}),
-	]);
-	return hasModuleAccess && hasMentorAssignment;
+	// The active resource assignment is the mentee's access grant. The mentor's
+	// module permission is required when assigning/revoking resources, but it is
+	// not a separate permission the mentee must retain to consume an assignment.
+	return true;
 }
 
 async function findResourceAssignment(resourceId, menteeId, status) {
@@ -197,25 +192,8 @@ async function getResource(id, actor) {
 	}
 
 	if (isFacilityAdmin(role)) {
-		if (resource.module_id) {
-			const inScope = await repository.isModuleInFacilityScope({
-				moduleId: resource.module_id,
-				facilityId: actor.facility_id,
-			});
-			if (!inScope) {
-				throw new AppError('You do not have permission to access this resource.', 403, 'FORBIDDEN');
-			}
-		} else if (resource.thematic_area_id) {
-			const inScope = await repository.isThematicAreaInFacilityScope({
-				thematicAreaId: resource.thematic_area_id,
-				facilityId: actor.facility_id,
-			});
-			if (!inScope) {
-				throw new AppError('You do not have permission to access this resource.', 403, 'FORBIDDEN');
-			}
-		} else {
-			throw new AppError('You do not have permission to access this resource.', 403, 'FORBIDDEN');
-		}
+		// Facility Admins have organization-wide read access to learning resources.
+		// Administrative actions remain protected by their existing scope checks.
 		return toResource(resource);
 	}
 
@@ -256,26 +234,7 @@ async function listResources(query, actor) {
 	if (isSystemAdmin(role)) {
 		// System admin can see all matching resources
 	} else if (isFacilityAdmin(role)) {
-		const allowedModuleIds = await repository.listModuleIdsForFacility(actor.facility_id);
-		const allowedThematicAreaIds = await repository.listFacilityThematicAreaIds(actor.facility_id);
-
-		const facilityScopeConditions = [];
-		if (allowedModuleIds.length > 0) {
-			facilityScopeConditions.push({ module_id: { [Op.in]: allowedModuleIds } });
-		}
-		if (allowedThematicAreaIds.length > 0) {
-			facilityScopeConditions.push({
-				module_id: null,
-				thematic_area_id: { [Op.in]: allowedThematicAreaIds },
-			});
-		}
-
-		if (facilityScopeConditions.length === 0) {
-			return { items: [], total: 0, page: parsed.page, limit: parsed.limit, totalPages: 0 };
-		}
-
-		where[Op.and] = where[Op.and] || [];
-		where[Op.and].push({ [Op.or]: facilityScopeConditions });
+		// Facility Admins have organization-wide read access to learning resources.
 	} else if (role === Role.MENTOR) {
 		const grantedIds = await repository.listMentorModuleIds(actor.id);
 		const eligibleIds = (await Promise.all(

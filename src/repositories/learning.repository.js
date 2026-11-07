@@ -302,6 +302,36 @@ const listProgressForMentee = async (menteeId, { mentorId } = {}) => {
 	return filterValidMentorGrantedAccess(records);
 };
 
+const assignModuleToMentee = async ({ moduleId, menteeId, mentorId }) => {
+	const existing = await models.LearningModuleProgress.findOne({
+		where: { module_id: moduleId, mentee_id: menteeId },
+	});
+	if (existing) {
+		await existing.update({
+			assigned_by: mentorId,
+			assigned_at: existing.assigned_at || new Date(),
+			status: existing.status === 'access_revoked' ? 'not_started' : existing.status,
+		});
+		return existing;
+	}
+	return models.LearningModuleProgress.create({
+		module_id: moduleId,
+		mentee_id: menteeId,
+		assigned_by: mentorId,
+		assigned_at: new Date(),
+		status: 'not_started',
+		completion_percentage: 0,
+	});
+};
+
+const revokeModuleAssignment = async ({ moduleId, menteeId, mentorId }) => {
+	const [updated] = await models.LearningModuleProgress.update(
+		{ status: 'access_revoked' },
+		{ where: { module_id: moduleId, mentee_id: menteeId, assigned_by: mentorId, status: { [Op.ne]: 'access_revoked' } } }
+	);
+	return Boolean(updated);
+};
+
 const grantMentorModuleAccess = async ({ moduleId, mentorId, grantedBy }) => {
 	const grant = await grantModuleMentorPermission({
 		moduleId,
@@ -578,18 +608,26 @@ const countCompletedContents = async ({ menteeId, moduleId }, transaction) => mo
 	transaction,
 });
 
-const getQuizByModule = async (moduleId, { includeCorrectAnswers = false, learnerVisible = false } = {}) => models.Quiz.findOne({
-	where: { module_id: moduleId, ...(learnerVisible ? isLearnerVisible : {}) },
-	include: [{
-		model: models.QuizQuestion,
-		as: 'questions',
+const getQuizByModule = async (moduleId, { includeCorrectAnswers = false, learnerVisible = false } = {}) => {
+	const where = { module_id: moduleId };
+	const quizCount = await models.Quiz.count({ where });
+	if (quizCount > 1) {
+		throw new AppError('Multiple quizzes are configured for this module; resolve the duplicate quiz configuration before learner access.', 409, 'QUIZ_CONFIGURATION_CONFLICT');
+	}
+	return models.Quiz.findOne({
+		where: { ...where, ...(learnerVisible ? isLearnerVisible : {}) },
+		order: [['id', 'ASC']],
 		include: [{
-			model: models.QuizQuestionOption,
-			as: 'options',
-			...(includeCorrectAnswers ? {} : { attributes: ['id', 'question_id', 'text', 'order_number'] }),
+			model: models.QuizQuestion,
+			as: 'questions',
+			include: [{
+				model: models.QuizQuestionOption,
+				as: 'options',
+				...(includeCorrectAnswers ? {} : { attributes: ['id', 'question_id', 'text', 'order_number'] }),
+			}],
 		}],
-	}],
-});
+	});
+};
 
 const getQuizById = async (quizId, { includeCorrectAnswers = false, transaction } = {}) => models.Quiz.findByPk(quizId, {
 	transaction,
@@ -646,7 +684,12 @@ const getQuizQuestion = async (questionId, { transaction } = {}) => models.QuizQ
 
 const listQuizQuestions = async (quizId) => models.QuizQuestion.findAll({
 	where: { quiz_id: quizId },
-	include: [{ model: models.QuizQuestionOption, as: 'options' }],
+	attributes: ['id', 'quiz_id', 'prompt', 'question_type', 'clinical_context', 'points', 'order_number'],
+	include: [{
+		model: models.QuizQuestionOption,
+		as: 'options',
+		attributes: ['id', 'question_id', 'text', 'order_number'],
+	}],
 	order: [['order_number', 'ASC'], ['id', 'ASC']],
 });
 
@@ -945,6 +988,8 @@ module.exports = {
 	listModuleProgress,
 	getModuleProgress,
 	listProgressForMentee,
+	assignModuleToMentee,
+	revokeModuleAssignment,
 	listProgressForMenteeInModule,
 	markContentComplete,
 	completeContentAndUpdateProgress,

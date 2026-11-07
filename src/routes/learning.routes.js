@@ -7,7 +7,7 @@ const controller = require('../controllers/learning.controller');
 const resourcesController = require('../controllers/resources.controller');
 const validator = require('../validators/learning.validator');
 const resourceValidator = require('../validators/resources.validator');
-const { uploadResourceFile } = require('../middlewares/upload.middleware');
+const { uploadResourceFile, uploadQuizPdfs } = require('../middlewares/upload.middleware');
 const uploadsService = require('../services/uploads.service');
 
 const router = express.Router();
@@ -63,13 +63,15 @@ router.patch('/modules/:moduleId/contents/:contentId', requireRole(FACILITY_MANA
 router.put('/modules/:moduleId/contents/:contentId', requireRole(FACILITY_MANAGEMENT_ROLES), validateId('moduleId'), validateId('contentId'), validate(validator.parseContent), controller.updateContent);
 router.delete('/modules/:moduleId/contents/:contentId', requireRole(FACILITY_MANAGEMENT_ROLES), validateId('moduleId'), validateId('contentId'), controller.deleteContent);
 
-router.post('/modules/:moduleId/quizzes', requireRole(Role.FACILITY_ADMIN), validateId('moduleId'), validate(validator.parseQuiz), controller.createQuiz);
-router.patch('/quizzes/:quizId', requireRole(Role.FACILITY_ADMIN), validateId('quizId'), validate(validator.parseQuizPatch), controller.updateQuiz);
+router.post('/modules/:moduleId/quizzes', requireRole(Role.ADMIN), validateId('moduleId'), validate(validator.parseQuiz), controller.createQuiz);
+router.patch('/quizzes/:quizId', requireRole(Role.ADMIN), validateId('quizId'), validate(validator.parseQuizPatch), controller.updateQuiz);
 
 router.get('/modules/:moduleId/mentor-permissions', requireRole(FACILITY_MANAGEMENT_ROLES), validateId('moduleId'), controller.getModuleMentorPermissions);
 router.post('/modules/:moduleId/mentor-permissions', requireRole(Role.FACILITY_ADMIN), validateId('moduleId'), validate(validator.parseMentorPermissionGrant), controller.grantModuleMentorPermission);
 router.delete('/modules/:moduleId/mentor-permissions/:mentorId', requireRole(Role.FACILITY_ADMIN), validateId('moduleId'), validateId('mentorId'), controller.revokeModuleMentorPermission);
 router.get('/mentees/:menteeId/modules', requireRole([...FACILITY_MANAGEMENT_ROLES, Role.MENTOR]), validateId('menteeId'), controller.getMenteeModules);
+router.post('/modules/:moduleId/assignments', requireRole(Role.MENTOR), validateId('moduleId'), validate(validator.parseMenteeId), controller.assignModuleToMentee);
+router.delete('/modules/:moduleId/mentees/:menteeId/assignment', requireRole(Role.MENTOR), validateId('moduleId'), validateId('menteeId'), controller.revokeModuleAssignment);
 
 router.get('/my/modules', requireRole('mentee'), controller.getMyModules);
 router.get('/my/modules/:moduleId', requireRole('mentee'), validateId('moduleId'), controller.getMyModuleProgress);
@@ -106,21 +108,28 @@ router.get('/my/resources/:resourceId/content', requireRole(Role.MENTEE), valida
 router.post('/my/resources/:resourceId/complete', requireRole(Role.MENTEE), validateId('resourceId'), resourcesController.completeMyResource);
 
 router.get('/modules/:moduleId/quiz', requireRole('mentee'), validateId('moduleId'), controller.getQuizByModule);
-router.get('/modules/:moduleId/quizzes', requireRole('mentee'), validateId('moduleId'), controller.getQuizByModule);
+router.get('/modules/:moduleId/quizzes', requireRole([Role.ADMIN, Role.FACILITY_ADMIN, Role.MENTOR, Role.MENTEE]), validateId('moduleId'), controller.getQuizByModuleForViewer);
 router.get('/quizzes/:quizId', requireRole('mentee'), validateId('quizId'), controller.getQuiz);
 router.post('/quizzes/:quizId/start', requireRole('mentee'), validateId('quizId'), controller.startQuizAttempt);
 router.post('/quizzes/:quizId/submit', requireRole('mentee'), validateId('quizId'), validate(validator.parseQuizSubmission), controller.submitQuiz);
 router.get('/quizzes/:quizId/results', requireRole('mentee'), validateId('quizId'), controller.getQuizResults);
 router.get('/quizzes/:quizId/attempts', requireRole('mentee'), validateId('quizId'), controller.getQuizAttempts);
 
-router.get('/quizzes/:quizId/answer-key', requireRole([Role.FACILITY_ADMIN, Role.MENTOR]), validateId('quizId'), controller.getQuizAnswerKey);
-router.post('/quizzes/:quizId/questions', requireRole(Role.FACILITY_ADMIN), validateId('quizId'), validate(validator.parseQuestion), controller.createQuizQuestion);
-router.get('/quizzes/:quizId/questions', requireRole([Role.FACILITY_ADMIN, Role.MENTOR]), validateId('quizId'), controller.listQuizQuestions);
-router.put('/quizzes/:quizId/questions/:questionId', requireRole(Role.FACILITY_ADMIN), validateId('quizId'), validateId('questionId'), validate(validator.parseQuestion), controller.updateQuizQuestion);
-router.delete('/quizzes/:quizId/questions/:questionId', requireRole(Role.FACILITY_ADMIN), validateId('quizId'), validateId('questionId'), controller.deleteQuizQuestion);
+router.get('/quizzes/:quizId/answer-key', requireRole([Role.ADMIN, Role.FACILITY_ADMIN, Role.MENTOR]), validateId('quizId'), controller.getQuizAnswerKey);
+router.post('/quizzes/:quizId/questions', requireRole(Role.ADMIN), validateId('quizId'), validate(validator.parseQuestion), controller.createQuizQuestion);
+router.get('/quizzes/:quizId/questions', requireRole([Role.ADMIN, Role.FACILITY_ADMIN, Role.MENTOR]), validateId('quizId'), controller.listQuizQuestions);
+router.put('/quizzes/:quizId/questions/:questionId', requireRole(Role.ADMIN), validateId('quizId'), validateId('questionId'), validate(validator.parseQuestion), controller.updateQuizQuestion);
+router.delete('/quizzes/:quizId/questions/:questionId', requireRole(Role.ADMIN), validateId('quizId'), validateId('questionId'), controller.deleteQuizQuestion);
 
-router.post('/questions/:questionId/options', requireRole(Role.FACILITY_ADMIN), validateId('questionId'), validate(validator.parseOption), controller.createQuestionOption);
-router.put('/questions/:questionId/options/:optionId', requireRole(Role.FACILITY_ADMIN), validateId('questionId'), validateId('optionId'), validate(validator.parseOption), controller.updateQuestionOption);
-router.delete('/questions/:questionId/options/:optionId', requireRole(Role.FACILITY_ADMIN), validateId('questionId'), validateId('optionId'), controller.deleteQuestionOption);
+router.post('/questions/:questionId/options', requireRole(Role.ADMIN), validateId('questionId'), validate(validator.parseOption), controller.createQuestionOption);
+router.put('/questions/:questionId/options/:optionId', requireRole(Role.ADMIN), validateId('questionId'), validateId('optionId'), validate(validator.parseOption), controller.updateQuestionOption);
+router.delete('/questions/:questionId/options/:optionId', requireRole(Role.ADMIN), validateId('questionId'), validateId('optionId'), controller.deleteQuestionOption);
+
+router.post('/modules/:moduleId/quiz-imports', requireRole(Role.ADMIN), validateId('moduleId'), uploadQuizPdfs, controller.createQuizImport);
+router.post('/quiz-imports/:draftId/extract', requireRole(Role.ADMIN), validateId('draftId'), controller.extractQuizImport);
+router.get('/quiz-imports/:draftId', requireRole(Role.ADMIN), validateId('draftId'), controller.getQuizImport);
+router.put('/quiz-imports/:draftId/questions/:questionIndex', requireRole(Role.ADMIN), validateId('draftId'), controller.updateQuizImportQuestion);
+router.delete('/quiz-imports/:draftId/questions/:questionIndex', requireRole(Role.ADMIN), validateId('draftId'), controller.deleteQuizImportQuestion);
+router.post('/quiz-imports/:draftId/confirm', requireRole(Role.ADMIN), validateId('draftId'), controller.confirmQuizImport);
 
 module.exports = router;

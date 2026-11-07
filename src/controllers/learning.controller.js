@@ -3,6 +3,7 @@ const moduleDto = require('../dtos/response/module.response.dto');
 const quizDto = require('../dtos/response/quiz-result.response.dto');
 const learningMapper = require('../mappers/learning.mapper');
 const AppError = require('../errors/app-error');
+const quizPdfImportService = require('../services/quiz-pdf-import.service');
 
 const asyncHandler = (handler) => (req, res, next) => {
 	Promise.resolve(handler(req, res, next)).catch(next);
@@ -109,6 +110,22 @@ module.exports = {
 			)).map(learningMapper.toProgress),
 		});
 	}),
+	assignModuleToMentee: asyncHandler(async (req, res) => {
+		const progress = await service.assignModuleToMentee({
+			moduleId: req.params.moduleId,
+			menteeId: req.learningInput.menteeId,
+			actor: req.user,
+		});
+		return res.status(201).json({ success: true, data: learningMapper.toProgress(progress) });
+	}),
+	revokeModuleAssignment: asyncHandler(async (req, res) => {
+		const result = await service.revokeModuleAssignment({
+			moduleId: req.params.moduleId,
+			menteeId: req.params.menteeId,
+			actor: req.user,
+		});
+		return res.json({ success: true, data: result });
+	}),
 	getMyModules: asyncHandler(async (req, res) => {
 		const records = await service.getMyModules(req.user.id);
 		return res.json({ success: true, data: records.map(learningMapper.toProgress) });
@@ -131,6 +148,10 @@ module.exports = {
 	}),
 	getQuizByModule: asyncHandler(async (req, res) => {
 		const quiz = await service.getQuizByModule(req.params.moduleId, req.user.id);
+		return res.json({ success: true, data: quiz });
+	}),
+	getQuizByModuleForViewer: asyncHandler(async (req, res) => {
+		const quiz = await service.getQuizByModuleForViewer(req.params.moduleId, req.user);
 		return res.json({ success: true, data: quiz });
 	}),
 	getQuiz: asyncHandler(async (req, res) => {
@@ -197,5 +218,29 @@ module.exports = {
 	getQuizAnswerKey: asyncHandler(async (req, res) => {
 		const answerKey = await service.getQuizAnswerKey({ quizId: req.params.quizId, actor: req.user });
 		return res.json({ success: true, data: answerKey });
+	}),
+	createQuizImport: asyncHandler(async (req, res) => {
+		const draft = await quizPdfImportService.upload({ actor: req.user, moduleId: req.params.moduleId, question: req.quizPdfs.question, answerKey: req.quizPdfs.answerKey });
+		return res.status(201).json({ success: true, data: draft });
+	}),
+	extractQuizImport: asyncHandler(async (req, res) => {
+		const draft = await quizPdfImportService.extract(req.params.draftId, req.user);
+		return res.json({ success: true, data: draft });
+	}),
+	getQuizImport: asyncHandler(async (req, res) => {
+		const draft = await quizPdfImportService.get(req.params.draftId, req.user);
+		return res.json({ success: true, data: draft });
+	}),
+	updateQuizImportQuestion: asyncHandler(async (req, res) => {
+		const draft = await quizPdfImportService.updateQuestion(req.params.draftId, Number(req.params.questionIndex), req.body, req.user);
+		return res.json({ success: true, data: draft });
+	}),
+	deleteQuizImportQuestion: asyncHandler(async (req, res) => {
+		const draft = await quizPdfImportService.deleteQuestion(req.params.draftId, Number(req.params.questionIndex), req.user);
+		return res.json({ success: true, data: draft });
+	}),
+	confirmQuizImport: asyncHandler(async (req, res) => {
+		const quiz = await quizPdfImportService.confirm(req.params.draftId, req.body, req.user);
+		return res.status(201).json({ success: true, data: quiz });
 	}),
 };
