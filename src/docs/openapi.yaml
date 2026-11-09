@@ -3581,6 +3581,8 @@ tags:
     description: Dashboard metrics and analytics
   - name: Learning Permissions
     description: Grant, list, and revoke mentor capabilities for learning modules.
+  - name: Mentee Module Assignments
+    description: Assign, list, and revoke complete learning modules for assigned mentees.
   - name: Learning Modules
     description: Retrieve learning modules and module availability for authenticated users.
   - name: Learning Content
@@ -5838,7 +5840,7 @@ paths:
     post:
       tags: [Quiz Question Management]
       summary: Create a quiz for a module
-      description: Facility Admin only, limited to modules in the administrator's facility. Mentors cannot create quizzes.
+      description: Super Admin only. Facility Admins and mentors cannot create quizzes.
       security:
         - bearerAuth: []
       requestBody:
@@ -6024,7 +6026,7 @@ paths:
     post:
       tags: [Learning Permissions]
       summary: Grant a mentor permission for a module
-      description: Available only to the Facility Admin responsible for the module's facility. Mentor access to a module makes its resources visible; mentees still require individual resource assignments.
+      description: Available only to the Facility Admin responsible for the module's facility. Every grant automatically gives the mentor both learning.resources.view and learning.materials.assign, allowing the mentor to view module resources and assign individual materials to assigned mentees. An active individual resource assignment grants the mentee access without a separate learning.resources.view permission.
       security:
         - bearerAuth: []
       requestBody:
@@ -6074,9 +6076,9 @@ paths:
     parameters:
       - $ref: '#/components/parameters/MenteeId'
     get:
-      tags: [Learning Modules]
+      tags: [Mentee Module Assignments]
       summary: List modules assigned to a mentee
-      description: Available to administrators and mentors with access to the mentee.
+      description: Available to administrators and the mentor assigned to the mentee.
       security:
         - bearerAuth: []
       responses:
@@ -6088,6 +6090,58 @@ paths:
           $ref: '#/components/responses/Unauthorized'
         '403':
           $ref: '#/components/responses/Forbidden'
+  /api/v1/learning/modules/{moduleId}/assignments:
+    parameters:
+      - $ref: '#/components/parameters/ModuleId'
+    post:
+      tags: [Mentee Module Assignments]
+      summary: Assign a complete module to a mentee
+      description: Available only to a mentor who has access to the module and an active mentor-mentee assignment for the module's thematic area. The module must be published and authorized.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [menteeId]
+              properties:
+                menteeId:
+                  type: integer
+                  minimum: 1
+      responses:
+        '201':
+          $ref: '#/components/responses/LearningCreated'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+  /api/v1/learning/modules/{moduleId}/mentees/{menteeId}/assignment:
+    parameters:
+      - $ref: '#/components/parameters/ModuleId'
+      - $ref: '#/components/parameters/MenteeId'
+    delete:
+      tags: [Mentee Module Assignments]
+      summary: Revoke a mentee's complete module assignment
+      description: Available only to the mentor who has an active assignment with the mentee. This revokes access to the complete module while preserving the progress record.
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          $ref: '#/components/responses/LearningAction'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
   /api/v1/learning/my/modules:
     get:
       tags: [Learning Modules]
@@ -6490,7 +6544,7 @@ paths:
     get:
       tags: [Quiz Question Management]
       summary: List questions in a quiz
-      description: Facility Admin for quizzes in their facility. Mentors only if the Facility Admin granted learning.quiz.answer_key.view on the module. Returns question ids and A-D option ids needed to review or submit answers.
+      description: Facility Admin for quizzes in their facility. Mentors with normal authorized module access can view question and option text, but correct answers are excluded. Use the answer-key endpoint for protected correct answers.
       security:
         - bearerAuth: []
       responses:
@@ -6507,7 +6561,7 @@ paths:
     post:
       tags: [Quiz Question Management]
       summary: Add a question to a quiz
-      description: Facility Admin only. Include choices A-D and correctAnswer, or add options separately.
+      description: Super Admin only. Include choices A-D and correctAnswer, or add options separately.
       security:
         - bearerAuth: []
       requestBody:
@@ -6547,7 +6601,7 @@ paths:
     put:
       tags: [Quiz Question Management]
       summary: Replace a quiz question
-      description: Facility Admin only.
+      description: Super Admin only.
       security:
         - bearerAuth: []
       requestBody:
@@ -6703,6 +6757,114 @@ paths:
           $ref: '#/components/responses/Forbidden'
         '404':
           $ref: '#/components/responses/NotFound'
+  /api/v1/learning/modules/{moduleId}/quiz-imports:
+    parameters:
+      - $ref: '#/components/parameters/ModuleId'
+    post:
+      tags: [Quiz Import]
+      summary: Upload quiz question and optional answer-key PDFs
+      description: Super Admin only. Multipart fields are questionPdf (required) and answerKeyPdf (optional). Creates an unpublished import draft.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [questionPdf]
+              properties:
+                questionPdf: { type: string, format: binary }
+                answerKeyPdf: { type: string, format: binary }
+      responses:
+        '201': { $ref: '#/components/responses/LearningCreated' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+  /api/v1/learning/quiz-imports/{draftId}/extract:
+    parameters:
+      - name: draftId
+        in: path
+        required: true
+        schema: { type: integer }
+    post:
+      tags: [Quiz Import]
+      summary: Extract questions from an import draft
+      description: Super Admin only. Text-based PDFs are supported; scanned/image-only PDFs return PDF_TEXT_NOT_FOUND.
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200': { $ref: '#/components/responses/LearningObject' }
+        '422': { $ref: '#/components/responses/BadRequest' }
+  /api/v1/learning/quiz-imports/{draftId}:
+    parameters:
+      - name: draftId
+        in: path
+        required: true
+        schema: { type: integer }
+    get:
+      tags: [Quiz Import]
+      summary: Get an import review draft
+      description: Super Admin only. Unconfirmed drafts are never exposed through learner quiz endpoints.
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200': { $ref: '#/components/responses/LearningObject' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+  /api/v1/learning/quiz-imports/{draftId}/questions/{questionIndex}:
+    parameters:
+      - name: draftId
+        in: path
+        required: true
+        schema: { type: integer }
+      - name: questionIndex
+        in: path
+        required: true
+        schema: { type: integer, minimum: 0 }
+    put:
+      tags: [Quiz Import]
+      summary: Review or edit an extracted question
+      description: Super Admin only. Accepts the editable question object including options and isCorrect values.
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { type: object }
+      responses:
+        '200': { $ref: '#/components/responses/LearningObject' }
+    delete:
+      tags: [Quiz Import]
+      summary: Remove an extracted question
+      description: Super Admin only.
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200': { $ref: '#/components/responses/LearningObject' }
+  /api/v1/learning/quiz-imports/{draftId}/confirm:
+    parameters:
+      - name: draftId
+        in: path
+        required: true
+        schema: { type: integer }
+    post:
+      tags: [Quiz Import]
+      summary: Confirm an import into a quiz
+      description: Super Admin only. Correctly extracted questions can be confirmed without editing; incomplete, invalid, ambiguous, or unanswered questions must be corrected first. Creates an unpublished quiz transactionally.
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [title]
+              properties:
+                title: { type: string }
+                description: { type: string }
+                passScore: { type: number, minimum: 0 }
+                timeLimitMinutes: { type: integer, minimum: 0 }
+                attemptLimit: { type: integer, minimum: 0 }
+      responses:
+        '201': { $ref: '#/components/responses/LearningCreated' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '422': { $ref: '#/components/responses/BadRequest' }
   /api/v1/progress/mentees/{menteeId}/competencies:
     get:
       summary: Get a mentee's competency breakdown
@@ -7625,7 +7787,7 @@ paths:
   /api/v1/resources:
     get:
       summary: List learning resources
-      description: Retrieves a paginated list of learning resources. System Admin can view all; Facility Admin can view resources in their facility scope; Mentors can view all resources in modules they are authorized to access; Mentees can view only individually assigned resources.
+      description: Retrieves a paginated list of learning resources. System Admin and Facility Admin can view all resources; Mentors can view resources in modules they are authorized to access; Mentees can view only individually assigned resources, without a separate learning.resources.view permission grant.
       tags:
         - Resources
       security:
@@ -7735,7 +7897,7 @@ paths:
   /api/v1/resources/{id}:
     get:
       summary: Get learning resource details
-      description: Retrieves complete metadata for a learning resource including associated module, thematic area, and file details.
+      description: Retrieves complete metadata for a learning resource including associated module, thematic area, and file details. System Admin and Facility Admin have unrestricted read access; mentors require authorized module access; mentees require an active individual assignment.
       tags:
         - Resources
       security:
@@ -7973,7 +8135,7 @@ paths:
   /api/v1/learning/modules/{moduleId}/resources/{resourceId}/assignments:
     post:
       summary: Assign a resource to a mentee
-      description: Assigns one resource from this published module to an actively assigned mentee. The mentor must have active Facility Admin-granted module access. Module access makes the module's resources visible to the mentor but does not automatically assign resources to mentees.
+      description: Assigns one resource from this published module to an actively assigned mentee. The mentor must have active Facility Admin-granted module access. The active assignment grants the mentee access; module access does not automatically assign resources to mentees.
       tags:
         - Resource Assignments
       security:
@@ -8108,7 +8270,7 @@ paths:
   /api/v1/learning/my/resources:
     get:
       summary: List my active resource assignments
-      description: Returns only individually assigned resources that remain authorized and accessible to the authenticated mentee.
+      description: Returns only individually assigned resources whose assignments remain active and whose modules remain published and authorized. Mentees do not need a separate learning.resources.view permission.
       tags:
         - Mentee Resource Access
       security:

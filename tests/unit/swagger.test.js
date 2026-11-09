@@ -39,6 +39,17 @@ describe('Swagger / OpenAPI Configuration Validation', () => {
 		assert.equal(userGuidesTag.description, 'User guide management (Facility Admin only)');
 	});
 
+	it('should document mentee module assignment endpoints', () => {
+		const raw = fs.readFileSync(specPath, 'utf8');
+		const doc = yaml.load(raw);
+		const tag = doc.tags.find((entry) => entry.name === 'Mentee Module Assignments');
+		assert.ok(tag);
+		assert.ok(doc.paths['/api/v1/learning/mentees/{menteeId}/modules'].get);
+		assert.ok(doc.paths['/api/v1/learning/modules/{moduleId}/assignments'].post);
+		assert.ok(doc.paths['/api/v1/learning/modules/{moduleId}/mentees/{menteeId}/assignment'].delete);
+		assert.deepEqual(doc.paths['/api/v1/learning/modules/{moduleId}/assignments'].post.requestBody.content['application/json'].schema.required, ['menteeId']);
+	});
+
 	it('should resolve all internal $ref references within openapi.yaml', () => {
 		const raw = fs.readFileSync(specPath, 'utf8');
 		const doc = yaml.load(raw);

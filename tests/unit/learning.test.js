@@ -21,6 +21,33 @@ test('learning module validation rejects empty titles and invalid ids', () => {
   assert.throws(() => validator.parseModule({ title: 'Module 1', estimatedDurationMinutes: 'nope' }), { statusCode: 400 });
   assert.equal(validator.parseId('2', 'moduleId'), 2);
   assert.throws(() => validator.parseId('0', 'moduleId'), { statusCode: 400 });
+	assert.deepEqual(validator.parseMenteeId({ mentee_id: '7' }), { menteeId: 7 });
+});
+
+test('assigned mentors can grant and revoke whole-module access for their mentee', async () => {
+	const originals = {
+		getModuleById: repository.getModuleById,
+		hasModuleMentorAccess: repository.hasModuleMentorAccess,
+		hasActiveMentorAssignment: repository.hasActiveMentorAssignment,
+		isMentee: repository.isMentee,
+		assignModuleToMentee: repository.assignModuleToMentee,
+		revokeModuleAssignment: repository.revokeModuleAssignment,
+	};
+	const actor = { id: 4, role: 'mentor' };
+	const progress = { id: 9, module_id: 3, mentee_id: 8, assigned_by: 4, status: 'not_started' };
+	repository.getModuleById = async () => ({ id: 3, status: 'published', is_published: true, is_authorized: true });
+	repository.hasModuleMentorAccess = async () => true;
+	repository.hasActiveMentorAssignment = async ({ mentorId, menteeId, moduleId }) => mentorId === 4 && menteeId === 8 && moduleId === 3;
+	repository.isMentee = async (menteeId) => menteeId === 8;
+	repository.assignModuleToMentee = async (input) => ({ ...progress, ...input });
+	repository.revokeModuleAssignment = async () => true;
+	try {
+		assert.deepEqual(await service.assignModuleToMentee({ moduleId: 3, menteeId: 8, actor }), { ...progress, moduleId: 3, menteeId: 8, mentorId: 4 });
+		assert.deepEqual(await service.revokeModuleAssignment({ moduleId: 3, menteeId: 8, actor }), { revoked: true });
+		await assert.rejects(service.assignModuleToMentee({ moduleId: 3, menteeId: 99, actor }), { statusCode: 403 });
+	} finally {
+		Object.assign(repository, originals);
+	}
 });
 
 test('learning service rejects missing module ids and empty payloads', async () => {
@@ -79,7 +106,7 @@ test('resource-view permission grants require a published authorized module and 
     getModuleById: repository.getModuleById,
     grantModuleMentorPermission: repository.grantModuleMentorPermission,
   };
-  let grantInput;
+  const grantInputs = [];
   repository.isMentor = async () => true;
   repository.hasActiveMentorAssignment = async () => true;
   repository.isModuleInFacilityScope = async () => true;
@@ -91,7 +118,7 @@ test('resource-view permission grants require a published authorized module and 
     is_authorized: true,
   });
   repository.grantModuleMentorPermission = async (input) => {
-    grantInput = input;
+    grantInputs.push(input);
     return input;
   };
   try {
@@ -101,12 +128,20 @@ test('resource-view permission grants require a published authorized module and 
       permission: LearningPermission.RESOURCES_VIEW,
       actor: { id: 2, role: 'facility_admin', facility_id: 1 },
     });
-    assert.deepEqual(grantInput, {
-      moduleId: 3,
-      mentorId: 8,
-      permission: LearningPermission.RESOURCES_VIEW,
-      grantedBy: 2,
-    });
+    assert.deepEqual(grantInputs, [
+      {
+        moduleId: 3,
+        mentorId: 8,
+        permission: LearningPermission.RESOURCES_VIEW,
+        grantedBy: 2,
+      },
+      {
+        moduleId: 3,
+        mentorId: 8,
+        permission: LearningPermission.MATERIALS_ASSIGN,
+        grantedBy: 2,
+      },
+    ]);
     repository.getModuleById = async () => ({
       id: 3,
       status: 'draft',
@@ -314,14 +349,13 @@ test('learning routes expose the required aliases and omit the undefined hint en
   assert.ok(!registered.some((route) => route.includes('/hint')));
 });
 
-test('facility admins manage quizzes and mentors need answer-key permission to view questions', async () => {
+test('only Super Admin manages quizzes and mentors can view questions with normal module access', async () => {
   const originals = {
     getQuizById: repository.getQuizById,
     getModuleById: repository.getModuleById,
     isModuleInFacilityScope: repository.isModuleInFacilityScope,
     listQuizQuestions: repository.listQuizQuestions,
     hasActiveMentorAssignment: repository.hasActiveMentorAssignment,
-    hasModuleMentorPermission: repository.hasModuleMentorPermission,
     hasModuleMentorAccess: repository.hasModuleMentorAccess,
   };
   const quiz = {
@@ -337,17 +371,16 @@ test('facility admins manage quizzes and mentors need answer-key permission to v
   repository.isModuleInFacilityScope = async () => true;
   repository.listQuizQuestions = async () => [{ id: 9, prompt: 'First priority?' }];
   repository.hasActiveMentorAssignment = async () => true;
-  repository.hasModuleMentorPermission = async ({ permission }) => permission === 'learning.quiz.answer_key.view';
-  repository.hasModuleMentorAccess = async () => false;
+  repository.hasModuleMentorAccess = async () => true;
   try {
     const questions = await service.listQuizQuestions(4, { id: 7, role: 'facility_admin', facility_id: 1 });
     assert.equal(questions[0].id, 9);
     await service.listQuizQuestions(4, { id: 8, role: 'mentor' });
     await assert.rejects(
-      service.createQuiz({ moduleId: 3, title: 'Check', actor: { id: 1, role: 'admin' } }),
+      service.createQuiz({ moduleId: 3, title: 'Check', actor: { id: 1, role: 'facility_admin', facility_id: 1 } }),
       { statusCode: 403 }
     );
-    repository.hasModuleMentorPermission = async () => false;
+    repository.hasModuleMentorAccess = async () => false;
     await assert.rejects(
       service.listQuizQuestions(4, { id: 8, role: 'mentor' }),
       { statusCode: 403 }

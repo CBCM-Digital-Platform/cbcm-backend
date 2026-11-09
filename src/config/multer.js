@@ -153,6 +153,20 @@ const resourceUpload = multer({
 	},
 });
 
+const quizPdfUpload = multer({
+	storage: multer.diskStorage({
+		destination: (_req, _file, cb) => cb(null, os.tmpdir()),
+		filename: (_req, _file, cb) => cb(null, `quiz-import-${crypto.randomUUID()}`),
+	}),
+	limits: { fileSize: env.UPLOAD_MAX_BYTES, files: 2 },
+	fileFilter: (_req, file, callback) => {
+		if (String(file?.mimetype || '').trim().toLowerCase() !== 'application/pdf') {
+			return callback(new AppError('Quiz imports accept PDF files only.', 400, 'FILE_TYPE_UNSUPPORTED'));
+		}
+		return callback(null, true);
+	},
+});
+
 module.exports = {
 	UPLOAD_FIELD_NAME,
 	ALLOWED_RESOURCE_MIME_TYPES,
@@ -160,4 +174,5 @@ module.exports = {
 	inspectUploadedFile,
 	mapMulterError,
 	resourceUpload,
+	quizPdfUpload,
 };

@@ -120,9 +120,11 @@ The migration is idempotent - it checks if the admin user already exists before 
 - `PATCH /api/v1/learning/modules/:moduleId/contents/:contentId` - Update content item (Admins only)
 - `DELETE /api/v1/learning/modules/:moduleId/contents/:contentId` - Delete content item (Admins only)
 - `GET /api/v1/learning/modules/:moduleId/mentor-permissions` - List mentor module permissions (System Admin and Facility Admin)
-- `POST /api/v1/learning/modules/:moduleId/mentor-permissions` - Grant mentor module permission (Facility Admin only, within their facility)
+- `POST /api/v1/learning/modules/:moduleId/mentor-permissions` - Grant mentor module access, including resource viewing and material assignment (Facility Admin only, within their facility)
 - `DELETE /api/v1/learning/modules/:moduleId/mentor-permissions/:mentorId` - Revoke mentor module access (Facility Admin only, within their facility)
 - `GET /api/v1/learning/mentees/:menteeId/modules` - List modules assigned to mentee
+- `POST /api/v1/learning/modules/:moduleId/assignments` - Assign a whole module to an assigned mentee (Mentors only)
+- `DELETE /api/v1/learning/modules/:moduleId/mentees/:menteeId/assignment` - Revoke a whole-module assignment (Assigned mentor only)
 - `GET /api/v1/learning/my/modules` - List modules for authenticated mentee
 - `GET /api/v1/learning/my/modules/:moduleId` - Get mentee module progress
 - `GET /api/v1/learning/my/modules/:moduleId/contents/progress` - Get content completion progress

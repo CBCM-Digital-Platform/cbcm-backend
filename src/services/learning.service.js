@@ -267,15 +267,23 @@ const grantModuleMentorPermission = async ({ mentorId, moduleId, actor, grantedB
 	const module = await ensureModule(moduleId);
 	await assertFacilityAdminGrantorScope({ module, actor });
 	const permission = LearningPermission.RESOURCES_VIEW;
-	if (permission === LearningPermission.RESOURCES_VIEW && !isModulePublishedAndAuthorized(module)) {
+	if (!isModulePublishedAndAuthorized(module)) {
 		throw new AppError('Resource-view permission can only be granted for a published and authorized module.', 409, 'CONFLICT');
 	}
 	await assertMentorEligibleForModule({ mentorId, moduleId, actor });
-	const grant = await repository.grantModuleMentorPermission({
+	const grantInput = {
 		moduleId,
 		mentorId,
-		permission,
 		grantedBy: actor?.id || grantedBy,
+	};
+	// A module grant always includes resource visibility and the ability to
+	// assign individual materials. These capabilities are intentionally coupled
+	// so a mentor cannot see a module's materials without being able to use them
+	// with their assigned mentees.
+	const grant = await repository.grantModuleMentorPermission({ ...grantInput, permission });
+	await repository.grantModuleMentorPermission({
+		...grantInput,
+		permission: LearningPermission.MATERIALS_ASSIGN,
 	});
 	await notificationService.publishEventSafely({
 		eventType: 'learning.module_access_granted',
@@ -306,6 +314,34 @@ const assertMentorCanAccessMentee = async ({ mentorId, menteeId, moduleId }) => 
 	if (!(await repository.hasActiveMentorAssignment({ mentorId, menteeId, moduleId }))) {
 		throw new AppError('You are not assigned to this mentee.', 403, 'FORBIDDEN');
 	}
+};
+
+const assignModuleToMentee = async ({ moduleId, menteeId, actor }) => {
+	if (normalizeRole(actor?.role) !== Role.MENTOR) {
+		throw new AppError('Mentor role required.', 403, 'FORBIDDEN');
+	}
+	const module = await ensureModule(moduleId);
+	if (!isModulePublishedAndAuthorized(module)) {
+		throw new AppError('Only published and authorized modules can be assigned.', 409, 'CONFLICT');
+	}
+	if (!(await repository.hasModuleMentorAccess({ mentorId: actor.id, moduleId }))) {
+		throw new AppError('You do not have access to this learning module.', 403, 'FORBIDDEN');
+	}
+	await assertMentorAssignmentForModule({ moduleId, mentorId: actor.id, menteeId });
+	if (!(await repository.isMentee(menteeId))) {
+		throw new AppError('Mentee not found.', 404, 'NOT_FOUND');
+	}
+	return repository.assignModuleToMentee({ moduleId, menteeId, mentorId: actor.id });
+};
+
+const revokeModuleAssignment = async ({ moduleId, menteeId, actor }) => {
+	if (normalizeRole(actor?.role) !== Role.MENTOR) {
+		throw new AppError('Mentor role required.', 403, 'FORBIDDEN');
+	}
+	await assertMentorAssignmentForModule({ moduleId, mentorId: actor.id, menteeId });
+	const revoked = await repository.revokeModuleAssignment({ moduleId, menteeId, mentorId: actor.id });
+	if (!revoked) throw new AppError('Active module assignment not found.', 404, 'NOT_FOUND');
+	return { revoked: true };
 };
 
 const getMenteeModules = async (menteeId, actor = {}) => {
@@ -402,6 +438,21 @@ const getQuizByModule = async (moduleId, menteeId) => {
 	return quiz;
 };
 
+const getQuizByModuleForViewer = async (moduleId, actor) => {
+	const module = await ensureModule(moduleId);
+	const role = normalizeRole(actor?.role);
+	if (role === Role.MENTEE) return getQuizByModule(moduleId, actor.id);
+	if (role === Role.FACILITY_ADMIN) await assertFacilityAdminModuleScope(module, actor);
+	else if (role === Role.MENTOR) await assertModuleAvailableToLearner({ module, role, userId: actor.id });
+	else if (!isSystemAdmin(role)) throw new AppError('You do not have permission to view this quiz.', 403, 'FORBIDDEN');
+	const quiz = await repository.getQuizByModule(moduleId);
+	if (!quiz) throw new AppError('Quiz not found.', 404, 'NOT_FOUND');
+	if (!isSystemAdmin(role) && (!quiz.is_published || !quiz.is_authorized)) {
+		throw new AppError('This quiz is not published and authorized.', 403, 'FORBIDDEN');
+	}
+	return quiz;
+};
+
 const getQuiz = async (quizId, menteeId) => {
 	const quiz = await repository.getQuizById(quizId);
 	if (!quiz) throw new AppError('Quiz not found.', 404, 'NOT_FOUND');
@@ -444,13 +495,13 @@ const listQuizAttempts = async ({ quizId, menteeId }) => repository.listQuizAtte
 const getQuizResults = async ({ quizId, menteeId }) => repository.listQuizAttempts({ quizId, menteeId, completedOnly: true });
 
 const assertFacilityAdminQuizScope = async (module, actor) => {
-	if (!isFacilityAdmin(actor?.role)) {
-		throw new AppError('Only facility administrators can manage quiz configuration.', 403, 'FORBIDDEN');
+	if (!isSystemAdmin(actor?.role)) {
+		throw new AppError('Only Super Admin can manage quiz configuration.', 403, 'FORBIDDEN');
 	}
-	await assertFacilityAdminModuleScope(module, actor);
 };
 
 const assertCanViewQuizAnswerKey = async ({ quiz, module, actor }) => {
+	if (isSystemAdmin(actor?.role)) return;
 	if (isFacilityAdmin(actor?.role)) {
 		await assertFacilityAdminModuleScope(module, actor);
 		return;
@@ -497,10 +548,21 @@ const updateQuiz = async (quizId, payload, actor) => {
 };
 
 const listQuizQuestions = async (quizId, actor) => {
-	const quiz = await repository.getQuizById(quizId, { includeCorrectAnswers: true });
+	const quiz = await repository.getQuizById(quizId, { includeCorrectAnswers: false });
 	if (!quiz) throw new AppError('Quiz not found.', 404, 'NOT_FOUND');
 	const module = await ensureModule(quiz.module_id);
-	await assertCanViewQuizAnswerKey({ quiz, module, actor });
+	const role = normalizeRole(actor?.role);
+	if (isSystemAdmin(role)) {
+		// System administrators can review quiz questions.
+	} else if (isFacilityAdmin(role)) {
+		await assertFacilityAdminModuleScope(module, actor);
+	} else if (role === Role.MENTOR) {
+		// Normal module access is sufficient for question review. Correct answers
+		// remain protected by the separate answer-key permission below.
+		await assertModuleAvailableToLearner({ module, role, userId: actor.id ?? actor.userId });
+	} else {
+		throw new AppError('You do not have permission to view quiz questions.', 403, 'FORBIDDEN');
+	}
 	return repository.listQuizQuestions(quizId);
 };
 
@@ -600,6 +662,8 @@ module.exports = {
 	updateContent,
 	deleteContent,
 	assertMentorCanAccessMentee,
+	assignModuleToMentee,
+	revokeModuleAssignment,
 	listModuleMentorPermissions,
 	grantModuleMentorPermission,
 	revokeModuleMentorPermission,
@@ -610,6 +674,7 @@ module.exports = {
 	completeContent,
 	confirmModuleCompletion,
 	getQuizByModule,
+	getQuizByModuleForViewer,
 	getQuiz,
 	startQuizAttempt,
 	submitQuiz,
