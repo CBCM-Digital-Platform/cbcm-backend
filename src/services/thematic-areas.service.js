@@ -19,7 +19,7 @@ function buildPagination(page = 1, limit = 20) {
 
 async function listThematicAreas({ page = 1, limit = 20 } = {}) {
 	const pagination = buildPagination(page, limit);
-	const { count, rows } = await repository.findAll({
+	const { count, rows } = await repository.findAndCountAll({
 		limit: pagination.limit,
 		offset: pagination.offset,
 		order: [['id', 'ASC']],

@@ -1,8 +1,8 @@
 // src/repositories/thematic-areas.repository.js
 const { ThematicArea } = require('../models');
 
-async function findAll(options = {}) {
-	return ThematicArea.findAll(options);
+async function findAndCountAll(options = {}) {
+	return ThematicArea.findAndCountAll(options);
 }
 
 async function findById(id) {
@@ -33,7 +33,7 @@ async function count(options = {}) {
 }
 
 module.exports = {
-	findAll,
+	findAndCountAll,
 	findById,
 	findByCode,
 	create,
