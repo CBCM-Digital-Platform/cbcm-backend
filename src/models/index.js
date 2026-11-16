@@ -120,6 +120,7 @@ const foreignKeys = [
 	['LearningContentProgress', 'LearningModuleContent', 'content_id', 'content', 'learnerProgress'],
 	['LearningModuleProgress', 'User', 'mentee_id', 'mentee', 'learningProgress'],
 	['LearningModuleProgress', 'LearningModule', 'module_id', 'module', 'progressRecords'],
+	['LearningModuleProgress', 'MentorshipCycle', 'cycle_id', 'cycle', 'progressRecords'],
 	['Quiz', 'LearningModule', 'module_id', 'module', 'quizzes'],
 	['Quiz', 'User', 'created_by', 'createdBy', 'quizzesCreated'],
 	['QuizQuestion', 'Quiz', 'quiz_id', 'quiz', 'questions'],

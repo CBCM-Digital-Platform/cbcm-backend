@@ -16,7 +16,7 @@ const updateDraft = async (id, values) => {
 	return getDraft(id);
 };
 
-const confirmDraft = async ({ draftId, title, description, passScore, timeLimitMinutes, attemptLimit, createdBy }) => sequelize.transaction(async (transaction) => {
+const confirmDraft = async ({ draftId, title, description, assessmentStage, passScore, timeLimitMinutes, attemptLimit, createdBy }) => sequelize.transaction(async (transaction) => {
 	const [claimed] = await QuizImportDraft.update(
 		{ status: 'confirming' },
 		{ where: { id: draftId, status: { [Op.notIn]: ['confirmed', 'confirming'] } }, transaction },
@@ -28,6 +28,7 @@ const confirmDraft = async ({ draftId, title, description, passScore, timeLimitM
 		module_id: draft.module_id,
 		title,
 		description: description || null,
+		assessment_stage: assessmentStage,
 		pass_score: passScore ?? 0,
 		time_limit_minutes: timeLimitMinutes ?? 0,
 		attempt_limit: attemptLimit ?? 1,
@@ -56,7 +57,7 @@ const confirmDraft = async ({ draftId, title, description, passScore, timeLimitM
 		}
 	}
 
-	await draft.update({ status: 'confirmed', quiz_id: quiz.id, confirmed_at: new Date() }, { transaction });
+	await draft.update({ assessment_stage: assessmentStage, status: 'confirmed', quiz_id: quiz.id, confirmed_at: new Date() }, { transaction });
 	return quiz;
 });
 

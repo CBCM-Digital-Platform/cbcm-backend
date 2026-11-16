@@ -4,6 +4,9 @@ module.exports = (sequelize, DataTypes) => sequelize.define('ResourceAssignment'
 	mentor_id: { type: DataTypes.INTEGER, allowNull: false },
 	mentee_id: { type: DataTypes.INTEGER, allowNull: false },
 	facility_id: { type: DataTypes.INTEGER, allowNull: true },
+	module_id: { type: DataTypes.INTEGER, allowNull: true },
+	cycle_id: { type: DataTypes.INTEGER, allowNull: true },
+	thematic_area_id: { type: DataTypes.INTEGER, allowNull: true },
 	assignment_status: {
 		type: DataTypes.ENUM('active', 'revoked', 'completed'),
 		defaultValue: 'active',

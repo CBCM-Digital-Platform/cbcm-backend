@@ -9,6 +9,8 @@ const { test } = require('node:test');
 const pdfParse = require('pdf-parse');
 const importService = require('../../src/services/quiz-pdf-import.service');
 const repository = require('../../src/repositories/quiz-imports.repository');
+const uploadsService = require('../../src/services/uploads.service');
+const models = require('../../src/models');
 
 test('PDF import extracts numbered questions, A-D options, and a separate answer key', () => {
 	const result = importService.parseQuestions(
@@ -20,10 +22,21 @@ test('PDF import extracts numbered questions, A-D options, and a separate answer
 	assert.equal(result.questions[0].options[1].isCorrect, true);
 	assert.equal(result.questions[1].options[2].isCorrect, true);
 	assert.equal(result.questions.every((question) => !question.requiresReview), true);
+	assert.equal(result.questions.every((question) => question.reviewed === false), true);
 });
 
 test('PDF import accepts supported answer-key line formats', () => {
 	assert.deepEqual([...importService.answerKeyFromText('Question 1: B\n2. C\n3) A\n4 - D')], [[1, ['B']], [2, ['C']], [3, ['A']], [4, ['D']]]);
+});
+
+test('PDF import retains answer-key explanations for Super Admin review', () => {
+	const result = importService.parseQuestions(
+		'1. First question?\nA. One\nB. Two',
+		'Question 1: B - Explanation for the correct answer.',
+	);
+	assert.equal(result.questions[0].options[1].isCorrect, true);
+	assert.equal(result.questions[0].explanation, 'Explanation for the correct answer.');
+	assert.equal(result.questions[0].reviewed, false);
 });
 
 test('actual maternal health PDFs match Question N answer-key lines and remove trailing metadata', async () => {
@@ -39,6 +52,7 @@ test('actual maternal health PDFs match Question N answer-key lines and remove t
 	assert.equal(result.questions.length, 10);
 	assert.deepEqual(result.questions.map((question) => question.options.find((option) => option.isCorrect)?.label), ['B', 'C', 'A', 'B', 'C', 'B', 'B', 'B', 'C', 'B']);
 	assert.equal(result.questions.every((question) => question.requiresReview === false), true);
+	assert.equal(result.questions.every((question) => question.reviewed === false), true);
 	assert.equal(result.questions.at(-1).options.at(-1).text.includes('End of questions'), false);
 });
 
@@ -62,6 +76,45 @@ test('scanned or image-only PDFs return an explicit unsupported extraction error
 test('quiz import management rejects non-admin users before touching drafts', async () => {
 	await assert.rejects(importService.get(1, { id: 2, role: 'facility_admin' }), { statusCode: 403, code: 'FORBIDDEN' });
 	await assert.rejects(importService.upload({ actor: { id: 2, role: 'mentor' }, moduleId: 1, question: {} }), { statusCode: 403, code: 'FORBIDDEN' });
+	await assert.rejects(importService.upload({ actor: { id: 1, role: 'admin' }, moduleId: 1, question: {} }), { statusCode: 400, code: 'VALIDATION_ERROR' });
+});
+
+test('PDF import stores the selected examination stage and preserves the optional answer-key file', async () => {
+	const originals = {
+		findByPk: models.LearningModule.findByPk,
+		createUpload: uploadsService.createUpload,
+		createDraft: repository.createDraft,
+	};
+	const drafts = [];
+	let uploadId = 20;
+	models.LearningModule.findByPk = async (id) => ({ id });
+	uploadsService.createUpload = async ({ context }) => ({
+		id: ++uploadId,
+		context,
+	});
+	repository.createDraft = async (values) => {
+		drafts.push(values);
+		return values;
+	};
+	try {
+		for (const assessmentStage of ['PRETEST', 'POST_TEST']) {
+			await importService.upload({
+				actor: { id: 1, role: 'admin' },
+				moduleId: 3,
+				assessmentStage,
+				question: { body: Buffer.from('%PDF') },
+				answerKey: assessmentStage === 'PRETEST' ? { body: Buffer.from('%PDF') } : null,
+			});
+		}
+		assert.deepEqual(drafts.map((draft) => draft.assessment_stage), ['PRETEST', 'POST_TEST']);
+		assert.equal(drafts[0].module_id, 3);
+		assert.equal(drafts[0].answer_key_file_id, 22);
+		assert.equal(drafts[1].answer_key_file_id, null);
+	} finally {
+		models.LearningModule.findByPk = originals.findByPk;
+		uploadsService.createUpload = originals.createUpload;
+		repository.createDraft = originals.createDraft;
+	}
 });
 
 test('review edits and deletions persist through the draft repository', async () => {
@@ -81,15 +134,15 @@ test('review edits and deletions persist through the draft repository', async ()
 	}
 });
 
-test('correct extraction can be confirmed without a PUT edit', async () => {
+test('extracted answers must be explicitly reviewed before confirmation', async () => {
 	const originals = { getDraft: repository.getDraft, confirmDraft: repository.confirmDraft };
-	let confirmed = false;
-	repository.getDraft = async () => ({ id: 5, status: 'extracted', quiz_id: null, questions: [{ prompt: 'Ready?', requiresReview: false, options: [{ text: 'Yes', isCorrect: true }, { text: 'No', isCorrect: false }] }] });
-	repository.confirmDraft = async () => { confirmed = true; return { id: 12, is_published: false, is_authorized: false }; };
+	repository.getDraft = async () => ({ id: 5, module_id: 3, assessment_stage: 'POST_TEST', status: 'extracted', quiz_id: null, questions: [{ prompt: 'Ready?', requiresReview: false, reviewed: false, options: [{ text: 'Yes', isCorrect: true }, { text: 'No', isCorrect: false }] }] });
+	repository.confirmDraft = async () => assert.fail('an unreviewed answer must not be confirmed');
 	try {
-		const quiz = await importService.confirm(5, { title: 'Ready quiz' }, { id: 1, role: 'admin' });
-		assert.equal(confirmed, true);
-		assert.equal(quiz.is_published, false);
+		await assert.rejects(
+			importService.confirm(5, { title: 'Ready quiz' }, { id: 1, role: 'admin' }),
+			{ statusCode: 422, code: 'IMPORT_REVIEW_REQUIRED' }
+		);
 	} finally {
 		repository.getDraft = originals.getDraft;
 		repository.confirmDraft = originals.confirmDraft;
@@ -103,7 +156,7 @@ test('ambiguous, missing-answer, and invalid questions block confirmation', asyn
 		{ prompt: 'Missing', options: [{ text: 'A', isCorrect: false }, { text: 'B', isCorrect: false }] },
 		{ prompt: '', requiresReview: false, options: [{ text: 'A', isCorrect: true }] },
 	]) {
-		repository.getDraft = async () => ({ id: 7, status: 'extracted', quiz_id: null, questions: [question] });
+		repository.getDraft = async () => ({ id: 7, assessment_stage: 'PRETEST', status: 'extracted', quiz_id: null, questions: [question] });
 		await assert.rejects(importService.confirm(7, { title: 'Blocked' }, { id: 1, role: 'admin' }), { code: 'IMPORT_REVIEW_REQUIRED' });
 	}
 	repository.getDraft = original;
@@ -111,15 +164,17 @@ test('ambiguous, missing-answer, and invalid questions block confirmation', asyn
 
 test('edited questions clear review state and can then be confirmed', async () => {
 	const originals = { getDraft: repository.getDraft, updateDraft: repository.updateDraft, confirmDraft: repository.confirmDraft };
-	let draft = { id: 8, status: 'extracted', quiz_id: null, questions: [{ prompt: 'Missing answer', requiresReview: true, options: [{ text: 'A', isCorrect: false }, { text: 'B', isCorrect: false }] }] };
+	let draft = { id: 8, assessment_stage: 'PRETEST', status: 'extracted', quiz_id: null, questions: [{ prompt: 'Missing answer', requiresReview: true, options: [{ text: 'A', isCorrect: false }, { text: 'B', isCorrect: false }] }] };
 	repository.getDraft = async () => draft;
 	repository.updateDraft = async (_id, values) => { draft = { ...draft, ...values }; return draft; };
-	repository.confirmDraft = async () => ({ id: 13, is_published: false, is_authorized: false });
+	repository.confirmDraft = async ({ assessmentStage }) => ({ id: 13, assessment_stage: assessmentStage, is_published: false, is_authorized: false });
 	try {
 		await importService.updateQuestion(8, 0, { options: [{ text: 'A', isCorrect: true }, { text: 'B', isCorrect: false }] }, { id: 1, role: 'admin' });
 		assert.equal(draft.questions[0].requiresReview, false);
+		assert.equal(draft.questions[0].reviewed, true);
 		const quiz = await importService.confirm(8, { title: 'Fixed' }, { id: 1, role: 'admin' });
 		assert.equal(quiz.is_published, false);
+		assert.equal(quiz.assessment_stage, 'PRETEST');
 	} finally {
 		repository.getDraft = originals.getDraft;
 		repository.updateDraft = originals.updateDraft;
