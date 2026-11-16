@@ -7,8 +7,10 @@ const Role = require('../enums/role.enum');
 const { hasAnyRole, SYSTEM_ADMIN_ROLES } = require('../constants/roles.constants');
 const { ALLOWED_RESOURCE_MIME_TYPES } = require('../config/multer');
 const repository = require('../repositories/resources.repository');
+const learningResourceProgress = require('./learning-resource-progress.service');
 const notificationService = require('./notifications.service');
 const { toResource } = require('../dtos/response/resource.response.dto');
+const LearningMaterialCategory = require('../enums/learning-material-category.enum');
 const {
 	validateCreate,
 	validateUpdate,
@@ -25,6 +27,16 @@ const isModulePublishedAndAuthorized = (module) => (
 	&& String(module?.status || '').toLowerCase() === 'published'
 );
 
+const isHiddenFromMentees = (resource) => [
+	LearningMaterialCategory.FACILITATOR_GUIDE,
+	LearningMaterialCategory.ANSWER_KEY,
+].includes(resource?.category);
+const isRequiredLearnerResource = (resource = {}) => (
+	Boolean(resource.is_required)
+	&& Boolean(resource.module_id)
+	&& !isHiddenFromMentees(resource)
+);
+
 const toResourceAssignment = (assignment) => ({
 	id: assignment.id,
 	resourceId: assignment.resource_id,
@@ -34,54 +46,88 @@ const toResourceAssignment = (assignment) => ({
 	status: assignment.assignment_status,
 	assignedBy: assignment.assigned_by,
 	assignedAt: assignment.assigned_at,
+	moduleId: assignment.module_id ?? null,
+	cycleId: assignment.cycle_id ?? null,
+	thematicAreaId: assignment.thematic_area_id ?? null,
 	completedAt: assignment.completed_at || null,
 	revokedAt: assignment.revoked_at || null,
 	revokedBy: assignment.revoked_by || null,
 });
 
-async function assertMentorModuleAccess(moduleId, actor) {
+async function assertMentorThematicAreaAccess(resource, actor) {
 	if (normalizeRole(actor?.role) !== Role.MENTOR) {
 		throw new AppError('Mentor role required.', 403, 'FORBIDDEN');
 	}
-	const module = await repository.getModuleById(moduleId);
+	if (!resource) {
+		throw new AppError('Resource not found.', 404, 'NOT_FOUND');
+	}
+	if (!resource.module_id) {
+		throw new AppError('This resource is not linked to an active learning module for mentor access.', 403, 'FORBIDDEN');
+	}
+	if (!Number.isInteger(Number(resource.thematic_area_id)) || Number(resource.thematic_area_id) <= 0) {
+		throw new AppError('This resource is not linked to an active thematic area for mentor access.', 403, 'FORBIDDEN');
+	}
+	const module = await repository.getModuleById(resource.module_id);
 	if (!module) {
-		throw new AppError('Learning module not found.', 404, 'NOT_FOUND');
+		throw new AppError('This resource belongs to a learning module that no longer exists.', 404, 'NOT_FOUND');
 	}
 	if (!isModulePublishedAndAuthorized(module)) {
 		throw new AppError('This resource belongs to an unpublished or unauthorized learning module.', 403, 'FORBIDDEN');
 	}
-	const [hasModuleAccess, hasAssignment] = await Promise.all([
-		repository.hasModuleMentorAccess({ mentorId: actor.id, moduleId }),
-		repository.hasActiveMentorAssignment({ mentorId: actor.id, moduleId }),
-	]);
-	if (!hasModuleAccess) {
-		throw new AppError('You do not have access to resources for this module.', 403, 'FORBIDDEN');
+	if (Number(module.thematic_area_id) !== Number(resource.thematic_area_id)) {
+		throw new AppError('This resource does not match its learning module thematic area.', 403, 'FORBIDDEN');
 	}
-	if (!hasAssignment) {
-		throw new AppError('You are not assigned to this module thematic area.', 403, 'FORBIDDEN');
+	const mentor = await models.User.findByPk(actor.id, { attributes: ['id', 'role', 'status'] });
+	if (!mentor || normalizeRole(mentor.role) !== Role.MENTOR) {
+		throw new AppError('Mentor role required.', 403, 'FORBIDDEN');
 	}
-	return module;
+	if (mentor.status && normalizeRole(mentor.status) !== 'active') {
+		throw new AppError('The mentor account is not active.', 403, 'FORBIDDEN');
+	}
+	const hasActiveAssignment = await repository.hasActiveMentorThematicAreaAssignment({
+		mentorId: actor.id,
+		thematicAreaId: resource.thematic_area_id,
+	});
+	if (!hasActiveAssignment) {
+		throw new AppError('You are not assigned to this resource thematic area.', 403, 'FORBIDDEN');
+	}
+	return resource;
 }
 
 async function isMenteeAssignmentAuthorized(assignment, resource) {
-	if (!assignment || !resource?.module_id || assignment.assignment_status !== 'active') return false;
+	if (!assignment || !resource?.module_id
+		|| !['active', 'completed'].includes(assignment.assignment_status)
+		|| assignment.revoked_at
+		|| isHiddenFromMentees(resource)) return false;
 	const module = await repository.getModuleById(resource.module_id);
-	if (!isModulePublishedAndAuthorized(module)) return false;
+	if (!isModulePublishedAndAuthorized(module)
+		|| Number(module.thematic_area_id) !== Number(resource.thematic_area_id)) return false;
 	// The active resource assignment is the mentee's access grant. The mentor's
 	// module permission is required when assigning/revoking resources, but it is
 	// not a separate permission the mentee must retain to consume an assignment.
 	return true;
 }
 
-async function findResourceAssignment(resourceId, menteeId, status) {
+async function findResourceAssignment(resourceId, menteeId) {
 	return models.ResourceAssignment.findOne({
 		where: {
 			resource_id: resourceId,
 			mentee_id: menteeId,
-			assignment_status: status,
 		},
 		order: [['assigned_at', 'DESC'], ['id', 'DESC']],
 	});
+}
+
+function latestAssignmentPerResource(assignments) {
+	const latest = new Map();
+	for (const assignment of assignments) {
+		if (!latest.has(Number(assignment.resource_id))) {
+			latest.set(Number(assignment.resource_id), assignment);
+		}
+	}
+	return [...latest.values()].filter((assignment) => (
+		['active', 'completed'].includes(assignment.assignment_status)
+	));
 }
 
 function assertCanManageResources(actor) {
@@ -127,7 +173,7 @@ async function assertFileAndTypeMatch({ fileId, type }) {
 
 	const mimeFamily = ALLOWED_RESOURCE_MIME_TYPES[file.mime_type];
 	if (!mimeFamily) {
-		throw new AppError('Only PDF, audio, and video files are supported.', 400, 'UNSUPPORTED_MEDIA_TYPE');
+		throw new AppError('Only PDF, PowerPoint, audio, and video files are supported.', 400, 'UNSUPPORTED_MEDIA_TYPE');
 	}
 
 	if (type !== mimeFamily) {
@@ -149,6 +195,14 @@ async function assertCanManageResourceRecord(resource, actor) {
 async function createResource(body, actor) {
 	assertCanManageResources(actor);
 	const payload = validateCreate(body);
+	if (isRequiredLearnerResource(payload)
+		&& await repository.hasModuleLearningHistory(payload.module_id)) {
+		throw new AppError(
+			'Required Resources cannot be added after module learning history exists.',
+			409,
+			'RESOURCE_REQUIREMENTS_LOCKED'
+		);
+	}
 
 	await assertModuleAndScope({
 		moduleId: payload.module_id,
@@ -169,6 +223,9 @@ async function createResource(body, actor) {
 			module_id: payload.module_id,
 			file_id: payload.file_id,
 			url: payload.url || null,
+			category: payload.category,
+			examination_stage: payload.examination_stage,
+			is_required: payload.is_required,
 			created_by: actor.id,
 			updated_by: actor.id,
 		}, transaction);
@@ -192,21 +249,34 @@ async function getResource(id, actor) {
 	}
 
 	if (isFacilityAdmin(role)) {
-		// Facility Admins have organization-wide read access to learning resources.
-		// Administrative actions remain protected by their existing scope checks.
+		if (!actor.facility_id) {
+			throw new AppError('Facility administrator must be assigned to a facility.', 403, 'FORBIDDEN');
+		}
+		if (resource.module_id) {
+			const module = await repository.getModuleById(resource.module_id);
+			if (!module || Number(module.thematic_area_id) !== Number(resource.thematic_area_id)) {
+				throw new AppError('This resource is outside your facility scope.', 403, 'FORBIDDEN');
+			}
+		}
+		const inFacilityScope = resource.module_id
+			? await repository.isModuleInFacilityScope({ moduleId: resource.module_id, facilityId: actor.facility_id })
+			: await repository.isThematicAreaInFacilityScope({
+				thematicAreaId: resource.thematic_area_id,
+				facilityId: actor.facility_id,
+			});
+		if (!inFacilityScope) {
+			throw new AppError('This resource is outside your facility scope.', 403, 'FORBIDDEN');
+		}
 		return toResource(resource);
 	}
 
 	if (role === Role.MENTOR) {
-		if (!resource.module_id) {
-			throw new AppError('Only resources linked to an authorized learning module are available to mentors.', 403, 'FORBIDDEN');
-		}
-		await assertMentorModuleAccess(resource.module_id, actor);
+		await assertMentorThematicAreaAccess(resource, actor);
 		return toResource(resource);
 	}
 
 	if (role === Role.MENTEE) {
-		const assignment = await findResourceAssignment(id, actor.id, 'active');
+		const assignment = await findResourceAssignment(id, actor.id);
 		if (!await isMenteeAssignmentAuthorized(assignment, resource)) {
 			throw new AppError('This resource has not been assigned to you.', 403, 'FORBIDDEN');
 		}
@@ -219,6 +289,7 @@ async function getResource(id, actor) {
 async function listResources(query, actor) {
 	const parsed = validateList(query);
 	const role = normalizeRole(actor?.role);
+	let accessibleThematicAreaIds = [];
 
 	const where = {};
 	if (parsed.thematic_area_id !== undefined) {
@@ -230,45 +301,57 @@ async function listResources(query, actor) {
 	if (parsed.type !== undefined) {
 		where.type = parsed.type;
 	}
+	if (parsed.category !== undefined) where.category = parsed.category;
+	if (parsed.examination_stage !== undefined) where.examination_stage = parsed.examination_stage;
 
+	let moduleWhere;
+	let answerKeyModuleIds = [];
 	if (isSystemAdmin(role)) {
 		// System admin can see all matching resources
 	} else if (isFacilityAdmin(role)) {
-		// Facility Admins have organization-wide read access to learning resources.
+		if (!actor.facility_id) {
+			throw new AppError('Facility administrator must be assigned to a facility.', 403, 'FORBIDDEN');
+		}
+		const facilityThematicAreaIds = await repository.listFacilityThematicAreaIds(actor.facility_id);
+		if (!facilityThematicAreaIds.length) {
+			return { items: [], total: 0, page: parsed.page, limit: parsed.limit, totalPages: 0 };
+		}
+		if (parsed.thematic_area_id !== undefined
+			&& !facilityThematicAreaIds.includes(Number(parsed.thematic_area_id))) {
+			return { items: [], total: 0, page: parsed.page, limit: parsed.limit, totalPages: 0 };
+		}
+		where.thematic_area_id = parsed.thematic_area_id ?? { [Op.in]: facilityThematicAreaIds };
 	} else if (role === Role.MENTOR) {
-		const grantedIds = await repository.listMentorModuleIds(actor.id);
-		const eligibleIds = (await Promise.all(
-			grantedIds.map(async (moduleId) => {
-				const [module, assigned, hasModuleAccess] = await Promise.all([
-					repository.getModuleById(moduleId),
-					repository.hasActiveMentorAssignment({ mentorId: actor.id, moduleId }),
-					repository.hasModuleMentorAccess({ mentorId: actor.id, moduleId }),
-				]);
-				if (!module || !isModulePublishedAndAuthorized(module) || !assigned || !hasModuleAccess) return null;
-				return moduleId;
-			})
-		)).filter(Boolean);
-
-		if (!eligibleIds.length) {
+		accessibleThematicAreaIds = await repository.listActiveMentorThematicAreaIds(actor.id);
+		if (!accessibleThematicAreaIds.length) {
 			return { items: [], total: 0, page: parsed.page, limit: parsed.limit, totalPages: 0 };
 		}
 
-		if (where.module_id !== undefined) {
-			if (!eligibleIds.includes(where.module_id)) {
+		if (parsed.thematic_area_id !== undefined) {
+			const requestedThematicAreaId = Number(parsed.thematic_area_id);
+			if (!accessibleThematicAreaIds.includes(requestedThematicAreaId)) {
 				return { items: [], total: 0, page: parsed.page, limit: parsed.limit, totalPages: 0 };
 			}
+			where.thematic_area_id = requestedThematicAreaId;
 		} else {
-			where.module_id = { [Op.in]: eligibleIds };
+			where.thematic_area_id = { [Op.in]: accessibleThematicAreaIds };
 		}
+		where.module_id = where.module_id || { [Op.ne]: null };
+		moduleWhere = {
+			thematic_area_id: { [Op.in]: accessibleThematicAreaIds },
+			status: 'published',
+			is_published: true,
+			is_authorized: true,
+		};
 	} else if (role === Role.MENTEE) {
 		const assignments = await models.ResourceAssignment.findAll({
-			where: { mentee_id: actor.id, assignment_status: 'active' },
+			where: { mentee_id: actor.id },
 			order: [['assigned_at', 'DESC'], ['id', 'DESC']],
 		});
 		if (!assignments.length) {
 			return { items: [], total: 0, page: parsed.page, limit: parsed.limit, totalPages: 0 };
 		}
-		const authorizedResourceIds = (await Promise.all(assignments.map(async (assignment) => {
+		const authorizedResourceIds = (await Promise.all(latestAssignmentPerResource(assignments).map(async (assignment) => {
 			const resource = await repository.findById(assignment.resource_id);
 			if (!await isMenteeAssignmentAuthorized(assignment, resource)) return null;
 			return Number(resource.id);
@@ -287,14 +370,26 @@ async function listResources(query, actor) {
 		limit: parsed.limit,
 		offset,
 		order: [['id', 'DESC']],
+		moduleWhere,
+		requireModule: role === Role.MENTOR,
 	});
 
+	const visibleRows = role === Role.MENTOR
+		? rows.filter((resource) => {
+			if (!resource.thematic_area_id) return false;
+			if (!accessibleThematicAreaIds.includes(Number(resource.thematic_area_id))) return false;
+			const module = resource.module || null;
+			return isModulePublishedAndAuthorized(module)
+				&& Number(module.thematic_area_id) === Number(resource.thematic_area_id);
+		})
+		: rows;
+
 	return {
-		items: rows.map(toResource),
-		total: count,
+		items: visibleRows.map(toResource),
+		total: role === Role.MENTOR ? visibleRows.length : count,
 		page: parsed.page,
 		limit: parsed.limit,
-		totalPages: Math.ceil(count / parsed.limit) || 0,
+		totalPages: role === Role.MENTOR ? Math.ceil(visibleRows.length / parsed.limit) || 0 : Math.ceil(count / parsed.limit) || 0,
 	};
 }
 
@@ -313,6 +408,26 @@ async function assignResourceToMentee(resourceId, menteeId, actor) {
 	if (!assignedToMentee) {
 		throw new AppError('Mentee is not actively assigned to you for this module.', 403, 'FORBIDDEN');
 	}
+	const contexts = await repository.listActiveMentorMenteeAssignmentContexts({
+		mentorId: actor.id,
+		menteeId,
+		thematicAreaId: resource.thematicAreaId,
+	});
+	const uniqueContexts = [...new Map(contexts.map((context) => ([
+		`${context.facility_id ?? ''}:${context.cycle_id ?? ''}:${context.thematic_area_id ?? ''}`,
+		context,
+	]))).values()];
+	if (!uniqueContexts.length) {
+		throw new AppError('Mentee is not actively assigned to you for this resource thematic area.', 403, 'FORBIDDEN');
+	}
+	if (uniqueContexts.length > 1) {
+		throw new AppError(
+			'Multiple active mentor-mentee assignment contexts match this Resource; the cycle context is ambiguous.',
+			400,
+			'AMBIGUOUS_ASSIGNMENT_CONTEXT'
+		);
+	}
+	const context = uniqueContexts[0];
 
 	const result = await sequelize.transaction(async (transaction) => {
 		const [assignment, created] = await models.ResourceAssignment.findOrCreate({
@@ -325,7 +440,10 @@ async function assignResourceToMentee(resourceId, menteeId, actor) {
 				resource_id: resourceId,
 				mentor_id: actor.id,
 				mentee_id: menteeId,
-				facility_id: actor.facility_id || null,
+				facility_id: context.facility_id ?? actor.facility_id ?? null,
+				module_id: resource.moduleId,
+				cycle_id: context.cycle_id ?? null,
+				thematic_area_id: context.thematic_area_id ?? null,
 				assignment_status: 'active',
 				assigned_by: actor.id,
 				assigned_at: new Date(),
@@ -358,7 +476,7 @@ async function assignResourceToMenteeInModule(moduleId, resourceId, menteeId, ac
 		if (Number(resource.module_id) !== Number(moduleId)) {
 			throw new AppError('Resource does not belong to the requested learning module.', 400, 'RESOURCE_MODULE_MISMATCH');
 		}
-		await assertMentorModuleAccess(moduleId, actor);
+		await assertMentorThematicAreaAccess(resource, actor);
 		const assignedToMentee = await repository.hasActiveMentorAssignment({
 			mentorId: actor.id,
 			menteeId,
@@ -375,30 +493,27 @@ async function revokeResourceAssignment(resourceId, menteeId, actor) {
 		throw new AppError('Mentor role required.', 403, 'FORBIDDEN');
 	}
 
-	const assignment = await models.ResourceAssignment.findOne({
-		where: {
-			resource_id: resourceId,
-			mentee_id: menteeId,
-			mentor_id: actor.id,
-			assignment_status: 'active',
-		},
-	});
-	if (!assignment) {
+	const assignment = await findResourceAssignment(resourceId, menteeId);
+	if (!assignment || Number(assignment.mentor_id) !== Number(actor.id)
+		|| !['active', 'completed'].includes(assignment.assignment_status)) {
 		throw new AppError('Active resource assignment not found.', 404, 'NOT_FOUND');
 	}
 
-	await models.ResourceAssignment.update({
+	const [updated] = await models.ResourceAssignment.update({
 		assignment_status: 'revoked',
 		revoked_at: new Date(),
 		revoked_by: actor.id,
-	}, { where: { id: assignment.id } });
+	}, {
+		where: { id: assignment.id, assignment_status: assignment.assignment_status },
+	});
+	if (!updated) throw new AppError('Resource assignment is no longer active.', 409, 'CONFLICT');
 
 	return { assignmentId: assignment.id, revoked: true };
 }
 
 async function revokeResourceAssignmentById(assignmentId, actor) {
 	const assignment = await models.ResourceAssignment.findByPk(assignmentId);
-	if (!assignment || assignment.assignment_status !== 'active') {
+	if (!assignment || !['active', 'completed'].includes(assignment.assignment_status)) {
 		throw new AppError('Active resource assignment not found.', 404, 'NOT_FOUND');
 	}
 	const role = normalizeRole(actor?.role);
@@ -407,7 +522,7 @@ async function revokeResourceAssignmentById(assignmentId, actor) {
 			throw new AppError('You can only revoke assignments that you created.', 403, 'FORBIDDEN');
 		}
 	} else if (isSystemAdmin(role)) {
-		// System administrators can revoke any active assignment.
+		// System administrators can revoke any active or legacy-completed assignment.
 	} else if (isFacilityAdmin(role)) {
 		const resource = await repository.findById(assignment.resource_id);
 		if (!resource?.module_id || !await repository.isModuleInFacilityScope({
@@ -419,13 +534,17 @@ async function revokeResourceAssignmentById(assignmentId, actor) {
 	} else {
 		throw new AppError('You do not have permission to revoke resource assignments.', 403, 'FORBIDDEN');
 	}
+	const latestForResource = await findResourceAssignment(assignment.resource_id, assignment.mentee_id);
+	if (Number(latestForResource?.id) !== Number(assignment.id)) {
+		throw new AppError('Only the latest resource assignment can be revoked.', 409, 'CONFLICT');
+	}
 
 	const [updated] = await models.ResourceAssignment.update({
 		assignment_status: 'revoked',
 		revoked_at: new Date(),
 		revoked_by: actor.id,
 	}, {
-		where: { id: assignment.id, assignment_status: 'active' },
+		where: { id: assignment.id, assignment_status: assignment.assignment_status },
 	});
 	if (!updated) throw new AppError('Active resource assignment not found.', 404, 'NOT_FOUND');
 	const revoked = await models.ResourceAssignment.findByPk(assignment.id);
@@ -446,48 +565,38 @@ async function listMenteeResourceAssignments(menteeId, actor) {
 	const visible = [];
 	for (const assignment of assignments) {
 		const resource = await repository.findById(assignment.resource_id);
-		if (!resource?.module_id) continue;
-		const module = await repository.getModuleById(resource.module_id);
-		if (!isModulePublishedAndAuthorized(module)) continue;
-		const [hasModuleAccess, hasCurrentMentorAssignment] = await Promise.all([
-			repository.hasModuleMentorAccess({ mentorId: actor.id, moduleId: resource.module_id }),
-			repository.hasActiveMentorAssignment({
-				mentorId: actor.id,
-				menteeId,
-				moduleId: resource.module_id,
-			}),
-		]);
-		if (hasModuleAccess && hasCurrentMentorAssignment) {
-			visible.push({ ...toResourceAssignment(assignment), resource: toResource(resource) });
+		if (!resource?.thematic_area_id) continue;
+		if (resource.module_id) {
+			const module = await repository.getModuleById(resource.module_id);
+			if (!isModulePublishedAndAuthorized(module)) continue;
 		}
+		if (!await repository.hasActiveMentorThematicAreaAssignment({
+			mentorId: actor.id,
+			thematicAreaId: resource.thematic_area_id,
+		})) continue;
+		visible.push({ ...toResourceAssignment(assignment), resource: toResource(resource) });
 	}
 	return visible;
 }
 
 async function listModuleResourceAssignments(moduleId, resourceId, actor) {
-	await assertMentorModuleAccess(moduleId, actor);
 	const resource = await repository.findById(resourceId);
 	if (!resource) throw new AppError('Resource not found.', 404, 'NOT_FOUND');
 	if (Number(resource.module_id) !== Number(moduleId)) {
 		throw new AppError('Resource does not belong to the requested learning module.', 400, 'RESOURCE_MODULE_MISMATCH');
 	}
+	await assertMentorThematicAreaAccess(resource, actor);
 	const assignments = await models.ResourceAssignment.findAll({
 		where: { resource_id: resourceId },
 		order: [['assigned_at', 'DESC'], ['id', 'DESC']],
 	});
 	const visible = [];
 	for (const assignment of assignments) {
-		const [hasCurrentMentorAssignment, hasModuleAccess] = await Promise.all([
-			repository.hasActiveMentorAssignment({
-				mentorId: actor.id,
-				menteeId: assignment.mentee_id,
-				moduleId,
-			}),
-			repository.hasModuleMentorAccess({ mentorId: actor.id, moduleId }),
-		]);
-		if (hasCurrentMentorAssignment && hasModuleAccess) {
-			visible.push({ ...toResourceAssignment(assignment), resource: toResource(resource) });
-		}
+		if (!await repository.hasActiveMentorThematicAreaAssignment({
+			mentorId: actor.id,
+			thematicAreaId: resource.thematic_area_id,
+		})) continue;
+		visible.push({ ...toResourceAssignment(assignment), resource: toResource(resource) });
 	}
 	return visible;
 }
@@ -497,11 +606,11 @@ async function listMyResourceAssignments(actor) {
 		throw new AppError('Mentee role required.', 403, 'FORBIDDEN');
 	}
 	const assignments = await models.ResourceAssignment.findAll({
-		where: { mentee_id: actor.id, assignment_status: 'active' },
+		where: { mentee_id: actor.id },
 		order: [['assigned_at', 'DESC'], ['id', 'DESC']],
 	});
 	const visible = [];
-	for (const assignment of assignments) {
+	for (const assignment of latestAssignmentPerResource(assignments)) {
 		const resource = await repository.findById(assignment.resource_id);
 		if (await isMenteeAssignmentAuthorized(assignment, resource)) {
 			visible.push({ ...toResourceAssignment(assignment), resource: toResource(resource) });
@@ -516,39 +625,99 @@ async function completeMyResourceAssignment(resourceId, actor) {
 	}
 	const resource = await repository.findById(resourceId);
 	if (!resource) throw new AppError('Resource not found.', 404, 'NOT_FOUND');
-	const active = await findResourceAssignment(resourceId, actor.id, 'active');
-	if (active) {
-		if (!await isMenteeAssignmentAuthorized(active, resource)) {
-			throw new AppError('This resource has not been assigned to you.', 403, 'FORBIDDEN');
-		}
-		const completedAt = new Date();
-		const [updated] = await models.ResourceAssignment.update({
-			assignment_status: 'completed',
-			completed_at: completedAt,
-		}, {
-			where: { id: active.id, assignment_status: 'active' },
+	const assignment = await findResourceAssignment(resourceId, actor.id);
+	if (!assignment || !['active', 'completed'].includes(assignment.assignment_status)
+		|| !await isMenteeAssignmentAuthorized(assignment, resource)) {
+		throw new AppError('Active resource assignment not found.', 404, 'NOT_FOUND');
+	}
+	return sequelize.transaction(async (transaction) => {
+		const current = await models.ResourceAssignment.findByPk(assignment.id, {
+			transaction,
+			lock: transaction.LOCK.UPDATE,
 		});
-		if (!updated) throw new AppError('The resource assignment is no longer active.', 409, 'CONFLICT');
-		const completed = await models.ResourceAssignment.findByPk(active.id);
-		return { ...toResourceAssignment(completed), completed: true };
-	}
-	const completed = await findResourceAssignment(resourceId, actor.id, 'completed');
-	if (completed && await isMenteeAssignmentAuthorized({ ...completed.get({ plain: true }), assignment_status: 'active' }, resource)) {
-		return { ...toResourceAssignment(completed), completed: true };
-	}
-	throw new AppError('Active resource assignment not found.', 404, 'NOT_FOUND');
+		if (!current || !['active', 'completed'].includes(current.assignment_status)
+			|| current.revoked_at) {
+			throw new AppError('Active resource assignment not found.', 404, 'NOT_FOUND');
+		}
+		if (current.assignment_status === 'active' && !current.completed_at) {
+			const [updated] = await models.ResourceAssignment.update({
+				completed_at: new Date(),
+			}, {
+				where: { id: current.id, assignment_status: 'active', completed_at: null },
+				transaction,
+			});
+			if (!updated) throw new AppError('The resource assignment is no longer active.', 409, 'CONFLICT');
+			await current.reload({ transaction });
+		}
+		const hasScopeSnapshot = [
+			current.module_id,
+			current.cycle_id,
+			current.facility_id,
+			current.thematic_area_id,
+		].every((value) => Number.isSafeInteger(Number(value)) && Number(value) > 0);
+		if (hasScopeSnapshot) {
+			await learningResourceProgress.refreshAfterResourceCompletion({
+				menteeId: actor.id,
+				assignment: current,
+				transaction,
+			});
+		} else if (current.assignment_status !== 'completed') {
+			throw new AppError(
+				'Resource assignment is missing a valid mentorship scope snapshot.',
+				409,
+				'INVALID_ASSIGNMENT_CONTEXT'
+			);
+		}
+		return {
+			...toResourceAssignment(current),
+			completed: Boolean(current.completed_at) || current.assignment_status === 'completed',
+		};
+	});
 }
 
 async function updateResource(id, body, actor) {
 	assertCanManageResources(actor);
-	const payload = validateUpdate(body);
-
 	const existing = await repository.findById(id);
 	if (!existing) {
 		throw new AppError('Resource not found.', 404, 'NOT_FOUND');
 	}
+	const payload = validateUpdate(body, existing);
 
 	await assertCanManageResourceRecord(existing, actor);
+
+	const nextModuleId = payload.module_id !== undefined ? payload.module_id : existing.module_id;
+	const nextRequired = payload.is_required !== undefined ? payload.is_required : existing.is_required;
+	const nextCategory = payload.category !== undefined ? payload.category : existing.category;
+	const assignmentHistory = await repository.countAssignmentsForResource(id);
+	if (assignmentHistory > 0
+		&& ((payload.module_id !== undefined && Number(nextModuleId) !== Number(existing.module_id))
+			|| (payload.is_required !== undefined && Boolean(nextRequired) !== Boolean(existing.is_required)))) {
+		throw new AppError(
+			'Resource module and required status cannot change after assignment history exists.',
+			409,
+			'RESOURCE_REQUIREMENTS_LOCKED'
+		);
+	}
+	const oldRequired = isRequiredLearnerResource(existing);
+	const newRequired = isRequiredLearnerResource({
+		module_id: nextModuleId,
+		is_required: nextRequired,
+		category: nextCategory,
+	});
+	const denominatorChanges = oldRequired !== newRequired
+		|| (oldRequired && Number(existing.module_id) !== Number(nextModuleId));
+	if (denominatorChanges) {
+		const affectedModules = [...new Set([existing.module_id, nextModuleId].filter(Boolean).map(Number))];
+		for (const moduleId of affectedModules) {
+			if (await repository.hasModuleLearningHistory(moduleId)) {
+				throw new AppError(
+					'Required Resource changes are locked after module learning history exists.',
+					409,
+					'RESOURCE_REQUIREMENTS_LOCKED'
+				);
+			}
+		}
+	}
 
 	const effectiveModuleId = payload.module_id !== undefined ? payload.module_id : existing.module_id;
 	const effectiveThematicAreaId = payload.thematic_area_id !== undefined ? payload.thematic_area_id : existing.thematic_area_id;
@@ -596,6 +765,21 @@ async function deleteResource(id, actor) {
 	}
 
 	await assertCanManageResourceRecord(existing, actor);
+	if (await repository.countAssignmentsForResource(id)) {
+		throw new AppError(
+			'Resources with assignment history cannot be deleted.',
+			409,
+			'RESOURCE_HISTORY_LOCKED'
+		);
+	}
+	if (isRequiredLearnerResource(existing)
+		&& await repository.hasModuleLearningHistory(existing.module_id)) {
+		throw new AppError(
+			'Required Resources cannot be deleted after module learning history exists.',
+			409,
+			'RESOURCE_REQUIREMENTS_LOCKED'
+		);
+	}
 
 	await sequelize.transaction(async (transaction) => {
 		await repository.destroy(id, transaction);

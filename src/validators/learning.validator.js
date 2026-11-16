@@ -1,5 +1,6 @@
 const AppError = require('../errors/app-error');
 const LearningPermission = require('../enums/learning-permission.enum');
+const LearningExaminationStage = require('../enums/learning-examination-stage.enum');
 
 const invalid = (message) => new AppError(message, 400, 'VALIDATION_ERROR');
 
@@ -41,30 +42,16 @@ const parseModule = (body = {}) => {
 	};
 };
 
-const parseContent = (body = {}) => {
+const parseQuiz = (body = {}, { partial = false } = {}) => {
 	const title = typeof body.title === 'string' ? body.title.trim() : '';
 	if (!title) throw invalid('title is required.');
-	const orderNumber = Number(body.orderNumber ?? body.order_number ?? 0);
-	const durationMinutes = Number(body.durationMinutes ?? body.duration_minutes ?? 0);
-	if (!Number.isSafeInteger(orderNumber) || orderNumber < 0) throw invalid('orderNumber must be a non-negative integer.');
-	if (!Number.isSafeInteger(durationMinutes) || durationMinutes < 0) throw invalid('durationMinutes must be a non-negative integer.');
-	return {
-		title,
-		type: body.type || 'article',
-		contentText: typeof body.contentText === 'string' ? body.contentText : (typeof body.content_text === 'string' ? body.content_text : null),
-		contentUrl: typeof body.contentUrl === 'string' ? body.contentUrl : (typeof body.content_url === 'string' ? body.content_url : null),
-		fileId: body.fileId == null && body.file_id == null ? null : parseId(body.fileId ?? body.file_id, 'fileId'),
-		orderNumber,
-		isRequired: parseBoolean(body.isRequired ?? body.is_required, true, 'isRequired'),
-		isPublished: parseBoolean(body.isPublished ?? body.is_published, false, 'isPublished'),
-		isAuthorized: parseBoolean(body.isAuthorized ?? body.is_authorized, false, 'isAuthorized'),
-		durationMinutes,
-	};
-};
-
-const parseQuiz = (body = {}) => {
-	const title = typeof body.title === 'string' ? body.title.trim() : '';
-	if (!title) throw invalid('title is required.');
+	const assessmentStage = body.assessmentStage ?? body.assessment_stage;
+	if (assessmentStage != null && !Object.values(LearningExaminationStage).includes(assessmentStage)) {
+		throw invalid('assessmentStage must be PRETEST or POST_TEST.');
+	}
+	if (!partial && assessmentStage == null) {
+		throw invalid('assessmentStage is required for examination quizzes.');
+	}
 	const passScore = Number(body.passScore ?? body.pass_score ?? 0);
 	const timeLimitMinutes = Number(body.timeLimitMinutes ?? body.time_limit_minutes ?? 0);
 	const attemptLimit = Number(body.attemptLimit ?? body.attempt_limit ?? 1);
@@ -78,6 +65,7 @@ const parseQuiz = (body = {}) => {
 	const quiz = {
 		title,
 		description: typeof body.description === 'string' ? body.description.trim() : null,
+		...(assessmentStage === undefined ? {} : { assessmentStage }),
 		passScore,
 		timeLimitMinutes,
 		attemptLimit,
@@ -109,24 +97,11 @@ const parseModulePatch = (body = {}) => parsePartial(parseModule, body, {
 	isAuthorized: ['isAuthorized', 'is_authorized'],
 	estimatedDurationMinutes: ['estimatedDurationMinutes', 'estimated_duration_minutes'],
 });
-
-const parseContentPatch = (body = {}) => parsePartial(parseContent, body, {
-	title: ['title'],
-	type: ['type'],
-	contentText: ['contentText', 'content_text'],
-	contentUrl: ['contentUrl', 'content_url'],
-	fileId: ['fileId', 'file_id'],
-	orderNumber: ['orderNumber', 'order_number'],
-	isRequired: ['isRequired', 'is_required'],
-	isPublished: ['isPublished', 'is_published'],
-	isAuthorized: ['isAuthorized', 'is_authorized'],
-	durationMinutes: ['durationMinutes', 'duration_minutes'],
-});
-
 const parseQuizPatch = (body = {}) => {
-	const parsed = parsePartial(parseQuiz, body, {
+	const parsed = parsePartial((value) => parseQuiz(value, { partial: true }), body, {
 		title: ['title'],
 		description: ['description'],
+		assessmentStage: ['assessmentStage', 'assessment_stage'],
 		passScore: ['passScore', 'pass_score'],
 		timeLimitMinutes: ['timeLimitMinutes', 'time_limit_minutes'],
 		attemptLimit: ['attemptLimit', 'attempt_limit'],
@@ -299,8 +274,6 @@ module.exports = {
 	parseId,
 	parseModule,
 	parseModulePatch,
-	parseContent,
-	parseContentPatch,
 	parseQuiz,
 	parseQuizPatch,
 	parseMentorId,

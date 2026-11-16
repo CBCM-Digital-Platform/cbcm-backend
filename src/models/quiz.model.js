@@ -3,6 +3,14 @@ module.exports = (sequelize, DataTypes) => sequelize.define('Quiz', {
 	module_id: { type: DataTypes.INTEGER, allowNull: false },
 	title: { type: DataTypes.STRING, allowNull: false },
 	description: { type: DataTypes.TEXT },
+	assessment_stage: {
+		type: DataTypes.STRING,
+		allowNull: true,
+		defaultValue: null,
+		validate: {
+			isIn: [['PRETEST', 'POST_TEST']],
+		},
+	},
 	assessment_component: {
 		type: DataTypes.STRING,
 		allowNull: true,

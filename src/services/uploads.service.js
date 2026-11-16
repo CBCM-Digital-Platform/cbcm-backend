@@ -52,6 +52,9 @@ const openUpload = async (id, actor) => {
 const deleteUpload = async (id, actor) => {
 	const file = await repository.findById(id);
 	requireUploadAccess(file, actor);
+	if (await repository.countClassifiedLearningMaterialReferences(id)) {
+		throw new AppError('This uploaded file is attached to a learning material and cannot be deleted.', 409, 'CONFLICT');
+	}
 	await storage.getStorageProvider().remove(file.storage_key);
 	await repository.destroy(id);
 	return { id, deleted: true };

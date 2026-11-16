@@ -114,11 +114,6 @@ The migration is idempotent - it checks if the admin user already exists before 
 - `PATCH /api/v1/learning/modules/:id` - Partially update module (Admins only)
 - `PUT /api/v1/learning/modules/:id` - Replace module (Admins only)
 - `DELETE /api/v1/learning/modules/:id` - Delete module (Admins only)
-- `GET /api/v1/learning/modules/:moduleId/contents` - List module content items
-- `POST /api/v1/learning/modules/:moduleId/contents` - Add content item (Admins only)
-- `GET /api/v1/learning/modules/:moduleId/contents/:contentId` - Get content item
-- `PATCH /api/v1/learning/modules/:moduleId/contents/:contentId` - Update content item (Admins only)
-- `DELETE /api/v1/learning/modules/:moduleId/contents/:contentId` - Delete content item (Admins only)
 - `GET /api/v1/learning/modules/:moduleId/mentor-permissions` - List mentor module permissions (System Admin and Facility Admin)
 - `POST /api/v1/learning/modules/:moduleId/mentor-permissions` - Grant mentor module access, including resource viewing and material assignment (Facility Admin only, within their facility)
 - `DELETE /api/v1/learning/modules/:moduleId/mentor-permissions/:mentorId` - Revoke mentor module access (Facility Admin only, within their facility)
@@ -127,8 +122,8 @@ The migration is idempotent - it checks if the admin user already exists before 
 - `DELETE /api/v1/learning/modules/:moduleId/mentees/:menteeId/assignment` - Revoke a whole-module assignment (Assigned mentor only)
 - `GET /api/v1/learning/my/modules` - List modules for authenticated mentee
 - `GET /api/v1/learning/my/modules/:moduleId` - Get mentee module progress
-- `GET /api/v1/learning/my/modules/:moduleId/contents/progress` - Get content completion progress
-- `POST /api/v1/learning/my/modules/:moduleId/contents/:contentId/complete` - Mark content item as completed
+- `GET /api/v1/learning/my/modules/:moduleId/progress` - Get Resource-based progress for a mentorship cycle (`cycleId` required if multiple valid contexts exist)
+- `GET /api/v1/learning/my/modules/:moduleId/resources/progress` - Get required Resource progress for a mentorship cycle
 - `POST /api/v1/learning/my/modules/:moduleId/confirm-completion` - Confirm module completion
 - `POST /api/v1/learning/modules/:moduleId/resources/:resourceId/assignments` - Assign an individual resource to a mentee (Mentors only)
 - `GET /api/v1/learning/modules/:moduleId/resources/:resourceId/assignments` - List resource assignment history and progress (Mentors only)

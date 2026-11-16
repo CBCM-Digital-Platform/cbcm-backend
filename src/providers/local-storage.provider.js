@@ -7,6 +7,8 @@ const env = require('../config/env');
 
 const MIME_EXTENSIONS = Object.freeze({
 	'application/pdf': '.pdf',
+	'application/vnd.ms-powerpoint': '.ppt',
+	'application/vnd.openxmlformats-officedocument.presentationml.presentation': '.pptx',
 	'audio/mpeg': '.mp3',
 	'audio/mp3': '.mp3',
 	'audio/mp4': '.m4a',
