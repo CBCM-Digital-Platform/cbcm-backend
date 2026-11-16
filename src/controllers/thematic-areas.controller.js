@@ -7,7 +7,7 @@ const controllerError = require('../utils/controller-error.util');
 async function list(req, res) {
 	try {
 		const result = await service.listThematicAreas(matchedData(req, { locations: ['query'] }));
-		return successResponse(res, 200, result.items, { page: result.page, limit: result.limit, total: result.total, totalPages: result.totalPages });
+		return successResponse(res, 200, result);
 	} catch (error) {
 		return controllerError(res, error, 'Unable to list thematic areas.');
 	}
