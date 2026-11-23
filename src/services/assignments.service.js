@@ -12,11 +12,26 @@ const ASSIGNMENT_FIELDS = ['mentor_id', 'mentee_id', 'facility_id', 'cycle_id', 
 function toAssignmentResponse(assignment) {
 	if (!assignment) return null;
 	const value = assignment.toJSON ? assignment.toJSON() : assignment;
-	return Object.fromEntries(
+	const response = Object.fromEntries(
 		['id', ...ASSIGNMENT_FIELDS, 'status', 'assigned_by', 'assigned_at', 'unassigned_at']
 			.filter((field) => value[field] !== undefined)
 			.map((field) => [field, value[field]])
 	);
+
+	// Mentor assignment consumers need the assigned mentee's display profile.
+	// Keep this limited to non-sensitive identity fields; the assignment id remains
+	// the source of truth for authorization.
+	if (value.mentee) {
+		response.mentee = {
+			id: value.mentee.id,
+			full_name: value.mentee.full_name,
+			email: value.mentee.email,
+			role: value.mentee.role,
+			facility_id: value.mentee.facility_id,
+		};
+	}
+
+	return response;
 }
 
 function buildPagination(page = 1, limit = 20) {

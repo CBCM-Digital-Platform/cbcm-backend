@@ -11,7 +11,6 @@ const repository = require('../../src/repositories/learning.repository');
 const resourcesRepository = require('../../src/repositories/resources.repository');
 const notificationService = require('../../src/services/notifications.service');
 const NotificationType = require('../../src/enums/notification-type.enum');
-const LearningPermission = require('../../src/enums/learning-permission.enum');
 const models = require('../../src/models');
 const resourceProgressService = require('../../src/services/learning-resource-progress.service');
 const LearningMaterialCategory = require('../../src/enums/learning-material-category.enum');
@@ -352,7 +351,24 @@ test('learning service ensures title trimming for create and update', async () =
   }
 });
 
-test('resource-view permission grants require a published authorized module and active mentor assignment', async () => {
+test('published module creation always persists published and authorized flags', async () => {
+  const originalCreate = repository.createModule;
+  let createdPayload;
+  repository.createModule = async (payload) => {
+    createdPayload = payload;
+    return { id: 44, ...payload };
+  };
+  try {
+    await service.createModule({ title: 'Maternal Health', status: 'published' }, { role: 'admin', id: 1 });
+    assert.equal(createdPayload.status, 'published');
+    assert.equal(createdPayload.isPublished, true);
+    assert.equal(createdPayload.isAuthorized, true);
+  } finally {
+    repository.createModule = originalCreate;
+  }
+});
+
+test.skip('individual mentor permissions are intentionally disabled; access is thematic-area based', async () => {
   const originals = {
     isMentor: repository.isMentor,
     hasActiveMentorAssignment: repository.hasActiveMentorAssignment,
@@ -414,7 +430,7 @@ test('resource-view permission grants require a published authorized module and 
   }
 });
 
-test('only a facility administrator can grant or revoke mentor module permissions', async () => {
+test.skip('individual mentor permissions are intentionally disabled; access is thematic-area based', async () => {
   const originals = {
     getModuleById: repository.getModuleById,
     isModuleInFacilityScope: repository.isModuleInFacilityScope,
@@ -488,13 +504,15 @@ test('mentors can open a published module through an active thematic-area assign
 
 test('mentor module listings include published modules for active thematic areas without grants', async () => {
   const originals = {
-    listMentorModuleIds: repository.listMentorModuleIds,
+    listActiveMentorThematicAreaIds: repository.listActiveMentorThematicAreaIds,
+    listModuleIdsForThematicAreas: repository.listModuleIdsForThematicAreas,
     hasActiveMentorAssignment: repository.hasActiveMentorAssignment,
     listModules: repository.listModules,
     hasModuleMentorPermission: repository.hasModuleMentorPermission,
   };
   let listFilters;
-  repository.listMentorModuleIds = async () => [3];
+  repository.listActiveMentorThematicAreaIds = async () => [12];
+  repository.listModuleIdsForThematicAreas = async () => [3];
   repository.hasActiveMentorAssignment = async ({ mentorId, moduleId }) => mentorId === 8 && moduleId === 3;
   repository.hasModuleMentorPermission = async () => false;
   repository.listModules = async (filters) => {
@@ -519,13 +537,15 @@ test('mentor module listings include published modules for active thematic areas
 
 test('inactive or ended thematic-area assignments prevent mentor listing and module detail access', async () => {
   const originals = {
-    listMentorModuleIds: repository.listMentorModuleIds,
+    listActiveMentorThematicAreaIds: repository.listActiveMentorThematicAreaIds,
+    listModuleIdsForThematicAreas: repository.listModuleIdsForThematicAreas,
     hasActiveMentorAssignment: repository.hasActiveMentorAssignment,
     listModules: repository.listModules,
     getModuleById: repository.getModuleById,
     hasModuleMentorPermission: repository.hasModuleMentorPermission,
   };
-  repository.listMentorModuleIds = async () => [3];
+  repository.listActiveMentorThematicAreaIds = async () => [];
+  repository.listModuleIdsForThematicAreas = async () => [];
   repository.hasActiveMentorAssignment = async () => false;
   repository.listModules = async ({ moduleIds }) => moduleIds.length ? [{ id: 3 }] : [];
   repository.getModuleById = async () => ({
@@ -546,13 +566,15 @@ test('inactive or ended thematic-area assignments prevent mentor listing and mod
 
 test('mentors can list eligible modules across multiple active thematic-area assignments', async () => {
   const originals = {
-    listMentorModuleIds: repository.listMentorModuleIds,
+    listActiveMentorThematicAreaIds: repository.listActiveMentorThematicAreaIds,
+    listModuleIdsForThematicAreas: repository.listModuleIdsForThematicAreas,
     hasActiveMentorAssignment: repository.hasActiveMentorAssignment,
     listModules: repository.listModules,
     hasModuleMentorPermission: repository.hasModuleMentorPermission,
   };
   let listFilters;
-  repository.listMentorModuleIds = async () => [3, 4, 5];
+  repository.listActiveMentorThematicAreaIds = async () => [12, 13];
+  repository.listModuleIdsForThematicAreas = async () => [3, 4, 5];
   repository.hasActiveMentorAssignment = async ({ moduleId }) => [3, 4].includes(moduleId);
   repository.listModules = async (filters) => {
     listFilters = filters;
@@ -567,7 +589,29 @@ test('mentors can list eligible modules across multiple active thematic-area ass
   try {
     const result = await service.listModules({}, { id: 8, role: 'mentor' });
     assert.deepEqual(result.map((module) => module.id), [3, 4]);
-    assert.deepEqual(listFilters.moduleIds, [3, 4]);
+    assert.deepEqual(listFilters.moduleIds, [3, 4, 5]);
+  } finally {
+    Object.assign(repository, originals);
+  }
+});
+
+test('different mentors receive only the published modules matching their own thematic areas', async () => {
+  const originals = {
+    listActiveMentorThematicAreaIds: repository.listActiveMentorThematicAreaIds,
+    listModuleIdsForThematicAreas: repository.listModuleIdsForThematicAreas,
+    listModules: repository.listModules,
+  };
+  repository.listActiveMentorThematicAreaIds = async (mentorId) => mentorId === 8 ? [12] : [13];
+  repository.listModuleIdsForThematicAreas = async (areaIds) => areaIds.includes(12) ? [3] : [4];
+  repository.listModules = async ({ moduleIds }) => moduleIds.map((id) => ({
+    id,
+    status: 'published',
+    is_published: true,
+    is_authorized: true,
+  }));
+  try {
+    assert.deepEqual((await service.listModules({}, { id: 8, role: 'mentor' })).map((module) => module.id), [3]);
+    assert.deepEqual((await service.listModules({}, { id: 9, role: 'mentor' })).map((module) => module.id), [4]);
   } finally {
     Object.assign(repository, originals);
   }
@@ -723,9 +767,6 @@ test('learning routes expose the required aliases and omit the undefined hint en
   const expected = [
     'PUT /modules/:id',
     'GET /mentees/:menteeId/modules',
-    'GET /modules/:moduleId/mentor-permissions',
-    'POST /modules/:moduleId/mentor-permissions',
-    'DELETE /modules/:moduleId/mentor-permissions/:mentorId',
     'GET /modules/:id',
     'POST /modules',
     'PATCH /modules/:id',
@@ -762,6 +803,7 @@ test('learning routes expose the required aliases and omit the undefined hint en
     'POST /my/modules/:moduleId/contents/:contentId/complete',
   ];
   for (const route of retiredRoutes) assert.ok(!registered.includes(route), `${route} should not be registered`);
+  assert.equal(registered.some((route) => route.includes('/mentor-permissions')), false);
   assert.equal(registered.some((route) => route.includes('/modules/:moduleId/access')), false);
   assert.equal(typeof service.grantModuleAccess, 'undefined');
   assert.equal(typeof service.getModuleAccess, 'undefined');
@@ -1387,11 +1429,7 @@ test('learning quiz persistence stores multi-select answers once per question an
     statusCode: 409,
     code: 'CONFLICT',
   });
-  await repository.revokeModuleMentorAccess({ mentorId: mentor.id, moduleId: moduleRecord.id });
-  assert.equal(await repository.getModuleProgress({ menteeId: mentee.id, moduleId: moduleRecord.id }), null);
-  assert.equal((await models.LearningModuleProgress.findOne({
-    where: { mentee_id: mentee.id, module_id: moduleRecord.id },
-  })).status, 'access_revoked');
+  assert.equal((await repository.getModuleProgress({ menteeId: mentee.id, moduleId: moduleRecord.id }))?.module_id, moduleRecord.id);
 });
 
 test('additive Learning migration creates missing progress and selected-option schema in memory', async () => {

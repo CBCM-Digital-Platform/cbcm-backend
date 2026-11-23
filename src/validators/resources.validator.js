@@ -69,9 +69,6 @@ const validateMaterialClassification = ({ category, examinationStage, type, isRe
 	if (category !== LearningMaterialCategory.EXAMINATION && examinationStage) {
 		throw invalid('examination_stage is only allowed when category is EXAMINATION.');
 	}
-	if (category === LearningMaterialCategory.POWERPOINT_PRESENTATION && type !== 'presentation') {
-		throw invalid('type must be presentation when category is POWERPOINT_PRESENTATION.');
-	}
 	if (NON_MENTEE_CATEGORIES.includes(category) && isRequired) {
 		throw invalid(`${category} cannot be required for mentees.`);
 	}

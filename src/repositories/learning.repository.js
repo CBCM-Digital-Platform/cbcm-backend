@@ -2,8 +2,6 @@
 const { Op } = require('sequelize');
 const models = require('../models');
 const AppError = require('../errors/app-error');
-// Learning permissions removed: mentor access is automatic via active thematic-area assignment.
-
 const isLearnerVisible = { is_published: true, is_authorized: true };
 const ACTIVE_ASSIGNMENT_STATUSES = ['assigned', 'active'];
 
@@ -277,6 +275,82 @@ const listProgressForMentee = async (menteeId, { mentorId, cycleId } = {}) => {
 	return filterValidMentorGrantedAccess(cycleScopedRecords);
 };
 
+// Resource-level assignments can make a published module visible to a mentee
+// without creating a full module enrollment/progress record.
+const listResourceAssignedModulesForMentee = async (menteeId) => {
+	const assignments = await models.ResourceAssignment.findAll({
+		where: {
+			mentee_id: menteeId,
+			assignment_status: { [Op.in]: ['active', 'completed'] },
+			revoked_at: null,
+		},
+		include: [{
+			model: models.Resource,
+			as: 'resource',
+			required: true,
+			include: [{
+				model: models.LearningModule,
+				as: 'module',
+				required: true,
+				where: { ...isLearnerVisible, status: 'published' },
+				attributes: ['id', 'title', 'description', 'status', 'is_published', 'is_authorized', 'thematic_area_id', 'order_number'],
+			}],
+		}],
+		order: [['assigned_at', 'DESC'], ['id', 'DESC']],
+	});
+
+	const latestResourceAssignments = new Map();
+	for (const assignment of assignments) {
+		const resource = assignment.resource;
+		if (!resource || ['FACILITATOR_GUIDE', 'ANSWER_KEY'].includes(resource.category)) continue;
+		if (!latestResourceAssignments.has(Number(resource.id))) {
+			latestResourceAssignments.set(Number(resource.id), assignment);
+		}
+	}
+
+	const modules = new Map();
+	for (const assignment of latestResourceAssignments.values()) {
+		const resource = assignment.resource;
+		const module = resource?.module;
+		if (!module || modules.has(Number(module.id))) continue;
+		modules.set(Number(module.id), {
+			id: `resource-assignment-${module.id}`,
+			mentee_id: menteeId,
+			module_id: module.id,
+			assigned_by: assignment.assigned_by,
+			assigned_at: assignment.assigned_at,
+			status: 'not_started',
+			completion_percentage: 0,
+			module,
+		});
+	}
+	return [...modules.values()];
+};
+
+const hasActiveResourceAssignmentForMenteeModule = async (menteeId, moduleId) => {
+	const assignment = await models.ResourceAssignment.findOne({
+		where: {
+			mentee_id: menteeId,
+			assignment_status: { [Op.in]: ['active', 'completed'] },
+			revoked_at: null,
+		},
+		include: [{
+			model: models.Resource,
+			as: 'resource',
+			required: true,
+			where: {
+				module_id: moduleId,
+				[Op.or]: [
+					{ category: null },
+					{ category: { [Op.notIn]: ['FACILITATOR_GUIDE', 'ANSWER_KEY'] } },
+				],
+			},
+		}],
+		attributes: ['id'],
+	});
+	return Boolean(assignment);
+};
+
 const assignModuleToMentee = async ({ moduleId, menteeId, mentorId, cycleId }) => {
 	const scopeWhere = cycleId != null ? { module_id: moduleId, mentee_id: menteeId, cycle_id: cycleId } : { module_id: moduleId, mentee_id: menteeId, cycle_id: null };
 	const existing = await models.LearningModuleProgress.findOne({ where: scopeWhere });
@@ -306,54 +380,6 @@ const revokeModuleAssignment = async ({ moduleId, menteeId, mentorId, cycleId })
 		: { module_id: moduleId, mentee_id: menteeId, cycle_id: null, assigned_by: mentorId, status: { [Op.ne]: 'access_revoked' } };
 	const [updated] = await models.LearningModuleProgress.update({ status: 'access_revoked' }, { where: scopeWhere });
 	return Boolean(updated);
-};
-
-const grantMentorModuleAccess = async ({ moduleId, mentorId, grantedBy }) => {
-	const grant = await grantModuleMentorPermission({
-		moduleId,
-		mentorId,
-		permission: LearningPermission.RESOURCES_VIEW,
-		grantedBy,
-	});
-	if (models.LearningModuleMentorAccess) {
-		const [legacy] = await models.LearningModuleMentorAccess.findOrCreate({
-			where: { module_id: moduleId, mentor_id: mentorId },
-			defaults: {
-				module_id: moduleId,
-				mentor_id: mentorId,
-				granted_by: grantedBy,
-				granted_at: new Date(),
-				revoked_at: null,
-			},
-		});
-		if (legacy.revoked_at) {
-			await legacy.update({ revoked_at: null });
-		}
-	}
-	return grant;
-};
-
-const listModuleMentorAccess = async (moduleId) => {
-	const permissions = await models.LearningModuleMentorPermission.findAll({
-		where: {
-			module_id: moduleId,
-			permission: LearningPermission.RESOURCES_VIEW,
-			revoked_at: null,
-		},
-		include: [{ model: models.User, as: 'mentor', attributes: ['id', 'full_name', 'email'] }],
-		order: [['id', 'ASC']],
-	});
-	if (permissions.length > 0 || !models.LearningModuleMentorAccess) {
-		return permissions;
-	}
-	return models.LearningModuleMentorAccess.findAll({
-		where: {
-			module_id: moduleId,
-			revoked_at: null,
-		},
-		include: [{ model: models.User, as: 'mentor', attributes: ['id', 'full_name', 'email'] }],
-		order: [['id', 'ASC']],
-	});
 };
 
 const listMentorThematicAreaIds = async (mentorId) => {
@@ -400,12 +426,6 @@ const hasModuleMentorAccess = async ({ mentorId, moduleId }) => {
 		attributes: ['id'],
 	}));
 };
-
-const hasModuleMentorPermission = async () => true;
-const grantModuleMentorPermission = async () => null;
-const listModuleMentorPermissions = async () => [];
-const revokeModuleMentorPermission = async () => false;
-const revokeModuleMentorAccess = async () => false;
 
 const listActiveMentorThematicAreaIds = listMentorThematicAreaIds;
 
@@ -829,20 +849,15 @@ module.exports = {
 	createModule,
 	updateModule,
 	deleteModule,
-	grantMentorModuleAccess: async () => null,
-	listModuleMentorAccess: async () => [],
 	listMentorModuleIds,
 	listActiveMentorThematicAreaIds,
 	listModuleIdsForThematicAreas,
 	hasModuleMentorAccess,
-	hasModuleMentorPermission,
-	grantModuleMentorPermission,
-	listModuleMentorPermissions,
-	revokeModuleMentorPermission,
-	revokeModuleMentorAccess,
 	listModuleProgress,
 	getModuleProgress,
 	listProgressForMentee,
+	listResourceAssignedModulesForMentee,
+	hasActiveResourceAssignmentForMenteeModule,
 	assignModuleToMentee,
 	revokeModuleAssignment,
 	getQuizByModule,
