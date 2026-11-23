@@ -1,13 +1,18 @@
 // src/repositories/auth.repository.js
 const { Op, fn, col, where } = require('sequelize');
-const { User, RefreshToken, PasswordResetToken, UserPreference } = require('../models');
+const { User, RefreshToken, PasswordResetToken, UserPreference, ThematicArea } = require('../models');
 
 async function findUserByEmail(email) {
-  return User.findOne({ where: where(fn('lower', col('email')), String(email).trim().toLowerCase()) });
+  return User.findOne({
+    where: where(fn('lower', col('email')), String(email).trim().toLowerCase()),
+    include: [{ model: ThematicArea, as: 'thematicArea', attributes: ['id', 'code', 'name'] }],
+  });
 }
 
 async function findUserById(id) {
-  return User.findByPk(id);
+  return User.findByPk(id, {
+    include: [{ model: ThematicArea, as: 'thematicArea', attributes: ['id', 'code', 'name'] }],
+  });
 }
 
 async function createRefreshTokenEntry({ userId, tokenHash, deviceInfo, expiresAt }) {

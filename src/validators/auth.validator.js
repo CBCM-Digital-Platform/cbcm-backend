@@ -66,6 +66,7 @@ const registerValidation = [
   body('password').isLength({ min: 8 }).withMessage('Password must be at least 8 characters.'),
   body('role').isIn(USER_ROLES).withMessage('A supported role is required.'),
   body('facility_id').optional().isInt({ min: 1 }).withMessage('Facility id must be positive integer.'),
+  body('thematic_area_id').optional({ nullable: true }).isInt({ min: 1 }).withMessage('Thematic area id must be a positive integer.').toInt(),
   body('must_change_password').optional().isBoolean().toBoolean(),
 ];
 
@@ -75,6 +76,7 @@ const updateProfileValidation = [
   body('highest_qualification').optional().isLength({ min: 2 }).withMessage('Highest qualification is invalid.'),
   body('training_status').optional().isLength({ min: 2 }).withMessage('Training status is invalid.'),
   body('avatar_url').optional().isURL().withMessage('Avatar URL is invalid.'),
+  body('thematic_area_id').optional({ nullable: true }).isInt({ min: 1 }).withMessage('Thematic area id must be a positive integer.').toInt(),
 ];
 
 const preferencesValidation = [

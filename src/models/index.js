@@ -70,6 +70,7 @@ const models = Object.fromEntries(
 
 const foreignKeys = [
 	['User', 'Facility', 'facility_id', 'facility', 'facilityUsers'],
+	['User', 'ThematicArea', 'thematic_area_id', 'thematicArea', 'thematicAreaUsers'],
 	['User', 'User', 'created_by', 'createdBy', 'usersCreated'],
 	['User', 'User', 'updated_by', 'updatedBy', 'usersUpdated'],
 	['UserPreference', 'User', 'user_id', 'user', 'preference', true],

@@ -47,7 +47,7 @@ router.get('/me', usersController.getCurrentUser);
 
 router.patch(
   '/me',
-  rejectUnexpectedFields(['full_name', 'phone', 'highest_qualification', 'training_status', 'avatar_url']),
+  rejectUnexpectedFields(['full_name', 'phone', 'highest_qualification', 'training_status', 'avatar_url', 'thematic_area_id']),
   updateProfileValidation,
   validateRequest,
   usersController.updateCurrentUser
@@ -164,7 +164,7 @@ router.get('/:id', requireRole(FACILITY_MANAGEMENT_ROLES), userIdValidation, val
 router.post(
   '/',
   requireRole(FACILITY_MANAGEMENT_ROLES),
-  rejectUnexpectedFields(['full_name', 'email', 'password', 'role', 'facility_id', 'phone', 'highest_qualification', 'training_status', 'must_change_password']),
+  rejectUnexpectedFields(['full_name', 'email', 'password', 'role', 'facility_id', 'phone', 'highest_qualification', 'training_status', 'thematic_area_id', 'must_change_password']),
   registerValidation,
   validateRequest,
   usersController.createUser

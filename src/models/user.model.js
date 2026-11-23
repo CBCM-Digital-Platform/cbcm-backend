@@ -33,6 +33,10 @@ module.exports = (sequelize, DataTypes) => {
         type: DataTypes.INTEGER,
       },
 
+      thematic_area_id: {
+        type: DataTypes.INTEGER,
+      },
+
       highest_qualification: {
         type: DataTypes.STRING,
       },

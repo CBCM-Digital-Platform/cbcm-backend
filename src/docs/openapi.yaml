@@ -254,6 +254,25 @@ components:
         facility_id:
           type: integer
           nullable: true
+        thematic_area_id:
+          type: integer
+          nullable: true
+          description: Mentor's assigned thematic area ID (mentors only)
+          example: 3
+        thematic_area:
+          type: object
+          nullable: true
+          description: Assigned thematic area details when loaded
+          properties:
+            id:
+              type: integer
+              example: 3
+            code:
+              type: string
+              example: MNH
+            name:
+              type: string
+              example: Maternal Health
         highest_qualification:
           type: string
           nullable: true
@@ -322,6 +341,12 @@ components:
           type: string
           format: uri
           example: https://example.com/avatar.jpg
+        thematic_area_id:
+          type: integer
+          minimum: 1
+          nullable: true
+          description: Mentor only. Set or clear (null) the mentor's thematic area. Omitting the field leaves the existing value unchanged.
+          example: 3
       additionalProperties: false
     UserPreferences:
       type: object
@@ -420,6 +445,12 @@ components:
           minimum: 1
           nullable: true
           example: 2
+        thematic_area_id:
+          type: integer
+          minimum: 1
+          nullable: true
+          description: Mentor only. ID of an existing thematic area.
+          example: 3
         phone:
           type: string
           example: '+251911234567'
