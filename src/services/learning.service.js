@@ -17,6 +17,17 @@ const isModulePublishedAndAuthorized = (module) => (
 );
 const actorUserId = (actor = {}) => actor.id ?? actor.userId;
 
+const normalizePublicationPayload = (payload = {}) => {
+	const status = String(payload.status || '').toLowerCase();
+	if (status === 'published') {
+		return { ...payload, status: 'published', isPublished: true, isAuthorized: true };
+	}
+	if (status === 'draft') {
+		return { ...payload, status: 'draft', isPublished: false, isAuthorized: false };
+	}
+	return payload;
+};
+
 const ensureModule = async (moduleId) => {
 	const module = await repository.getModuleById(moduleId);
 	if (!module) throw new AppError('Learning module not found.', 404, 'NOT_FOUND');
@@ -62,7 +73,8 @@ const listModules = async (filters = {}, actor = {}) => {
 };
 
 const assertMenteeHasModuleAccess = async ({ menteeId, moduleId }) => {
-	if (!(await repository.getModuleProgress({ menteeId, moduleId }))) {
+	const hasAssignedResource = await repository.hasActiveResourceAssignmentForMenteeModule(menteeId, moduleId);
+	if (!hasAssignedResource) {
 		throw new AppError('Module access has not been granted.', 403, 'FORBIDDEN');
 	}
 };
@@ -99,7 +111,7 @@ const createModule = async (payload = {}, actor) => {
 	if (!payload.title || !String(payload.title).trim()) {
 		throw new AppError('title is required.', 400, 'VALIDATION_ERROR');
 	}
-	return repository.createModule({ ...payload, title: String(payload.title).trim() });
+	return repository.createModule(normalizePublicationPayload({ ...payload, title: String(payload.title).trim() }));
 };
 
 const updateModule = async (moduleId, payload = {}, actor) => {
@@ -110,6 +122,7 @@ const updateModule = async (moduleId, payload = {}, actor) => {
 		if (!trimmedTitle) throw new AppError('title cannot be empty.', 400, 'VALIDATION_ERROR');
 		payload = { ...payload, title: trimmedTitle };
 	}
+	payload = normalizePublicationPayload(payload);
 	const module = await repository.updateModule(moduleId, payload);
 	if (!isModulePublishedAndAuthorized(previousModule) && isModulePublishedAndAuthorized(module)) {
 		await notificationService.publishEventSafely({
@@ -129,7 +142,12 @@ const deleteModule = async (moduleId, actor) => {
 	return repository.deleteModule(moduleId);
 };
 
-const getMyModules = async (menteeId) => repository.listProgressForMentee(menteeId);
+const getMyModules = async (menteeId) => {
+	// Mentees see only modules containing an individually assigned resource.
+	// Thematic-area membership and legacy whole-module progress must not expose
+	// the module or its materials.
+	return repository.listResourceAssignedModulesForMentee(menteeId);
+};
 
 const assertMentorCanAccessMentee = async ({ mentorId, menteeId, moduleId }) => {
 	if (!(await repository.hasActiveMentorAssignment({ mentorId, menteeId, moduleId }))) {
@@ -460,9 +478,6 @@ module.exports = {
 	assertMentorCanAccessMentee,
 	assignModuleToMentee,
 	revokeModuleAssignment,
-	listModuleMentorPermissions: async () => [],
-	grantModuleMentorPermission: async () => null,
-	revokeModuleMentorPermission: async () => false,
 	getMenteeModules,
 	getMyModules,
 	getMyModuleProgress,

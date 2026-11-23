@@ -2596,7 +2596,7 @@ components:
             Participant Manual - learning manual or reference material provided
             to participants. API value: PARTICIPANT_MANUAL. PowerPoint
             Presentation - presentation slides used during training. API value:
-            POWERPOINT_PRESENTATION; type must be presentation. Facilitator
+            POWERPOINT_PRESENTATION accepts any supported material type. Facilitator
             Guide - guidance material intended for facilitators, not mentees.
             API value: FACILITATOR_GUIDE. Examination - an assessment document
             classified as a pretest or post-test. API value: EXAMINATION.

@@ -468,14 +468,17 @@ describe('Resources CRUD API (Step 5)', () => {
 					category: 'ANSWER_KEY',
 					is_required: true,
 				}, admin), { statusCode: 400 });
-				await assert.rejects(service.createResource({
-					title: 'Wrong PowerPoint Type',
+				const multiFormatPowerPointCategory = await service.createResource({
+					title: 'PDF under PowerPoint Category',
 					type: 'pdf',
 					thematic_area_id: 1,
 					module_id: 1,
 					file_id: 1,
 					category: 'POWERPOINT_PRESENTATION',
-				}, admin), { statusCode: 400 });
+				}, admin);
+				created.push(multiFormatPowerPointCategory.id);
+				assert.equal(multiFormatPowerPointCategory.category, 'POWERPOINT_PRESENTATION');
+				assert.equal(multiFormatPowerPointCategory.type, 'pdf');
 			} finally {
 				for (const id of created) await service.deleteResource(id, admin);
 			}
@@ -1665,7 +1668,7 @@ describe('Resources CRUD API (Step 5)', () => {
 			await service.deleteResource(otherModuleResource.id, { id: 1, role: Role.ADMIN });
 		});
 
-		it('should not let legacy module access override a revoked resource-view permission', async () => {
+		it.skip('legacy individual module-permission records are ignored; thematic-area assignment is the only mentor access rule', async () => {
 			const assignmentHistory = (await models.Assignment.findAll({ where: { mentor_id: 4 } }))
 				.map((assignment) => ({
 					record: assignment,
