@@ -20,6 +20,7 @@ const analyticsRoutes = require('./analytics.routes');
 const settingsRoutes = require('./settings.routes');
 const uploadsRoutes = require('./uploads.routes');
 const resourcesRoutes = require('./resources.routes');
+const aiAssistantRoutes = require('./ai-assistant.routes');
 
 const router = express.Router();
 router.use('/auth', authRoutes);
@@ -42,5 +43,6 @@ router.use('/analytics', analyticsRoutes);
 router.use('/settings', settingsRoutes);
 router.use('/uploads', uploadsRoutes);
 router.use('/resources', resourcesRoutes);
+router.use('/ai', aiAssistantRoutes);
 
 module.exports = router;
