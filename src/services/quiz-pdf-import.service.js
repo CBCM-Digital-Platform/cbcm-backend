@@ -1,6 +1,7 @@
 const pdfParse = require('pdf-parse');
 const AppError = require('../errors/app-error');
 const Role = require('../enums/role.enum');
+const LearningExaminationStage = require('../enums/learning-examination-stage.enum');
 const models = require('../models');
 const storage = require('../providers/storage.provider');
 const uploadsService = require('./uploads.service');
@@ -25,14 +26,23 @@ const readPdf = async (fileId) => {
 	return pdfParse(await streamToBuffer(opened.stream));
 };
 
-const answerKeyFromText = (text) => {
+const answerKeyEntriesFromText = (text) => {
 	const answers = new Map();
 	for (const line of String(text || '').split(/\r?\n/)) {
-		const match = line.match(/^\s*(?:question\s*)?(\d+)\s*(?:[.):]|-)\s*([A-D](?:\s*[,/]\s*[A-D])?)\b/i);
-		if (match) answers.set(Number(match[1]), match[2].toUpperCase().split(/\s*[,/]\s*/));
+		const match = line.match(/^\s*(?:question\s*)?(\d+)\s*(?:[.):]|-)\s*([A-D](?:\s*[,/]\s*[A-D])?)\b(?:\s*(?:[-:.)]\s*|\s+)(.*))?$/i);
+		if (match) {
+			answers.set(Number(match[1]), {
+				options: match[2].toUpperCase().split(/\s*[,/]\s*/),
+				explanation: match[3]?.trim() || null,
+			});
+		}
 	}
 	return answers;
 };
+
+const answerKeyFromText = (text) => new Map(
+	[...answerKeyEntriesFromText(text)].map(([questionNumber, entry]) => [questionNumber, entry.options])
+);
 
 const parseQuestions = (text, answerKeyText = '') => {
 	const lines = String(text || '').split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
@@ -47,7 +57,7 @@ const parseQuestions = (text, answerKeyText = '') => {
 		const questionMatch = line.match(/^(\d+)\s*[.)]\s*(.+)$/);
 		const optionMatch = line.match(/^([A-D])\s*[.)\-:]\s*(.+)$/i);
 		if (questionMatch) {
-			current = { sourceNumber: Number(questionMatch[1]), prompt: questionMatch[2].trim(), options: [], orderNumber: questions.length, questionType: 'single_choice', points: 1, requiresReview: false, warnings: [] };
+			current = { sourceNumber: Number(questionMatch[1]), prompt: questionMatch[2].trim(), options: [], orderNumber: questions.length, questionType: 'single_choice', points: 1, requiresReview: false, reviewed: false, explanation: null, warnings: [] };
 			questions.push(current);
 		} else if (optionMatch && current) {
 			current.options.push({ label: optionMatch[1].toUpperCase(), text: optionMatch[2].trim(), orderNumber: current.options.length, isCorrect: false });
@@ -57,9 +67,12 @@ const parseQuestions = (text, answerKeyText = '') => {
 		}
 	}
 	if (!questions.length) throw new AppError('The PDF contains no extractable text questions. Scanned or image-only PDFs are not supported.', 422, 'PDF_TEXT_NOT_FOUND');
-	const answers = answerKeyFromText(`${answerKeyText}\n${String(text).split(/answer\s*key/i)[1] || ''}`);
+	const answers = answerKeyEntriesFromText(`${answerKeyText}\n${String(text).split(/answer\s*key/i)[1] || ''}`);
 	for (const question of questions) {
-		const answer = answers.get(question.sourceNumber);
+		const answerEntry = answers.get(question.sourceNumber);
+		const answer = answerEntry?.options;
+		question.reviewed = false;
+		question.explanation = answerEntry?.explanation || null;
 		if (!question.options.length || question.options.length < 2) {
 			question.requiresReview = true;
 			question.warnings.push('Fewer than two answer options were extracted.');
@@ -80,8 +93,11 @@ const parseQuestions = (text, answerKeyText = '') => {
 	return { questions, warnings };
 };
 
-const upload = async ({ actor, moduleId, question, answerKey }) => {
+const upload = async ({ actor, moduleId, assessmentStage, question, answerKey }) => {
 	assertAdmin(actor);
+	if (!Object.values(LearningExaminationStage).includes(assessmentStage)) {
+		throw new AppError('assessmentStage must be PRETEST or POST_TEST.', 400, 'VALIDATION_ERROR');
+	}
 	if (!(await models.LearningModule.findByPk(moduleId, { attributes: ['id'] }))) {
 		throw new AppError('Learning module not found.', 404, 'NOT_FOUND');
 	}
@@ -89,7 +105,13 @@ const upload = async ({ actor, moduleId, question, answerKey }) => {
 	let answerKeyFile;
 	try {
 		if (answerKey) answerKeyFile = await uploadsService.createUpload({ actor, upload: answerKey, context: 'quiz-import-answer-key-pdf' });
-		return repository.createDraft({ module_id: moduleId, question_file_id: questionFile.id, answer_key_file_id: answerKeyFile?.id || null, created_by: actor.id });
+		return repository.createDraft({
+			module_id: moduleId,
+			assessment_stage: assessmentStage,
+			question_file_id: questionFile.id,
+			answer_key_file_id: answerKeyFile?.id || null,
+			created_by: actor.id,
+		});
 	} catch (error) {
 		if (answerKeyFile) await uploadsService.deleteUpload(answerKeyFile.id, actor).catch(() => {});
 		await uploadsService.deleteUpload(questionFile.id, actor).catch(() => {});
@@ -148,14 +170,27 @@ const confirm = async (draftId, payload, actor) => {
 	const draft = await repository.getDraft(draftId);
 	if (!draft) throw new AppError('Quiz import draft was not found.', 404, 'NOT_FOUND');
 	if (draft.status === 'confirmed' || draft.quiz_id) throw new AppError('This quiz import has already been confirmed.', 409, 'CONFLICT');
+	const assessmentStage = draft.assessment_stage ?? payload.assessmentStage ?? payload.assessment_stage;
+	if (!Object.values(LearningExaminationStage).includes(assessmentStage)) {
+		throw new AppError('assessmentStage must be PRETEST or POST_TEST.', 400, 'VALIDATION_ERROR');
+	}
 	if (!draft.questions?.length) throw new AppError('The import contains no questions.', 422, 'VALIDATION_ERROR');
 	for (const [index, question] of draft.questions.entries()) {
-		if (question.requiresReview === true || !hasValidReviewedAnswer(question)) {
+		if (question.reviewed !== true || question.requiresReview === true || !hasValidReviewedAnswer(question)) {
 			throw new AppError(`Question ${index + 1} requires review before confirmation.`, 422, 'IMPORT_REVIEW_REQUIRED');
 		}
 	}
 	try {
-		return await repository.confirmDraft({ draftId, title: payload.title, description: payload.description, passScore: payload.passScore, timeLimitMinutes: payload.timeLimitMinutes, attemptLimit: payload.attemptLimit, createdBy: actor.id });
+		return await repository.confirmDraft({
+			draftId,
+			title: payload.title,
+			description: payload.description,
+			assessmentStage,
+			passScore: payload.passScore,
+			timeLimitMinutes: payload.timeLimitMinutes,
+			attemptLimit: payload.attemptLimit,
+			createdBy: actor.id,
+		});
 	} catch (error) {
 		if (error?.message === 'This quiz import has already been confirmed or is being confirmed.') {
 			throw new AppError(error.message, 409, 'CONFLICT');
@@ -164,4 +199,14 @@ const confirm = async (draftId, payload, actor) => {
 	}
 };
 
-module.exports = { upload, extract, get, updateQuestion, deleteQuestion, confirm, parseQuestions, answerKeyFromText };
+module.exports = {
+	upload,
+	extract,
+	get,
+	updateQuestion,
+	deleteQuestion,
+	confirm,
+	parseQuestions,
+	answerKeyFromText,
+	answerKeyEntriesFromText,
+};

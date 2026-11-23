@@ -6,6 +6,9 @@ module.exports = (sequelize, DataTypes) => sequelize.define('Resource', {
 	module_id: { type: DataTypes.INTEGER, allowNull: true },
 	url: { type: DataTypes.STRING, allowNull: true },
 	file_id: { type: DataTypes.INTEGER, allowNull: true },
+	category: { type: DataTypes.STRING, allowNull: true },
+	examination_stage: { type: DataTypes.STRING, allowNull: true },
+	is_required: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: true },
 	legacy_hierarchical_resource_id: {
 		type: DataTypes.INTEGER,
 		allowNull: true,

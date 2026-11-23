@@ -61,6 +61,7 @@ const definitions = {
 	ActivityLog: require('./activity-log.model'),
 	UploadedFile: require('./uploaded-file.model'),
 	ResourceAssignment: require('./resource-assignment.model'),
+	News: require('./news.model'),
 };
 
 const models = Object.fromEntries(
@@ -126,6 +127,7 @@ const foreignKeys = [
 	['LearningContentProgress', 'LearningModuleContent', 'content_id', 'content', 'learnerProgress'],
 	['LearningModuleProgress', 'User', 'mentee_id', 'mentee', 'learningProgress'],
 	['LearningModuleProgress', 'LearningModule', 'module_id', 'module', 'progressRecords'],
+	['LearningModuleProgress', 'MentorshipCycle', 'cycle_id', 'cycle', 'progressRecords'],
 	['Quiz', 'LearningModule', 'module_id', 'module', 'quizzes'],
 	['Quiz', 'User', 'created_by', 'createdBy', 'quizzesCreated'],
 	['QuizQuestion', 'Quiz', 'quiz_id', 'quiz', 'questions'],
@@ -188,6 +190,7 @@ const foreignKeys = [
 	['NewsPost', 'UploadedFile', 'image_file_id', 'imageFile', 'newsPostsUsingImage'],
 	['NewsPost', 'User', 'created_by', 'createdBy', 'newsPostsCreated'],
 	['NewsPost', 'User', 'updated_by', 'updatedBy', 'newsPostsUpdated'],
+	['News', 'User', 'author_id', 'author', 'newsArticles'],
 	['FAQ', 'User', 'created_by', 'createdBy', 'faqsCreated'],
 	['FAQ', 'User', 'updated_by', 'updatedBy', 'faqsUpdated'],
 	['FAQ', 'Facility', 'facility_id', 'facility', 'facilityFaqs'],

@@ -15,15 +15,6 @@ const toModule = (moduleRecord) => {
 		updatedBy: value.updated_by ?? null,
 		createdAt: value.created_at || null,
 		updatedAt: value.updated_at || null,
-		contents: Array.isArray(value.contents) ? value.contents.map((content) => ({
-			id: content.id,
-			title: content.title,
-			type: content.type,
-			orderNumber: content.order_number ?? 0,
-			isRequired: Boolean(content.is_required),
-			isPublished: Boolean(content.is_published),
-			isAuthorized: Boolean(content.is_authorized),
-		}) ) : [],
 	};
 };
 
