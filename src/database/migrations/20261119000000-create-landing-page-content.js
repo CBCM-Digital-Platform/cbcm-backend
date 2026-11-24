@@ -1,0 +1,185 @@
+'use strict';
+
+const initialContent = {
+	hero: {
+		eyebrow: 'Center for Adolescent Girls Health • CBCM Clinical Program',
+		title: 'Elevating Clinical Skills.',
+		highlight: 'Saving Mother & Newborn Lives.',
+		description: 'The CBCM platform connects senior preceptors with frontline midwives across accredited teaching hospitals. Standardize clinical evaluations, oversee competency milestones, and transform health outcomes.',
+		image_url: '/image.png',
+		image_alt: 'Midwife mentors and mentees outside an operating room',
+		connected_badge: '12 Hospitals Connected',
+		verification_title: 'Theory Score: 85%',
+		verification_label: 'Pass',
+		verification_description: 'Clinical Competency Verified',
+		proof_points: ['Facility-Led Cohorts', 'National Guidelines', 'Role-Based Access'],
+	},
+	how_it_works: {
+		eyebrow: 'Standardized Clinical Workflow',
+		title: 'How CBCM Powers',
+		highlight: 'Hospital Mentorship',
+		description: 'A unified 3-stage clinical progression framework connecting bedside evaluations, standardized curriculum authoring, and sequential competency pacing.',
+		cards: [
+			{
+				id: 'osce-assessments',
+				step: 'Step 01',
+				status: 'Live Station • Bedside Evaluation',
+				category: 'Objective Clinical OSCE',
+				title: 'On-The-Floor OSCE Assessments',
+				description: 'Senior mentors conduct bedside observation using standardized digital OSCE checklists. Score procedural steps live with split-screen rubrics and submit immediate formative feedback.',
+				image_url: '/image2.jpg',
+				image_alt: 'Midwife mentor conducting a clinical skills assessment',
+				features: ['Objective scoring criteria', 'Split-screen grading rubric', 'Instant formative debrief'],
+			},
+			{
+				id: 'standardized-curriculum',
+				step: 'Step 02',
+				status: 'National Healthcare Framework',
+				category: 'Super Admin Authoring',
+				title: 'Standardized Curriculum',
+				description: 'Super Admins centralize clinical learning modules across thematic areas, ensuring hospital cohorts adhere to national health ministry directives and accredited protocols.',
+				image_url: '/image3.jpg',
+				image_alt: 'Healthcare mentors and administrators aligning on curriculum standards',
+				features: ['MOH directive alignment', 'Thematic domain mapping', 'Centrally approved resources'],
+			},
+			{
+				id: 'drip-feed-learning',
+				step: 'Step 03',
+				status: 'Milestone-Gated Release',
+				category: 'Competency Pacing',
+				title: 'Drip-Feed Learning',
+				description: 'Modules unlock sequentially as mentees master prerequisite competencies, preventing cognitive overload and ensuring solid foundational clinical skills before advancement.',
+				image_url: '/image1.jpg',
+				image_alt: 'Midwives studying clinical modules in a classroom',
+				features: ['Prerequisite-gated progression', 'Verified milestone mastery', 'Cognitive skill retention'],
+			},
+		],
+	},
+	roles: {
+		eyebrow: 'Role-Based Ecosystem',
+		title: 'A Platform for',
+		highlight: 'Every Role',
+		description: 'Tailored interfaces and strict RBAC privileges designed specifically for each tier of clinical mentorship and hospital administration.',
+		cards: [
+			{
+				id: 'super_admin',
+				label: 'Super Admin',
+				eyebrow: 'System-Wide Governance',
+				title: 'National Curriculum & Content Creation',
+				description: 'Super Administrators manage the foundation of CBCM. Author learning materials, approve regional medical guidelines, and monitor cross-facility performance dashboards without touching local hospital confidential data.',
+				image_url: '/image3.jpg',
+				image_alt: 'Super administrators coordinating clinical curriculum',
+				caption: 'System-Wide Governance',
+				subcaption: 'National standards • Facility oversight',
+				highlights: [
+					{ title: 'Curriculum Authoring', description: 'Create modules, attach clinical guidelines, configure passing thresholds.' },
+					{ title: 'Ministry Analytics', description: 'Aggregated metrics tracking midwife competency retention nationwide.' },
+					{ title: 'Facility Oversight', description: 'Provision teaching hospitals and assign authorized Facility Administrators.' },
+				],
+				feature_cards: [
+					{ title: 'Content Creation', description: 'Rich media, videos & objective rubrics.' },
+					{ title: 'Hospital Directory', description: '12+ teaching hospital networks.' },
+					{ title: 'OSCE Standards', description: 'Calibrated checklists aligned nationally.' },
+					{ title: 'Role RBAC', description: 'Strict boundary enforcement.' },
+				],
+			},
+			{
+				id: 'facility_admin',
+				label: 'Facility Admin',
+				eyebrow: 'Hospital Command Centre',
+				title: 'Mentor-Mentee Pairing & Content Distribution',
+				description: 'Facility Admins manage local hospital operations — mapping senior preceptors to junior midwives, dispatching learning modules, and monitoring compliance without curriculum interference.',
+				image_url: '/image3.jpg',
+				image_alt: 'Facility administrator and hospital mentors coordinating mentorship pairs',
+				caption: 'Facility Oversight • Referral Hospital',
+				subcaption: '100% Mentee-Preceptor Pairing Compliance',
+				highlights: [
+					{ title: 'Preceptor Pairing', description: 'Assign 1-on-1 pairs based on clinical specialty and ward rotations.' },
+					{ title: 'Module Dispatch', description: 'Grant mentors and cohorts access to required clinical thematic areas.' },
+					{ title: 'Cohort Rosters', description: 'Onboard hospital personnel and maintain active staff rosters.' },
+				],
+				feature_cards: [],
+			},
+			{
+				id: 'mentor',
+				label: 'Mentor',
+				eyebrow: 'Senior Clinical Preceptor',
+				title: 'Bedside Coaching & OSCE Assessment',
+				description: 'Senior preceptors oversee assigned mentees directly on the hospital floor — conducting bedside mentorship sessions, grading clinical skills with digital OSCE criteria, and assigning targeted learning interventions.',
+				image_url: '/image1.jpg',
+				image_alt: 'Senior preceptors reviewing clinical mentorship protocols',
+				caption: 'Senior Midwife Preceptors • Bedside Observation',
+				subcaption: 'Real-time scoring with instant debrief',
+				highlights: [
+					{ title: 'Live Digital OSCE', description: 'Grading checklist for resuscitation, active labor, and postpartum care.' },
+					{ title: 'Action Plans', description: 'Identify gaps and set concrete remedial action plans for subsequent rounds.' },
+					{ title: 'Progress Tracking', description: 'Monitor mentee score trajectories across quarterly mentoring rounds.' },
+				],
+				feature_cards: [],
+			},
+			{
+				id: 'mentee',
+				label: 'Mentee',
+				eyebrow: 'Frontline Midwife Mentee',
+				title: 'Distraction-Free Exam Mode & Competency Mastery',
+				description: 'Mentees learn at their own pace with distraction-free theoretical examinations, interactive case studies, and clear visibility into preceptor evaluations and upcoming competency milestones.',
+				image_url: '/image4.jpg',
+				image_alt: 'Junior midwife engaged in clinical study and digital learning',
+				caption: 'Mentee Study Center • Exam Mode Active',
+				subcaption: 'Focus UI • No Popups • Instant Verification',
+				highlights: [
+					{ title: 'Distraction-Free Exam', description: 'Focus-first test environment with timed questions and instant review.' },
+					{ title: 'Clinical Feedback', description: 'Read comprehensive preceptor notes and targeted improvement steps.' },
+					{ title: 'Certificate Pathway', description: 'Track progress toward accredited clinical certification and graduation.' },
+				],
+				feature_cards: [],
+			},
+		],
+	},
+	impact: {
+		eyebrow: 'Measurable Healthcare Impact',
+		title: 'Strengthening Frontline Healthcare Capacity',
+		description: 'Standardized clinical mentorship drives measurable improvements in neonatal resuscitation, obstetric emergency management, and respectful maternity care.',
+		stats: [
+			{ id: 'hospitals', value: 12, suffix: '+', label: 'Accredited Hospitals', description: 'Teaching & Referral Facilities' },
+			{ id: 'preceptors', value: 450, suffix: '+', label: 'Certified Preceptors', description: 'Senior Midwife Mentors' },
+			{ id: 'midwives', value: 1850, suffix: '+', label: 'Midwives Empowered', description: 'Frontline Clinical Mentees' },
+			{ id: 'retention', value: 98, suffix: '%', label: 'Competency Retention', description: 'Verified Clinical Pass Rate' },
+		],
+		cta: {
+			eyebrow: 'Restricted Health Facility Portal',
+			title: 'Ready to Access Your Clinical Mentorship Dashboard?',
+			description: 'Log in to review assigned cohorts, conduct competency evaluations, or analyze cross-hospital clinical indicators.',
+			button_label: 'Log In to CBCM Platform',
+		},
+	},
+};
+
+module.exports = {
+	async up(queryInterface, Sequelize) {
+		await queryInterface.createTable('landing_page_contents', {
+			id: { type: Sequelize.INTEGER, primaryKey: true },
+			content: { type: Sequelize.JSON, allowNull: false },
+			updated_by: {
+				type: Sequelize.INTEGER,
+				allowNull: true,
+				references: { model: 'users', key: 'id' },
+				onUpdate: 'CASCADE',
+				onDelete: 'SET NULL',
+			},
+			created_at: { type: Sequelize.DATE, allowNull: false, defaultValue: Sequelize.literal('CURRENT_TIMESTAMP') },
+			updated_at: { type: Sequelize.DATE, allowNull: false, defaultValue: Sequelize.literal('CURRENT_TIMESTAMP') },
+		});
+		await queryInterface.bulkInsert('landing_page_contents', [{
+			id: 1,
+			content: JSON.stringify(initialContent),
+			updated_by: null,
+			created_at: new Date(),
+			updated_at: new Date(),
+		}]);
+	},
+
+	async down(queryInterface) {
+		await queryInterface.dropTable('landing_page_contents');
+	},
+};

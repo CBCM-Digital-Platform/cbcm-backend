@@ -8,7 +8,7 @@
   "scripts": {
     "start": "node src/server.js",
     "dev": "node --watch src/server.js",
-    "test": "node --test tests/unit/messaging.test.js tests/unit/learning.test.js tests/unit/quiz-import.test.js tests/unit/sessions.test.js tests/unit/storage.test.js tests/unit/upload.test.js tests/unit/uploads-api.test.js tests/unit/resources.test.js",
+    "test": "node --test tests/unit/messaging.test.js tests/unit/learning.test.js tests/unit/quiz-import.test.js tests/unit/sessions.test.js tests/unit/storage.test.js tests/unit/upload.test.js tests/unit/uploads-api.test.js tests/unit/resources.test.js tests/unit/landing-page.test.js",
     "test:swagger": "node --test tests/unit/swagger.test.js",
     "test:learning": "node --test tests/unit/learning.test.js tests/unit/quiz-import.test.js",
     "test:messaging": "node --test tests/unit/messaging.test.js",

@@ -21,6 +21,7 @@ const settingsRoutes = require('./settings.routes');
 const uploadsRoutes = require('./uploads.routes');
 const resourcesRoutes = require('./resources.routes');
 const newsRoutes = require('./news.routes');
+const landingPageRoutes = require('./landing-page.routes');
 
 const router = express.Router();
 router.use('/auth', authRoutes);
@@ -44,5 +45,6 @@ router.use('/settings', settingsRoutes);
 router.use('/uploads', uploadsRoutes);
 router.use('/resources', resourcesRoutes);
 router.use('/news', newsRoutes);
+router.use('/landing-page', landingPageRoutes);
 
 module.exports = router;
