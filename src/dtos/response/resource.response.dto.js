@@ -7,6 +7,8 @@ function toResource(record) {
 	const thematicAreaId = value.thematic_area_id ?? value.thematicAreaId ?? null;
 	const moduleId = value.module_id ?? value.moduleId ?? null;
 	const fileId = value.file_id ?? value.fileId ?? null;
+	const examinationStage = value.examination_stage ?? value.examinationStage ?? null;
+	const isRequired = Boolean(value.is_required ?? value.isRequired ?? true);
 	const createdBy = value.created_by ?? value.createdBy ?? null;
 	const updatedBy = value.updated_by ?? value.updatedBy ?? null;
 	const createdAt = value.created_at ?? value.createdAt ?? null;
@@ -22,6 +24,11 @@ function toResource(record) {
 		module_id: moduleId,
 		fileId,
 		file_id: fileId,
+		category: value.category ?? null,
+		examinationStage,
+		examination_stage: examinationStage,
+		isRequired,
+		is_required: isRequired,
 		createdBy,
 		created_by: createdBy,
 		updatedBy,

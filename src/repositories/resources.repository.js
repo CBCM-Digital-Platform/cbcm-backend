@@ -38,13 +38,26 @@ async function findById(id, { transaction } = {}) {
 	});
 }
 
-async function findAndCountAll({ where = {}, limit = 20, offset = 0, order = [['id', 'DESC']], transaction } = {}) {
+async function findAndCountAll({
+	where = {},
+	limit = 20,
+	offset = 0,
+	order = [['id', 'DESC']],
+	moduleWhere,
+	requireModule = false,
+	transaction,
+} = {}) {
+	const include = standardIncludes.map((entry) => (
+		entry.as === 'module' && moduleWhere
+			? { ...entry, where: moduleWhere, required: requireModule }
+			: entry
+	));
 	return models.Resource.findAndCountAll({
 		where,
 		limit,
 		offset,
 		order,
-		include: standardIncludes,
+		include,
 		distinct: true,
 		transaction,
 	});
@@ -73,6 +86,28 @@ async function destroy(id, transaction) {
 	});
 }
 
+async function countAssignmentsForResource(resourceId, transaction) {
+	return models.ResourceAssignment.count({ where: { resource_id: resourceId }, transaction });
+}
+
+async function hasModuleLearningHistory(moduleId, transaction) {
+	const [moduleProgress, contentProgress] = await Promise.all([
+		models.LearningModuleProgress.count({
+			where: {
+				module_id: moduleId,
+				[Op.or]: [
+					{ started_at: { [Op.ne]: null } },
+					{ completed_at: { [Op.ne]: null } },
+					{ completion_percentage: { [Op.gt]: 0 } },
+				],
+			},
+			transaction,
+		}),
+		models.LearningContentProgress.count({ where: { module_id: moduleId }, transaction }),
+	]);
+	return moduleProgress > 0 || contentProgress > 0;
+}
+
 async function getFileById(fileId) {
 	if (!models.UploadedFile) return null;
 	return models.UploadedFile.findByPk(fileId, {
@@ -91,6 +126,95 @@ async function getThematicAreaById(thematicAreaId) {
 	if (!models.ThematicArea) return null;
 	return models.ThematicArea.findByPk(thematicAreaId, {
 		attributes: SAFE_THEMATIC_AREA_ATTRIBUTES,
+	});
+}
+
+async function listActiveMentorThematicAreaIds(mentorId) {
+	if (!mentorId || !models.Assignment || !models.User) return [];
+	const mentor = await models.User.findByPk(mentorId, {
+		attributes: ['id', 'role', 'status'],
+	});
+	if (!mentor || String(mentor.role || '').toLowerCase() !== 'mentor') return [];
+	if (mentor.status && String(mentor.status).toLowerCase() !== 'active') return [];
+
+	const assignments = await models.Assignment.findAll({
+		where: {
+			mentor_id: mentorId,
+			thematic_area_id: { [Op.ne]: null },
+			status: { [Op.in]: ['assigned', 'active'] },
+			unassigned_at: null,
+		},
+		attributes: ['thematic_area_id'],
+	});
+
+	return [...new Set(assignments
+		.map((entry) => Number(entry.thematic_area_id))
+		.filter((value) => Number.isFinite(value) && value > 0))];
+}
+
+async function hasActiveMentorThematicAreaAssignment({ mentorId, thematicAreaId }) {
+	if (!mentorId || !thematicAreaId || !models.Assignment) return false;
+	const mentor = await models.User.findByPk(mentorId, {
+		attributes: ['id', 'role', 'status'],
+	});
+	if (!mentor || String(mentor.role || '').toLowerCase() !== 'mentor') return false;
+	if (mentor.status && String(mentor.status).toLowerCase() !== 'active') return false;
+
+	const assignment = await models.Assignment.findOne({
+		where: {
+			mentor_id: mentorId,
+			thematic_area_id: Number(thematicAreaId),
+			status: { [Op.in]: ['assigned', 'active'] },
+			unassigned_at: null,
+		},
+		attributes: ['id'],
+	});
+	return Boolean(assignment);
+}
+
+async function hasActiveMenteeThematicAreaAssignment({ menteeId, thematicAreaId }) {
+	if (!menteeId || !thematicAreaId || !models.Assignment) return false;
+	const mentee = await models.User.findByPk(menteeId, {
+		attributes: ['id', 'role', 'status'],
+	});
+	if (!mentee || String(mentee.role || '').toLowerCase() !== 'mentee') return false;
+	if (mentee.status && String(mentee.status).toLowerCase() !== 'active') return false;
+
+	const assignment = await models.Assignment.findOne({
+		where: {
+			mentee_id: menteeId,
+			thematic_area_id: Number(thematicAreaId),
+			status: { [Op.in]: ['assigned', 'active'] },
+			unassigned_at: null,
+		},
+		attributes: ['id'],
+	});
+	return Boolean(assignment);
+}
+
+async function listActiveMentorMenteeAssignmentContexts({ mentorId, menteeId, thematicAreaId }) {
+	const [mentor, mentee] = await Promise.all([
+		models.User.findByPk(mentorId, { attributes: ['id', 'role', 'facility_id'] }),
+		models.User.findByPk(menteeId, { attributes: ['id', 'role', 'facility_id'] }),
+	]);
+	if (!mentor || String(mentor.role || '').toLowerCase() !== 'mentor'
+		|| !mentee || String(mentee.role || '').toLowerCase() !== 'mentee') return [];
+	if (mentor.facility_id && mentee.facility_id
+		&& Number(mentor.facility_id) !== Number(mentee.facility_id)) return [];
+
+	const where = {
+		mentor_id: mentorId,
+		mentee_id: menteeId,
+		thematic_area_id: thematicAreaId,
+		status: { [Op.in]: ['assigned', 'active'] },
+		unassigned_at: null,
+	};
+	if (mentor.facility_id) where.facility_id = mentor.facility_id;
+
+	return models.Assignment.findAll({
+		where,
+		attributes: ['id', 'mentor_id', 'mentee_id', 'facility_id', 'cycle_id', 'thematic_area_id'],
+		order: [['assigned_at', 'DESC'], ['id', 'DESC']],
 	});
 }
 
@@ -115,10 +239,16 @@ module.exports = {
 	findAndCountAll,
 	update,
 	destroy,
+	countAssignmentsForResource,
+	hasModuleLearningHistory,
 	getFileById,
 	getModuleById,
 	getThematicAreaById,
 	listFacilityThematicAreaIds,
+	listActiveMentorThematicAreaIds,
+	hasActiveMentorThematicAreaAssignment,
+	hasActiveMenteeThematicAreaAssignment,
+	listActiveMentorMenteeAssignmentContexts,
 	// Re-exported learning repository helpers for testing stubbing and scope checks
 	isModuleInFacilityScope: (...args) => learningRepository.isModuleInFacilityScope(...args),
 	isThematicAreaInFacilityScope: (...args) => learningRepository.isThematicAreaInFacilityScope(...args),
@@ -126,6 +256,5 @@ module.exports = {
 	listMentorModuleIds: (...args) => learningRepository.listMentorModuleIds(...args),
 	hasActiveMentorAssignment: (...args) => learningRepository.hasActiveMentorAssignment(...args),
 	hasModuleMentorAccess: (...args) => learningRepository.hasModuleMentorAccess(...args),
-	hasModuleMentorPermission: (...args) => learningRepository.hasModuleMentorPermission(...args),
 	getModuleProgress: (...args) => learningRepository.getModuleProgress(...args),
 };

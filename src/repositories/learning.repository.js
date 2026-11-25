@@ -2,8 +2,6 @@
 const { Op } = require('sequelize');
 const models = require('../models');
 const AppError = require('../errors/app-error');
-const LearningPermission = require('../enums/learning-permission.enum');
-
 const isLearnerVisible = { is_published: true, is_authorized: true };
 const ACTIVE_ASSIGNMENT_STATUSES = ['assigned', 'active'];
 
@@ -21,40 +19,37 @@ const listModules = async ({ status, thematicAreaId, createdBy, publishedOnly = 
 
 	const modules = await models.LearningModule.findAll({
 		where,
-		include: [
-			{ model: models.ThematicArea, as: 'thematicArea', attributes: ['id', 'name'] },
-			{
-				model: models.LearningModuleContent,
-				as: 'contents',
-				attributes: ['id', 'title', 'type', 'order_number', 'is_required', 'is_published', 'is_authorized'],
-				...(publishedOnly || authorizedOnly ? { where: isLearnerVisible, required: false } : {}),
-			},
-		],
+		include: [{ model: models.ThematicArea, as: 'thematicArea', attributes: ['id', 'name'] }],
 		order: [['order_number', 'ASC'], ['id', 'ASC']],
 	});
 
 	if (modules.length === 0) return modules;
 
 	const moduleIdsWithCounts = modules.map(m => m.id);
-	const mentorCounts = await models.LearningModuleMentorPermission.findAll({
-		where: {
-			module_id: { [Op.in]: moduleIdsWithCounts },
-			permission: 'learning.resources.view',
-			revoked_at: null,
-		},
-		attributes: ['module_id', 'mentor_id'],
-	}).then(records => {
-		const countMap = {};
-		const uniqueMentorsPerModule = {};
-		records.forEach(r => {
-			const key = `${r.module_id}-${r.mentor_id}`;
-			if (!uniqueMentorsPerModule[key]) {
-				uniqueMentorsPerModule[key] = true;
-				countMap[r.module_id] = (countMap[r.module_id] || 0) + 1;
-			}
+	const moduleById = new Map(modules.map((module) => [Number(module.id), module]));
+	const thematicAreaIds = [...new Set(modules.map((module) => Number(module.thematic_area_id)).filter((id) => Number.isFinite(id) && id > 0))];
+	const mentorCounts = {};
+	if (thematicAreaIds.length && models.Assignment) {
+		const assignments = await models.Assignment.findAll({
+			where: {
+				thematic_area_id: { [Op.in]: thematicAreaIds },
+				status: { [Op.in]: ACTIVE_ASSIGNMENT_STATUSES },
+				unassigned_at: null,
+			},
+			attributes: ['mentor_id', 'thematic_area_id'],
 		});
-		return countMap;
-	});
+		const unique = new Set();
+		assignments.forEach((entry) => {
+			const key = `${entry.mentor_id}:${entry.thematic_area_id}`;
+			if (unique.has(key)) return;
+			unique.add(key);
+			modules.forEach((module) => {
+				if (Number(module.thematic_area_id) === Number(entry.thematic_area_id)) {
+					mentorCounts[module.id] = (mentorCounts[module.id] || 0) + 1;
+				}
+			});
+		});
+	}
 
 	return modules.map(module => ({
 		...module.toJSON(),
@@ -133,13 +128,6 @@ const getModuleById = async (moduleId, { learnerVisible = false } = {}) => model
 	include: [
 		{ model: models.ThematicArea, as: 'thematicArea', attributes: ['id', 'name'] },
 		{
-			model: models.LearningModuleContent,
-			as: 'contents',
-			...(learnerVisible ? { where: isLearnerVisible, required: false } : {}),
-			order: [['order_number', 'ASC'], ['id', 'ASC']],
-			include: [{ model: models.UploadedFile, as: 'file', attributes: ['id', 'original_name', 'mime_type', 'size_bytes'] }],
-		},
-		{
 			model: models.Quiz,
 			as: 'quizzes',
 			...(learnerVisible ? { where: isLearnerVisible, required: false } : {}),
@@ -210,71 +198,31 @@ const deleteModule = async (moduleId) => models.sequelize.transaction(async (tra
 	return true;
 });
 
-const listContents = async (moduleId, { learnerVisible = false } = {}) => models.LearningModuleContent.findAll({
-	where: { module_id: moduleId, ...(learnerVisible ? isLearnerVisible : {}) },
-	order: [['order_number', 'ASC'], ['id', 'ASC']],
-	include: [{ model: models.UploadedFile, as: 'file', attributes: ['id', 'original_name', 'mime_type', 'size_bytes'] }],
-});
-
-const getContentById = async (contentId) => models.LearningModuleContent.findByPk(contentId, {
-	include: [{ model: models.UploadedFile, as: 'file', attributes: ['id', 'original_name', 'mime_type', 'size_bytes'] }],
-});
-
-const createContent = async ({ moduleId, title, type, contentText, contentUrl, fileId, orderNumber, isRequired, isPublished, isAuthorized, durationMinutes, createdBy }) => models.LearningModuleContent.create({
-	module_id: moduleId,
-	title,
-	type: type || 'article',
-	content_text: contentText ?? null,
-	content_url: contentUrl || null,
-	file_id: fileId || null,
-	order_number: orderNumber ?? 0,
-	is_required: isRequired ?? true,
-	is_published: isPublished ?? false,
-	is_authorized: isAuthorized ?? false,
-	duration_minutes: durationMinutes ?? 0,
-	created_by: createdBy ?? null,
-	updated_by: createdBy ?? null,
-});
-
-const updateContent = async (moduleId, contentId, payload = {}) => {
-	const content = await getContentById(contentId);
-	if (!content || Number(content.module_id) !== Number(moduleId)) {
-		throw new AppError('Learning content not found.', 404, 'NOT_FOUND');
-	}
-	const updatePayload = { ...payload };
-	if ('contentText' in updatePayload) updatePayload.content_text = updatePayload.contentText;
-	if ('contentUrl' in updatePayload) updatePayload.content_url = updatePayload.contentUrl;
-	if ('fileId' in updatePayload) updatePayload.file_id = updatePayload.fileId;
-	if ('orderNumber' in updatePayload) updatePayload.order_number = updatePayload.orderNumber;
-	if ('isRequired' in updatePayload) updatePayload.is_required = updatePayload.isRequired;
-	if ('isPublished' in updatePayload) updatePayload.is_published = updatePayload.isPublished;
-	if ('isAuthorized' in updatePayload) updatePayload.is_authorized = updatePayload.isAuthorized;
-	if ('durationMinutes' in updatePayload) updatePayload.duration_minutes = updatePayload.durationMinutes;
-	if ('updatedBy' in updatePayload) updatePayload.updated_by = updatePayload.updatedBy;
-	const [count] = await models.LearningModuleContent.update(updatePayload, { where: { id: contentId, module_id: moduleId } });
-	if (!count) throw new AppError('Learning content not found.', 404, 'NOT_FOUND');
-	return getContentById(contentId);
-};
-
-const deleteContent = async (moduleId, contentId) => {
-	const content = await getContentById(contentId);
-	if (!content || Number(content.module_id) !== Number(moduleId)) throw new AppError('Learning content not found.', 404, 'NOT_FOUND');
-	const completedCount = await models.LearningContentProgress.count({ where: { content_id: contentId } });
-	if (completedCount) throw new AppError('Learning content with learner progress cannot be deleted.', 409, 'CONFLICT');
-	await models.LearningModuleContent.destroy({ where: { id: contentId, module_id: moduleId } });
-	return true;
-};
-
-const getUploadedFileById = async (fileId) => models.UploadedFile.findByPk(fileId);
-
 const activeModuleProgressWhere = (where) => ({
 	...where,
 	[Op.or]: [{ status: { [Op.ne]: 'access_revoked' } }, { status: null }],
 });
 
-const getModuleProgress = async ({ menteeId, moduleId }) => models.LearningModuleProgress.findOne({
-	where: activeModuleProgressWhere({ mentee_id: menteeId, module_id: moduleId }),
-}).then(async (progress) => (progress && await hasValidMentorGrantedAccess(progress) ? progress : null));
+const getModuleProgress = async ({ menteeId, moduleId, cycleId }) => {
+	const baseWhere = { mentee_id: menteeId, module_id: moduleId };
+	const findLegacyProgress = async () => models.LearningModuleProgress.findOne({
+		where: activeModuleProgressWhere({ ...baseWhere, cycle_id: null }),
+	});
+	if (cycleId != null) {
+		const progress = await models.LearningModuleProgress.findOne({
+			where: activeModuleProgressWhere({ ...baseWhere, cycle_id: cycleId }),
+		});
+		return progress && await hasValidMentorGrantedAccess(progress) ? progress : null;
+	}
+	const cycleScopedProgress = await models.LearningModuleProgress.findOne({
+		where: activeModuleProgressWhere({ ...baseWhere, cycle_id: { [Op.ne]: null } }),
+	});
+	if (cycleScopedProgress) {
+		return await hasValidMentorGrantedAccess(cycleScopedProgress) ? cycleScopedProgress : null;
+	}
+	const legacyProgress = await findLegacyProgress();
+	return legacyProgress && await hasValidMentorGrantedAccess(legacyProgress) ? legacyProgress : null;
+};
 
 const listModuleProgress = async (moduleId) => {
 	const records = await models.LearningModuleProgress.findAll({
@@ -285,38 +233,140 @@ const listModuleProgress = async (moduleId) => {
 	return filterValidMentorGrantedAccess(records);
 };
 
-const listProgressForMentee = async (menteeId, { mentorId } = {}) => {
-	const records = await models.LearningModuleProgress.findAll({
-		where: activeModuleProgressWhere({
-			mentee_id: menteeId,
-			...(mentorId ? { assigned_by: mentorId } : {}),
-		}),
-		include: [{
-			model: models.LearningModule,
-			as: 'module',
-			attributes: ['id', 'title', 'status', 'is_published', 'is_authorized'],
-			where: { ...isLearnerVisible, status: 'published' },
-		}],
-		order: [['last_accessed_at', 'DESC'], ['id', 'DESC']],
-	});
-	return filterValidMentorGrantedAccess(records);
+const listProgressForMentee = async (menteeId, { mentorId, cycleId } = {}) => {
+	const baseWhere = {
+		mentee_id: menteeId,
+		...(mentorId ? { assigned_by: mentorId } : {}),
+	};
+	const cycleScopedRecords = cycleId != null
+		? await models.LearningModuleProgress.findAll({
+			where: activeModuleProgressWhere({ ...baseWhere, cycle_id: cycleId }),
+			include: [{
+				model: models.LearningModule,
+				as: 'module',
+				attributes: ['id', 'title', 'status', 'is_published', 'is_authorized'],
+				where: { ...isLearnerVisible, status: 'published' },
+			}],
+			order: [['last_accessed_at', 'DESC'], ['id', 'DESC']],
+		})
+		: await models.LearningModuleProgress.findAll({
+			where: activeModuleProgressWhere({ ...baseWhere, cycle_id: { [Op.ne]: null } }),
+			include: [{
+				model: models.LearningModule,
+				as: 'module',
+				attributes: ['id', 'title', 'status', 'is_published', 'is_authorized'],
+				where: { ...isLearnerVisible, status: 'published' },
+			}],
+			order: [['last_accessed_at', 'DESC'], ['id', 'DESC']],
+		});
+	if (cycleId == null && cycleScopedRecords.length === 0) {
+		const legacyRecords = await models.LearningModuleProgress.findAll({
+			where: activeModuleProgressWhere({ ...baseWhere, cycle_id: null }),
+			include: [{
+				model: models.LearningModule,
+				as: 'module',
+				attributes: ['id', 'title', 'status', 'is_published', 'is_authorized'],
+				where: { ...isLearnerVisible, status: 'published' },
+			}],
+			order: [['last_accessed_at', 'DESC'], ['id', 'DESC']],
+		});
+		return filterValidMentorGrantedAccess([...cycleScopedRecords, ...legacyRecords]);
+	}
+	return filterValidMentorGrantedAccess(cycleScopedRecords);
 };
 
-const assignModuleToMentee = async ({ moduleId, menteeId, mentorId }) => {
-	const existing = await models.LearningModuleProgress.findOne({
-		where: { module_id: moduleId, mentee_id: menteeId },
+// Resource-level assignments can make a published module visible to a mentee
+// without creating a full module enrollment/progress record.
+const listResourceAssignedModulesForMentee = async (menteeId) => {
+	const assignments = await models.ResourceAssignment.findAll({
+		where: {
+			mentee_id: menteeId,
+			assignment_status: { [Op.in]: ['active', 'completed'] },
+			revoked_at: null,
+		},
+		include: [{
+			model: models.Resource,
+			as: 'resource',
+			required: true,
+			include: [{
+				model: models.LearningModule,
+				as: 'module',
+				required: true,
+				where: { ...isLearnerVisible, status: 'published' },
+				attributes: ['id', 'title', 'description', 'status', 'is_published', 'is_authorized', 'thematic_area_id', 'order_number'],
+			}],
+		}],
+		order: [['assigned_at', 'DESC'], ['id', 'DESC']],
 	});
+
+	const latestResourceAssignments = new Map();
+	for (const assignment of assignments) {
+		const resource = assignment.resource;
+		if (!resource || ['FACILITATOR_GUIDE', 'ANSWER_KEY'].includes(resource.category)) continue;
+		if (!latestResourceAssignments.has(Number(resource.id))) {
+			latestResourceAssignments.set(Number(resource.id), assignment);
+		}
+	}
+
+	const modules = new Map();
+	for (const assignment of latestResourceAssignments.values()) {
+		const resource = assignment.resource;
+		const module = resource?.module;
+		if (!module || modules.has(Number(module.id))) continue;
+		modules.set(Number(module.id), {
+			id: `resource-assignment-${module.id}`,
+			mentee_id: menteeId,
+			module_id: module.id,
+			assigned_by: assignment.assigned_by,
+			assigned_at: assignment.assigned_at,
+			status: 'not_started',
+			completion_percentage: 0,
+			module,
+		});
+	}
+	return [...modules.values()];
+};
+
+const hasActiveResourceAssignmentForMenteeModule = async (menteeId, moduleId) => {
+	const assignment = await models.ResourceAssignment.findOne({
+		where: {
+			mentee_id: menteeId,
+			assignment_status: { [Op.in]: ['active', 'completed'] },
+			revoked_at: null,
+		},
+		include: [{
+			model: models.Resource,
+			as: 'resource',
+			required: true,
+			where: {
+				module_id: moduleId,
+				[Op.or]: [
+					{ category: null },
+					{ category: { [Op.notIn]: ['FACILITATOR_GUIDE', 'ANSWER_KEY'] } },
+				],
+			},
+		}],
+		attributes: ['id'],
+	});
+	return Boolean(assignment);
+};
+
+const assignModuleToMentee = async ({ moduleId, menteeId, mentorId, cycleId }) => {
+	const scopeWhere = cycleId != null ? { module_id: moduleId, mentee_id: menteeId, cycle_id: cycleId } : { module_id: moduleId, mentee_id: menteeId, cycle_id: null };
+	const existing = await models.LearningModuleProgress.findOne({ where: scopeWhere });
 	if (existing) {
 		await existing.update({
 			assigned_by: mentorId,
 			assigned_at: existing.assigned_at || new Date(),
 			status: existing.status === 'access_revoked' ? 'not_started' : existing.status,
+			cycle_id: cycleId ?? existing.cycle_id ?? null,
 		});
 		return existing;
 	}
 	return models.LearningModuleProgress.create({
 		module_id: moduleId,
 		mentee_id: menteeId,
+		cycle_id: cycleId ?? null,
 		assigned_by: mentorId,
 		assigned_at: new Date(),
 		status: 'not_started',
@@ -324,188 +374,70 @@ const assignModuleToMentee = async ({ moduleId, menteeId, mentorId }) => {
 	});
 };
 
-const revokeModuleAssignment = async ({ moduleId, menteeId, mentorId }) => {
-	const [updated] = await models.LearningModuleProgress.update(
-		{ status: 'access_revoked' },
-		{ where: { module_id: moduleId, mentee_id: menteeId, assigned_by: mentorId, status: { [Op.ne]: 'access_revoked' } } }
-	);
+const revokeModuleAssignment = async ({ moduleId, menteeId, mentorId, cycleId }) => {
+	const scopeWhere = cycleId != null
+		? { module_id: moduleId, mentee_id: menteeId, cycle_id: cycleId, assigned_by: mentorId, status: { [Op.ne]: 'access_revoked' } }
+		: { module_id: moduleId, mentee_id: menteeId, cycle_id: null, assigned_by: mentorId, status: { [Op.ne]: 'access_revoked' } };
+	const [updated] = await models.LearningModuleProgress.update({ status: 'access_revoked' }, { where: scopeWhere });
 	return Boolean(updated);
 };
 
-const grantMentorModuleAccess = async ({ moduleId, mentorId, grantedBy }) => {
-	const grant = await grantModuleMentorPermission({
-		moduleId,
-		mentorId,
-		permission: LearningPermission.RESOURCES_VIEW,
-		grantedBy,
-	});
-	if (models.LearningModuleMentorAccess) {
-		const [legacy] = await models.LearningModuleMentorAccess.findOrCreate({
-			where: { module_id: moduleId, mentor_id: mentorId },
-			defaults: {
-				module_id: moduleId,
-				mentor_id: mentorId,
-				granted_by: grantedBy,
-				granted_at: new Date(),
-				revoked_at: null,
-			},
-		});
-		if (legacy.revoked_at) {
-			await legacy.update({ revoked_at: null });
-		}
-	}
-	return grant;
-};
-
-const listModuleMentorAccess = async (moduleId) => {
-	const permissions = await models.LearningModuleMentorPermission.findAll({
+const listMentorThematicAreaIds = async (mentorId) => {
+	if (!mentorId || !models.Assignment) return [];
+	const assignments = await models.Assignment.findAll({
 		where: {
-			module_id: moduleId,
-			permission: LearningPermission.RESOURCES_VIEW,
-			revoked_at: null,
+			mentor_id: mentorId,
+			thematic_area_id: { [Op.ne]: null },
+			status: { [Op.in]: ACTIVE_ASSIGNMENT_STATUSES },
+			unassigned_at: null,
 		},
-		include: [{ model: models.User, as: 'mentor', attributes: ['id', 'full_name', 'email'] }],
-		order: [['id', 'ASC']],
+		attributes: ['thematic_area_id'],
 	});
-	if (permissions.length > 0 || !models.LearningModuleMentorAccess) {
-		return permissions;
-	}
-	return models.LearningModuleMentorAccess.findAll({
-		where: {
-			module_id: moduleId,
-			revoked_at: null,
-		},
-		include: [{ model: models.User, as: 'mentor', attributes: ['id', 'full_name', 'email'] }],
-		order: [['id', 'ASC']],
-	});
+	return [...new Set(assignments
+		.map((entry) => Number(entry.thematic_area_id))
+		.filter((value) => Number.isFinite(value) && value > 0))];
 };
 
 const listMentorModuleIds = async (mentorId) => {
-	const grants = await models.LearningModuleMentorPermission.findAll({
+	const thematicAreaIds = await listMentorThematicAreaIds(mentorId);
+	if (!thematicAreaIds.length) return [];
+	const thematicAreaModules = await models.LearningModule.findAll({
 		where: {
-			mentor_id: mentorId,
-			permission: LearningPermission.RESOURCES_VIEW,
-			revoked_at: null,
-		},
-		attributes: ['module_id'],
-	});
-	const moduleIds = grants.map((grant) => grant.module_id);
-	if (models.LearningModuleMentorAccess) {
-		const legacyGrants = await models.LearningModuleMentorAccess.findAll({
-			where: {
-				mentor_id: mentorId,
-				revoked_at: null,
-			},
-			attributes: ['module_id'],
-		});
-		const legacyIds = legacyGrants.map((grant) => grant.module_id);
-		return [...new Set([...moduleIds, ...legacyIds])];
-	}
-	return moduleIds;
-};
-
-const hasModuleMentorAccess = async ({ mentorId, moduleId }) => {
-	const permissionRecords = await models.LearningModuleMentorPermission.findAll({
-		where: {
-			mentor_id: mentorId,
-			module_id: moduleId,
-			permission: LearningPermission.RESOURCES_VIEW,
+			thematic_area_id: { [Op.in]: thematicAreaIds },
+			is_published: true,
+			is_authorized: true,
+			status: 'published',
 		},
 		attributes: ['id'],
 	});
-	if (permissionRecords.length) {
-		return Boolean(await models.LearningModuleMentorPermission.findOne({
-			where: {
-				mentor_id: mentorId,
-				module_id: moduleId,
-				permission: LearningPermission.RESOURCES_VIEW,
-				revoked_at: null,
-			},
-			attributes: ['id'],
-		}));
-	}
-	if (models.LearningModuleMentorAccess) {
-		const accessRecord = await models.LearningModuleMentorAccess.findOne({
-			where: {
-				mentor_id: mentorId,
-				module_id: moduleId,
-				revoked_at: null,
-			},
-			attributes: ['id'],
-		});
-		return Boolean(accessRecord);
-	}
-	return false;
+	return [...new Set(thematicAreaModules.map((module) => Number(module.id)).filter((value) => Number.isFinite(value) && value > 0))];
 };
 
-const hasModuleMentorPermission = async ({ mentorId, moduleId, permission }) => {
-	return Boolean(await models.LearningModuleMentorPermission.findOne({
-		where: { mentor_id: mentorId, module_id: moduleId, permission, revoked_at: null },
+const hasModuleMentorAccess = async ({ mentorId, moduleId }) => {
+	const module = await models.LearningModule.findByPk(moduleId, { attributes: ['id', 'thematic_area_id'] });
+	if (!module || !module.thematic_area_id) return false;
+	return Boolean(await models.Assignment.findOne({
+		where: {
+			mentor_id: mentorId,
+			thematic_area_id: module.thematic_area_id,
+			status: { [Op.in]: ACTIVE_ASSIGNMENT_STATUSES },
+			unassigned_at: null,
+		},
 		attributes: ['id'],
 	}));
 };
 
-const grantModuleMentorPermission = async ({ moduleId, mentorId, permission, grantedBy }) => (
-	models.sequelize.transaction(async (transaction) => {
-		const existing = await models.LearningModuleMentorPermission.findOne({
-			where: { module_id: moduleId, mentor_id: mentorId, permission, revoked_at: null },
-			transaction,
-			lock: transaction.LOCK.UPDATE,
-		});
-		if (existing) return existing;
-		return models.LearningModuleMentorPermission.create({
-			module_id: moduleId,
-			mentor_id: mentorId,
-			permission,
-			granted_by: grantedBy,
-			granted_at: new Date(),
-			revoked_by: null,
-			revoked_at: null,
-		}, { transaction });
-	})
-);
+const listActiveMentorThematicAreaIds = listMentorThematicAreaIds;
 
-const listModuleMentorPermissions = async (moduleId) => models.LearningModuleMentorPermission.findAll({
-	where: { module_id: moduleId },
-	include: [{ model: models.User, as: 'mentor', attributes: ['id', 'full_name', 'email'] }],
-	order: [['id', 'ASC']],
-});
-
-const revokeModuleMentorPermission = async ({ mentorId, moduleId, permission, revokedBy }) => {
-	const [count] = await models.LearningModuleMentorPermission.update(
-		{ revoked_by: revokedBy, revoked_at: new Date() },
-		{ where: { mentor_id: mentorId, module_id: moduleId, permission, revoked_at: null } }
-	);
-	return count > 0;
+const listModuleIdsForThematicAreas = async (thematicAreaIds = []) => {
+	const normalizedIds = [...new Set((thematicAreaIds || []).map((id) => Number(id)).filter((id) => Number.isFinite(id) && id > 0))];
+	if (!normalizedIds.length) return [];
+	const modules = await models.LearningModule.findAll({
+		where: { thematic_area_id: { [Op.in]: normalizedIds } },
+		attributes: ['id'],
+	});
+	return modules.map((module) => module.id);
 };
-
-const revokeModuleMentorAccess = async ({ mentorId, moduleId, revokedBy }) => models.sequelize.transaction(async (transaction) => {
-	const now = new Date();
-	const [count] = await models.LearningModuleMentorPermission.update(
-		{ revoked_by: revokedBy, revoked_at: now },
-		{ where: { mentor_id: mentorId, module_id: moduleId, revoked_at: null }, transaction }
-	);
-	let legacyCount = 0;
-	if (models.LearningModuleMentorAccess) {
-		[legacyCount] = await models.LearningModuleMentorAccess.update(
-			{ revoked_at: now },
-			{ where: { mentor_id: mentorId, module_id: moduleId, revoked_at: null }, transaction }
-		);
-	}
-	if (!count && !legacyCount) return false;
-	await models.LearningModuleProgress.update(
-		{ status: 'access_revoked' },
-		{
-			where: {
-				module_id: moduleId,
-				assigned_by: mentorId,
-				[Op.or]: [{ status: { [Op.ne]: 'access_revoked' } }, { status: null }],
-			},
-			transaction,
-		}
-	);
-	return true;
-});
 
 const hasValidMentorGrantedAccess = async (progress) => {
 	const mentorId = progress.assigned_by;
@@ -545,74 +477,11 @@ const filterValidMentorGrantedAccess = async (records) => {
 	return candidates.filter((progress, index) => validity[index]);
 };
 
-const countCompletedRequiredContents = async ({ menteeId, moduleId }, transaction) => {
-	const contents = await listRequiredContents(moduleId, transaction);
-	if (contents.length === 0) return 0;
-	return models.LearningContentProgress.count({
-		where: { mentee_id: menteeId, module_id: moduleId, content_id: { [Op.in]: contents.map((content) => content.id) } },
-		transaction,
-	});
-};
-
-const listProgressForMenteeInModule = async ({ menteeId, moduleId }) => models.LearningContentProgress.findAll({
-	where: { mentee_id: menteeId, module_id: moduleId },
-	include: [{ model: models.LearningModuleContent, as: 'content', attributes: ['id', 'title', 'is_required', 'order_number'] }],
-	order: [['id', 'ASC']],
-});
-
-const markContentComplete = async ({ menteeId, moduleId, contentId }, transaction) => {
-	const [progress] = await models.LearningContentProgress.findOrCreate({
-		where: { mentee_id: menteeId, content_id: contentId },
-		defaults: { mentee_id: menteeId, module_id: moduleId, content_id: contentId, completed_at: new Date() },
-		transaction,
-	});
-	return progress;
-};
-
-const completeContentAndUpdateProgress = async ({ menteeId, moduleId, contentId }) => models.sequelize.transaction(async (transaction) => {
-	const contentProgress = await markContentComplete({ menteeId, moduleId, contentId }, transaction);
-	const [moduleProgress] = await models.LearningModuleProgress.findOrCreate({
-		where: { mentee_id: menteeId, module_id: moduleId },
-		defaults: {
-			mentee_id: menteeId,
-			module_id: moduleId,
-			status: 'not_started',
-			completion_percentage: 0,
-			started_at: new Date(),
-			last_accessed_at: new Date(),
-		},
-		transaction,
-	});
-	const requiredCount = await models.LearningModuleContent.count({
-		where: { module_id: moduleId, is_required: true },
-		transaction,
-	});
-	const completedCount = await countCompletedRequiredContents({ menteeId, moduleId }, transaction);
-	const completionPercentage = requiredCount === 0 ? 0 : Math.min(100, Math.round((completedCount / requiredCount) * 100));
-	await moduleProgress.update({
-		status: moduleProgress.status === 'completed' ? 'completed' : 'in_progress',
-		completion_percentage: completionPercentage,
-		last_accessed_at: new Date(),
-	}, { transaction });
-	return { contentProgress, moduleProgress };
-});
-
-const listRequiredContents = async (moduleId, transaction) => models.LearningModuleContent.findAll({
-	where: { module_id: moduleId, is_required: true },
-	attributes: ['id'],
-	transaction,
-});
-
-const countCompletedContents = async ({ menteeId, moduleId }, transaction) => models.LearningContentProgress.count({
-	where: { mentee_id: menteeId, module_id: moduleId },
-	transaction,
-});
-
-const getQuizByModule = async (moduleId, { includeCorrectAnswers = false, learnerVisible = false } = {}) => {
-	const where = { module_id: moduleId };
+const getQuizByThematicArea = async (thematicAreaId, { includeCorrectAnswers = false, learnerVisible = false } = {}) => {
+	const where = { thematic_area_id: thematicAreaId };
 	const quizCount = await models.Quiz.count({ where });
 	if (quizCount > 1) {
-		throw new AppError('Multiple quizzes are configured for this module; resolve the duplicate quiz configuration before learner access.', 409, 'QUIZ_CONFIGURATION_CONFLICT');
+		throw new AppError('Multiple quizzes are configured for this thematic area; resolve the duplicate quiz configuration before access.', 409, 'QUIZ_CONFIGURATION_CONFLICT');
 	}
 	return models.Quiz.findOne({
 		where: { ...where, ...(learnerVisible ? isLearnerVisible : {}) },
@@ -620,6 +489,10 @@ const getQuizByModule = async (moduleId, { includeCorrectAnswers = false, learne
 		include: [{
 			model: models.QuizQuestion,
 			as: 'questions',
+			attributes: [
+				'id', 'quiz_id', 'prompt', 'question_type', 'clinical_context', 'points', 'order_number',
+				...(includeCorrectAnswers ? ['explanation'] : []),
+			],
 			include: [{
 				model: models.QuizQuestionOption,
 				as: 'options',
@@ -629,11 +502,24 @@ const getQuizByModule = async (moduleId, { includeCorrectAnswers = false, learne
 	});
 };
 
+// Legacy lookup retained for old module-scoped callers during migration.
+const getQuizByModule = async (moduleId, options = {}) => {
+	const module = await models.LearningModule.findByPk(moduleId, { attributes: ['thematic_area_id'] });
+	if (!module) return null;
+	const legacyQuiz = await models.Quiz.findOne({ where: { module_id: moduleId }, order: [['id', 'ASC']] });
+	if (legacyQuiz) return legacyQuiz;
+	return module.thematic_area_id ? getQuizByThematicArea(module.thematic_area_id, options) : null;
+};
+
 const getQuizById = async (quizId, { includeCorrectAnswers = false, transaction } = {}) => models.Quiz.findByPk(quizId, {
 	transaction,
 	include: [{
 		model: models.QuizQuestion,
 		as: 'questions',
+		attributes: [
+			'id', 'quiz_id', 'prompt', 'question_type', 'clinical_context', 'points', 'order_number',
+			...(includeCorrectAnswers ? ['explanation'] : []),
+		],
 		include: [{
 			model: models.QuizQuestionOption,
 			as: 'options',
@@ -643,10 +529,17 @@ const getQuizById = async (quizId, { includeCorrectAnswers = false, transaction 
 });
 
 const createQuiz = async (moduleId, payload, createdBy) => models.sequelize.transaction(async (transaction) => {
+	if ((moduleId ?? payload.moduleId) && payload.thematicAreaId) throw new AppError('A quiz cannot have both module and thematic-area ownership.', 400, 'VALIDATION_ERROR');
+	if (payload.thematicAreaId) {
+		const existing = await models.Quiz.count({ where: { thematic_area_id: payload.thematicAreaId }, transaction });
+		if (existing > 0) throw new AppError('A quiz already exists for this thematic area.', 409, 'QUIZ_CONFIGURATION_CONFLICT');
+	}
 	const quiz = await models.Quiz.create({
-		module_id: moduleId,
+		module_id: moduleId ?? payload.moduleId ?? null,
+		thematic_area_id: payload.thematicAreaId,
 		title: payload.title,
 		description: payload.description || null,
+		assessment_stage: payload.assessmentStage ?? null,
 		pass_score: payload.passScore ?? 0,
 		time_limit_minutes: payload.timeLimitMinutes ?? 0,
 		attempt_limit: payload.attemptLimit ?? 1,
@@ -666,6 +559,7 @@ const updateQuiz = async (quizId, payload = {}) => {
 	const updates = {};
 	if ('title' in payload) updates.title = payload.title;
 	if ('description' in payload) updates.description = payload.description;
+	if ('thematicAreaId' in payload) updates.thematic_area_id = payload.thematicAreaId;
 	if ('passScore' in payload) updates.pass_score = payload.passScore;
 	if ('timeLimitMinutes' in payload) updates.time_limit_minutes = payload.timeLimitMinutes;
 	if ('attemptLimit' in payload) updates.attempt_limit = payload.attemptLimit;
@@ -769,17 +663,21 @@ const deleteQuestionOption = async (optionId) => {
 	await option.destroy();
 };
 
-const startQuizAttempt = async ({ quizId, menteeId }) => {
+const startQuizAttempt = async ({ quizId, menteeId, cycleId, assessmentStage }) => {
 	return models.sequelize.transaction(async (transaction) => {
 		const quiz = await models.Quiz.findByPk(quizId, { transaction, lock: transaction.LOCK.UPDATE });
 		if (!quiz) throw new AppError('Quiz not found.', 404, 'NOT_FOUND');
+		const stage = assessmentStage || quiz.assessment_stage || null;
+		const attemptScope = { quiz_id: quizId, mentee_id: menteeId };
+		if (cycleId !== undefined && cycleId !== null) attemptScope.cycle_id = cycleId;
+		if (stage) attemptScope.assessment_stage = stage;
 		const activeAttempt = await models.QuizAttempt.findOne({
-			where: { quiz_id: quizId, mentee_id: menteeId, status: 'in_progress' },
+			where: { ...attemptScope, status: 'in_progress' },
 			order: [['attempt_number', 'DESC']],
 			transaction,
 		});
 		if (activeAttempt) return activeAttempt;
-		const attemptNumber = await models.QuizAttempt.count({ where: { quiz_id: quizId, mentee_id: menteeId }, transaction }) + 1;
+		const attemptNumber = await models.QuizAttempt.count({ where: attemptScope, transaction }) + 1;
 		if (quiz.attempt_limit > 0 && attemptNumber > quiz.attempt_limit) {
 			throw new AppError('Quiz attempt limit reached.', 409, 'CONFLICT');
 		}
@@ -787,6 +685,9 @@ const startQuizAttempt = async ({ quizId, menteeId }) => {
 		return models.QuizAttempt.create({
 			quiz_id: quizId,
 			mentee_id: menteeId,
+			assessment_stage: stage,
+			cycle_id: cycleId ?? null,
+			thematic_area_id: quiz.thematic_area_id ?? null,
 			attempt_number: attemptNumber,
 			score: 0,
 			passed: false,
@@ -797,12 +698,15 @@ const startQuizAttempt = async ({ quizId, menteeId }) => {
 	});
 };
 
-const submitQuiz = async ({ quizId, menteeId, answers = [] }) => {
+const submitQuiz = async ({ quizId, menteeId, answers = [], cycleId, assessmentStage }) => {
 	return models.sequelize.transaction(async (transaction) => {
 		const quiz = await getQuizById(quizId, { includeCorrectAnswers: true, transaction });
 		if (!quiz) throw new AppError('Quiz not found.', 404, 'NOT_FOUND');
+		const attemptWhere = { quiz_id: quizId, mentee_id: menteeId, status: 'in_progress' };
+		if (cycleId !== undefined && cycleId !== null) attemptWhere.cycle_id = cycleId;
+		if (assessmentStage || quiz.assessment_stage) attemptWhere.assessment_stage = assessmentStage || quiz.assessment_stage;
 		const attempt = await models.QuizAttempt.findOne({
-			where: { quiz_id: quizId, mentee_id: menteeId, status: 'in_progress' },
+			where: attemptWhere,
 			order: [['attempt_number', 'DESC']],
 			transaction,
 			lock: transaction.LOCK.UPDATE,
@@ -885,11 +789,15 @@ const submitQuiz = async ({ quizId, menteeId, answers = [] }) => {
 		}
 
 		const passed = totalPoints > 0 && score >= Number(quiz.pass_score ?? 0);
+		const percentageScore = totalPoints > 0 ? (score / totalPoints) * 100 : 0;
 		await attempt.update({
 			score,
+			max_score: totalPoints,
+			percentage_score: percentageScore,
 			passed,
 			status: 'completed',
 			completed_at: now,
+			submitted_at: now,
 			ended_at: now,
 			updated_at: now,
 		}, { transaction });
@@ -900,6 +808,10 @@ const submitQuiz = async ({ quizId, menteeId, answers = [] }) => {
 			score,
 			totalPoints,
 			passed,
+			percentageScore,
+			assessmentStage: attempt.assessment_stage || assessmentStage || quiz.assessment_stage || null,
+			cycleId: attempt.cycle_id ?? cycleId ?? null,
+			thematicAreaId: attempt.thematic_area_id ?? quiz.thematic_area_id ?? null,
 			status: 'completed',
 			submittedAt: now,
 			answers: answerRecords,
@@ -907,8 +819,14 @@ const submitQuiz = async ({ quizId, menteeId, answers = [] }) => {
 	});
 };
 
-const listQuizAttempts = async ({ quizId, menteeId, completedOnly = false }) => models.QuizAttempt.findAll({
-	where: { quiz_id: quizId, mentee_id: menteeId, ...(completedOnly ? { status: 'completed' } : {}) },
+const listQuizAttempts = async ({ quizId, menteeId, cycleId, assessmentStage, completedOnly = false }) => models.QuizAttempt.findAll({
+	where: {
+		quiz_id: quizId,
+		mentee_id: menteeId,
+		...(cycleId == null ? {} : { cycle_id: cycleId }),
+		...(assessmentStage ? { assessment_stage: assessmentStage } : {}),
+		...(completedOnly ? { status: 'completed' } : {}),
+	},
 	order: [['attempt_number', 'DESC']],
 });
 
@@ -920,9 +838,6 @@ const hasActiveMentorAssignment = async ({ mentorId, menteeId, moduleId }) => {
 		status: { [Op.in]: ACTIVE_ASSIGNMENT_STATUSES },
 		unassigned_at: null,
 	};
-	if (mentor.facility_id) {
-		where.facility_id = mentor.facility_id;
-	}
 	if (menteeId) {
 		const mentee = await models.User.findByPk(menteeId, { attributes: ['id', 'role', 'facility_id'] });
 		if (!mentee || mentee.role !== 'mentee') {
@@ -932,6 +847,9 @@ const hasActiveMentorAssignment = async ({ mentorId, menteeId, moduleId }) => {
 			return false;
 		}
 		where.mentee_id = menteeId;
+		if (mentor.facility_id) {
+			where.facility_id = mentor.facility_id;
+		}
 	}
 	if (moduleId) {
 		const module = await models.LearningModule.findByPk(moduleId, { attributes: ['thematic_area_id'] });
@@ -970,33 +888,19 @@ module.exports = {
 	createModule,
 	updateModule,
 	deleteModule,
-	listContents,
-	getContentById,
-	createContent,
-	updateContent,
-	deleteContent,
-	getUploadedFileById,
-	grantMentorModuleAccess,
-	listModuleMentorAccess,
 	listMentorModuleIds,
+	listActiveMentorThematicAreaIds,
+	listModuleIdsForThematicAreas,
 	hasModuleMentorAccess,
-	hasModuleMentorPermission,
-	grantModuleMentorPermission,
-	listModuleMentorPermissions,
-	revokeModuleMentorPermission,
-	revokeModuleMentorAccess,
 	listModuleProgress,
 	getModuleProgress,
 	listProgressForMentee,
+	listResourceAssignedModulesForMentee,
+	hasActiveResourceAssignmentForMenteeModule,
 	assignModuleToMentee,
 	revokeModuleAssignment,
-	listProgressForMenteeInModule,
-	markContentComplete,
-	completeContentAndUpdateProgress,
-	listRequiredContents,
-	countCompletedContents,
-	countCompletedRequiredContents,
 	getQuizByModule,
+	getQuizByThematicArea,
 	getQuizById,
 	createQuiz,
 	updateQuiz,

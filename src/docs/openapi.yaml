@@ -254,6 +254,25 @@ components:
         facility_id:
           type: integer
           nullable: true
+        thematic_area_id:
+          type: integer
+          nullable: true
+          description: Mentor's assigned thematic area ID (mentors only)
+          example: 3
+        thematic_area:
+          type: object
+          nullable: true
+          description: Assigned thematic area details when loaded
+          properties:
+            id:
+              type: integer
+              example: 3
+            code:
+              type: string
+              example: MNH
+            name:
+              type: string
+              example: Maternal Health
         highest_qualification:
           type: string
           nullable: true
@@ -322,6 +341,12 @@ components:
           type: string
           format: uri
           example: https://example.com/avatar.jpg
+        thematic_area_id:
+          type: integer
+          minimum: 1
+          nullable: true
+          description: Mentor only. Set or clear (null) the mentor's thematic area. Omitting the field leaves the existing value unchanged.
+          example: 3
       additionalProperties: false
     UserPreferences:
       type: object
@@ -420,6 +445,12 @@ components:
           minimum: 1
           nullable: true
           example: 2
+        thematic_area_id:
+          type: integer
+          minimum: 1
+          nullable: true
+          description: Mentor only. ID of an existing thematic area.
+          example: 3
         phone:
           type: string
           example: '+251911234567'
@@ -1140,10 +1171,6 @@ components:
           type: string
           format: date-time
           nullable: true
-        contents:
-          type: array
-          items:
-            $ref: '#/components/schemas/LearningContentSummary'
       example:
         id: 1
         title: Infection Prevention in ANC
@@ -1159,103 +1186,6 @@ components:
         updatedBy: 12
         createdAt: '2026-09-04T09:00:00.000Z'
         updatedAt: '2026-10-02T15:40:00.000Z'
-        contents:
-          - id: 7
-            title: Hand hygiene checklist
-            type: article
-            orderNumber: 1
-            isRequired: true
-    LearningContentSummary:
-      type: object
-      required:
-        - id
-        - title
-        - type
-      properties:
-        id:
-          type: integer
-          example: 1
-        title:
-          type: string
-          example: Hand hygiene checklist
-        type:
-          type: string
-          example: article
-        orderNumber:
-          type: integer
-          example: 1
-        isRequired:
-          type: boolean
-          example: true
-        isPublished:
-          type: boolean
-          example: true
-        isAuthorized:
-          type: boolean
-          example: true
-    LearningContent:
-      type: object
-      required:
-        - id
-        - moduleId
-        - title
-        - type
-      properties:
-        id:
-          type: integer
-          example: 7
-        moduleId:
-          type: integer
-          example: 1
-        title:
-          type: string
-          example: Hand hygiene checklist
-        type:
-          type: string
-          enum:
-            - article
-            - video
-            - pdf
-            - quiz
-          example: article
-        contentText:
-          type: string
-          nullable: true
-          example: Clean hands before and after patient contact.
-        contentUrl:
-          type: string
-          format: uri
-          nullable: true
-          example: https://example.com/hand-hygiene.mp4
-        orderNumber:
-          type: integer
-          example: 1
-        isRequired:
-          type: boolean
-          example: true
-        isPublished:
-          type: boolean
-          example: true
-        isAuthorized:
-          type: boolean
-          example: true
-        durationMinutes:
-          type: integer
-          example: 10
-        createdBy:
-          type: integer
-          nullable: true
-        updatedBy:
-          type: integer
-          nullable: true
-        createdAt:
-          type: string
-          format: date-time
-          nullable: true
-        updatedAt:
-          type: string
-          format: date-time
-          nullable: true
     LearningModuleMentorAccess:
       type: object
       required:
@@ -1293,30 +1223,6 @@ components:
               type: string
             email:
               type: string
-    LearningContentProgress:
-      type: object
-      properties:
-        moduleId:
-          type: integer
-          example: 1
-        contentId:
-          type: integer
-          example: 7
-        status:
-          type: string
-          enum:
-            - pending
-            - completed
-          example: completed
-        completedAt:
-          type: string
-          format: date-time
-          nullable: true
-      example:
-        moduleId: 1
-        contentId: 7
-        status: completed
-        completedAt: '2026-10-10T14:20:00.000Z'
     LearningModuleProgress:
       type: object
       properties:
@@ -1355,10 +1261,66 @@ components:
           type: string
           format: date-time
           nullable: true
+        cycleId:
+          type: integer
+          nullable: true
+          description: Null for historical progress records whose mentorship cycle is unknown.
+    ResourceModuleProgress:
+      type: object
+      required:
+        - moduleId
+        - cycleId
+        - totalRequiredResources
+        - completedRequiredResources
+        - incompleteRequiredResources
+        - completionPercentage
+        - status
+      properties:
+        moduleId:
+          type: integer
+        cycleId:
+          type: integer
+        totalRequiredResources:
+          type: integer
+        completedRequiredResources:
+          type: integer
+        incompleteRequiredResources:
+          type: integer
+        completionPercentage:
+          type: integer
+          minimum: 0
+          maximum: 100
+        status:
+          type: string
+          enum: [not_started, in_progress, completed]
+        startedAt:
+          type: string
+          format: date-time
+          nullable: true
+        completedAt:
+          type: string
+          format: date-time
+          nullable: true
         lastAccessedAt:
           type: string
           format: date-time
           nullable: true
+        resources:
+          type: array
+          items:
+            type: object
+            required: [id, title, completed]
+            properties:
+              id:
+                type: integer
+              title:
+                type: string
+              completed:
+                type: boolean
+              completedAt:
+                type: string
+                format: date-time
+                nullable: true
         module:
           allOf:
             - $ref: '#/components/schemas/LearningModule'
@@ -2493,8 +2455,29 @@ components:
           example: Neonatal Resuscitation Guide
         type:
           type: string
-          enum: [pdf, audio, video]
+          enum: [pdf, presentation, audio, video]
           example: pdf
+        category:
+          type: string
+          nullable: true
+          enum: [PARTICIPANT_MANUAL, POWERPOINT_PRESENTATION, FACILITATOR_GUIDE, EXAMINATION, ANSWER_KEY]
+          example: PARTICIPANT_MANUAL
+        examinationStage:
+          type: string
+          nullable: true
+          enum: [PRETEST, POST_TEST]
+          example: PRETEST
+        examination_stage:
+          type: string
+          nullable: true
+          enum: [PRETEST, POST_TEST]
+          example: PRETEST
+        isRequired:
+          type: boolean
+          example: true
+        is_required:
+          type: boolean
+          example: true
         thematicAreaId:
           type: integer
           nullable: true
@@ -2599,12 +2582,35 @@ components:
               format: date-time
     CreateResourceRequest:
       type: object
+      description: >
+        Create a Resource after uploading its file with POST /api/v1/uploads.
+        Use snake_case request property names. EXAMINATION requires
+        examination_stage. For every other category, omit examination_stage
+        entirely; do not send null, an empty string, or a default stage.
+        FACILITATOR_GUIDE and ANSWER_KEY cannot be required for mentees.
       required:
         - title
         - type
+        - category
         - thematic_area_id
         - module_id
         - file_id
+      oneOf:
+        - title: Examination Resource
+          description: EXAMINATION requires examination_stage.
+          properties:
+            category:
+              enum: [EXAMINATION]
+          required:
+            - examination_stage
+        - title: Non-examination Resource
+          description: All non-examination categories must omit examination_stage.
+          properties:
+            category:
+              enum: [PARTICIPANT_MANUAL, POWERPOINT_PRESENTATION, FACILITATOR_GUIDE, ANSWER_KEY]
+          not:
+            required:
+              - examination_stage
       properties:
         title:
           type: string
@@ -2612,29 +2618,51 @@ components:
           example: Neonatal Resuscitation Guidelines
         type:
           type: string
-          enum: [pdf, audio, video]
+          enum: [pdf, presentation, audio, video]
           example: pdf
+        category:
+          type: string
+          enum: [PARTICIPANT_MANUAL, POWERPOINT_PRESENTATION, FACILITATOR_GUIDE, EXAMINATION, ANSWER_KEY]
+          description: >
+            Participant Manual - learning manual or reference material provided
+            to participants. API value: PARTICIPANT_MANUAL. PowerPoint
+            Presentation - presentation slides used during training. API value:
+            POWERPOINT_PRESENTATION accepts any supported material type. Facilitator
+            Guide - guidance material intended for facilitators, not mentees.
+            API value: FACILITATOR_GUIDE. Examination - an assessment document
+            classified as a pretest or post-test. API value: EXAMINATION.
+            Answer Key - document containing examination answers, intended for
+            authorized users. API value: ANSWER_KEY.
+          example: PARTICIPANT_MANUAL
+        examination_stage:
+          type: string
+          enum: [PRETEST, POST_TEST]
+          description: >
+            Required only when category is EXAMINATION; omit this property
+            entirely for every other category. PRETEST means examination given
+            before the learning activity. POST_TEST means examination given
+            after the learning activity.
+          example: PRETEST
+        is_required:
+          type: boolean
+          description: >
+            Whether the Resource is required for mentees. If omitted, defaults
+            to true except for FACILITATOR_GUIDE and ANSWER_KEY, which default
+            to false and cannot be required.
+          example: true
         thematic_area_id:
           type: integer
           example: 1
-        thematicAreaId:
-          type: integer
-          description: Alternative camelCase for thematic_area_id
         module_id:
           type: integer
           example: 2
-        moduleId:
-          type: integer
-          description: Alternative camelCase for module_id
         file_id:
           type: integer
           example: 5
-        fileId:
-          type: integer
-          description: Alternative camelCase for file_id
         url:
           type: string
           nullable: true
+          description: Optional URL metadata; file_id remains required for Resource creation.
     UpdateResourceRequest:
       type: object
       properties:
@@ -2643,7 +2671,24 @@ components:
           maxLength: 255
         type:
           type: string
-          enum: [pdf, audio, video]
+          enum: [pdf, presentation, audio, video]
+        category:
+          type: string
+          nullable: true
+          enum: [PARTICIPANT_MANUAL, POWERPOINT_PRESENTATION, FACILITATOR_GUIDE, EXAMINATION, ANSWER_KEY]
+        examination_stage:
+          type: string
+          nullable: true
+          enum: [PRETEST, POST_TEST]
+          description: Required for EXAMINATION; clear or omit for other categories.
+        examinationStage:
+          type: string
+          nullable: true
+          enum: [PRETEST, POST_TEST]
+        is_required:
+          type: boolean
+        isRequired:
+          type: boolean
         thematic_area_id:
           type: integer
           nullable: true
@@ -3373,8 +3418,16 @@ components:
       schema:
         type: integer
         minimum: 1
-    ContentId:
-      name: contentId
+    CycleIdQuery:
+      name: cycleId
+      in: query
+      required: false
+      description: Optional cycle selector. The cycle_id alias is also accepted. Required when multiple valid cycle contexts match the mentee and module.
+      schema:
+        type: integer
+        minimum: 1
+    ThematicAreaId:
+      name: thematicAreaId
       in: path
       required: true
       schema:
@@ -3465,6 +3518,7 @@ components:
                 example: true
               data:
                 type: object
+                properties:
     LearningList:
       description: Learning resources returned.
       content:
@@ -3579,14 +3633,8 @@ tags:
     description: Audit and activity logging
   - name: Analytics
     description: Dashboard metrics and analytics
-  - name: Learning Permissions
-    description: Grant, list, and revoke mentor capabilities for learning modules.
-  - name: Mentee Module Assignments
-    description: Assign, list, and revoke complete learning modules for assigned mentees.
   - name: Learning Modules
     description: Retrieve learning modules and module availability for authenticated users.
-  - name: Learning Content
-    description: Retrieve learning content items within authorized learning modules.
   - name: Learning Content Management
     description: Create, update, and delete learning modules and content.
   - name: Quiz Retrieval
@@ -5423,7 +5471,11 @@ paths:
     get:
       tags: [Learning Modules]
       summary: List learning modules available to the authenticated user
-      description: Results are filtered according to the user's role, publication status, and access grants.
+      description: >
+        Results are filtered according to the user's role and module status.
+        Mentors automatically see published and authorized modules for thematic
+        areas where they have an active Assignment; no separate module
+        permission grant is required.
       security:
         - bearerAuth: []
       parameters:
@@ -5507,6 +5559,7 @@ paths:
     get:
       tags: [Learning Modules]
       summary: Get a learning module
+      description: Mentors automatically access all published and authorized modules and their resources for thematic areas where they have an active assignment. No manual module or resource permission grant is required. Facility, module publication/authorization, and ownership restrictions still apply. Mentees access only materials assigned through existing business rules.
       security:
         - bearerAuth: []
       responses:
@@ -5629,26 +5682,22 @@ paths:
           $ref: '#/components/responses/Forbidden'
         '404':
           $ref: '#/components/responses/NotFound'
-  /api/v1/learning/modules/{moduleId}/contents:
+  /api/v1/learning/thematic-areas/{thematicAreaId}/quiz:
     parameters:
-      - $ref: '#/components/parameters/ModuleId'
+      - $ref: '#/components/parameters/ThematicAreaId'
     get:
-      tags: [Learning Content]
-      summary: List content in a learning module
+      tags: [Quiz Retrieval]
+      summary: Get the quiz owned by a thematic area
       security:
         - bearerAuth: []
       responses:
-        '200':
-          $ref: '#/components/responses/LearningList'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '404':
-          $ref: '#/components/responses/NotFound'
+        '200': { $ref: '#/components/responses/LearningObject' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
     post:
-      tags: [Learning Content Management]
-      summary: Add content to a learning module
+      tags: [Quiz Question Management]
+      summary: Create a quiz owned by a thematic area
+      description: Super Admin only. A thematic area may have one active quiz.
       security:
         - bearerAuth: []
       requestBody:
@@ -5656,187 +5705,36 @@ paths:
         content:
           application/json:
             schema:
-              type: object
-              required: [title]
-              properties:
-                title:
-                  type: string
-                type:
-                  type: string
-                  enum: [article, video, pdf, quiz]
-                contentText:
-                  type: string
-                  nullable: true
-                contentUrl:
-                  type: string
-                  format: uri
-                  nullable: true
-                orderNumber:
-                  type: integer
-                  minimum: 0
-                isRequired:
-                  type: boolean
-                isPublished:
-                  type: boolean
-                isAuthorized:
-                  type: boolean
-                durationMinutes:
-                  type: integer
-                  minimum: 0
+              $ref: '#/components/schemas/LearningQuizWrite'
       responses:
-        '201':
-          $ref: '#/components/responses/LearningCreated'
-        '400':
-          $ref: '#/components/responses/BadRequest'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '404':
-          $ref: '#/components/responses/NotFound'
-  /api/v1/learning/modules/{moduleId}/contents/{contentId}:
-    parameters:
-      - $ref: '#/components/parameters/ModuleId'
-      - $ref: '#/components/parameters/ContentId'
-    get:
-      tags: [Learning Content]
-      summary: Get learning content
-      security:
-        - bearerAuth: []
-      responses:
-        '200':
-          $ref: '#/components/responses/LearningObject'
-        '400':
-          $ref: '#/components/responses/BadRequest'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '404':
-          $ref: '#/components/responses/NotFound'
-    patch:
-      tags: [Learning Content Management]
-      summary: Partially update learning content
-      security:
-        - bearerAuth: []
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              properties:
-                title:
-                  type: string
-                type:
-                  type: string
-                  enum: [article, video, pdf, quiz]
-                contentText:
-                  type: string
-                  nullable: true
-                contentUrl:
-                  type: string
-                  format: uri
-                  nullable: true
-                orderNumber:
-                  type: integer
-                isRequired:
-                  type: boolean
-                isPublished:
-                  type: boolean
-                isAuthorized:
-                  type: boolean
-                durationMinutes:
-                  type: integer
-      responses:
-        '200':
-          $ref: '#/components/responses/LearningObject'
-        '400':
-          $ref: '#/components/responses/BadRequest'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '404':
-          $ref: '#/components/responses/NotFound'
-    put:
-      tags: [Learning Content Management]
-      summary: Replace learning content fields
-      security:
-        - bearerAuth: []
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              required: [title]
-              properties:
-                title:
-                  type: string
-                type:
-                  type: string
-                contentText:
-                  type: string
-                  nullable: true
-                contentUrl:
-                  type: string
-                  format: uri
-                  nullable: true
-                orderNumber:
-                  type: integer
-                isRequired:
-                  type: boolean
-                isPublished:
-                  type: boolean
-                isAuthorized:
-                  type: boolean
-                durationMinutes:
-                  type: integer
-      responses:
-        '200':
-          $ref: '#/components/responses/LearningObject'
-        '400':
-          $ref: '#/components/responses/BadRequest'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '404':
-          $ref: '#/components/responses/NotFound'
-    delete:
-      tags: [Learning Content Management]
-      summary: Delete learning content
-      security:
-        - bearerAuth: []
-      responses:
-        '200':
-          $ref: '#/components/responses/LearningAction'
-        '400':
-          $ref: '#/components/responses/BadRequest'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '404':
-          $ref: '#/components/responses/NotFound'
+        '201': { $ref: '#/components/responses/LearningCreated' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '409': { $ref: '#/components/responses/Conflict' }
   /api/v1/learning/modules/{moduleId}/quizzes:
     parameters:
       - $ref: '#/components/parameters/ModuleId'
     get:
       tags: [Quiz Retrieval]
       summary: Get the quiz for a module
+      description: For mentees, eligibility uses Resource-based progress for cycleId. If omitted, the cycle is inferred only when exactly one valid assignment context exists; multiple contexts return 400. Incomplete or unconfirmed Resource progress returns 409. Administrator and mentor behavior is unchanged.
+      parameters:
+        - $ref: '#/components/parameters/CycleIdQuery'
       security:
         - bearerAuth: []
       responses:
         '200':
           $ref: '#/components/responses/LearningObject'
+        '400':
+          $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
           $ref: '#/components/responses/Forbidden'
         '404':
           $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
     post:
       tags: [Quiz Question Management]
       summary: Create a quiz for a module
@@ -5849,13 +5747,17 @@ paths:
           application/json:
             schema:
               type: object
-              required: [title]
+              required: [title, assessmentStage]
               properties:
                 title:
                   type: string
                 description:
                   type: string
                   nullable: true
+                assessmentStage:
+                  type: string
+                  enum: [PRETEST, POST_TEST]
+                  description: Required stage for this examination quiz.
                 passScore:
                   type: number
                   minimum: 0
@@ -5952,7 +5854,9 @@ paths:
     get:
       tags: [Quiz Retrieval]
       summary: Get a quiz for the authenticated mentee
-      description: Mentee only. Use question and option ids from this response when submitting answers. Correct answers are not included.
+      description: Mentee only. Eligibility uses Resource-based progress for cycleId. If omitted, the cycle is inferred only when exactly one valid assignment context exists; multiple contexts return 400, while incomplete or unconfirmed Resource progress returns 409. Use question and option ids from this response when submitting answers. Correct answers are not included.
+      parameters:
+        - $ref: '#/components/parameters/CycleIdQuery'
       security:
         - bearerAuth: []
       responses:
@@ -5966,6 +5870,8 @@ paths:
           $ref: '#/components/responses/Forbidden'
         '404':
           $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
     patch:
       tags: [Quiz Question Management]
       summary: Partially update a quiz
@@ -6005,143 +5911,6 @@ paths:
           $ref: '#/components/responses/Forbidden'
         '404':
           $ref: '#/components/responses/NotFound'
-  /api/v1/learning/modules/{moduleId}/mentor-permissions:
-    parameters:
-      - $ref: '#/components/parameters/ModuleId'
-    get:
-      tags: [Learning Permissions]
-      summary: List mentor permissions for a module
-      description: Available to System Admin and Facility Admin for module oversight. Granting and revoking permissions is restricted to the Facility Admin responsible for the module's facility.
-      security:
-        - bearerAuth: []
-      responses:
-        '200':
-          $ref: '#/components/responses/LearningList'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '404':
-          $ref: '#/components/responses/NotFound'
-    post:
-      tags: [Learning Permissions]
-      summary: Grant a mentor permission for a module
-      description: Available only to the Facility Admin responsible for the module's facility. Every grant automatically gives the mentor both learning.resources.view and learning.materials.assign, allowing the mentor to view module resources and assign individual materials to assigned mentees. An active individual resource assignment grants the mentee access without a separate learning.resources.view permission.
-      security:
-        - bearerAuth: []
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              required: [mentorId]
-              properties:
-                mentorId:
-                  type: integer
-                  minimum: 1
-      responses:
-        '201':
-          $ref: '#/components/responses/LearningCreated'
-        '400':
-          $ref: '#/components/responses/BadRequest'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '404':
-          $ref: '#/components/responses/NotFound'
-  /api/v1/learning/modules/{moduleId}/mentor-permissions/{mentorId}:
-    parameters:
-      - $ref: '#/components/parameters/ModuleId'
-      - $ref: '#/components/parameters/MentorId'
-    delete:
-      tags: [Learning Permissions]
-      summary: Revoke a mentor's module access
-      description: Available only to the Facility Admin responsible for the module's facility. This revokes the mentor's access to the module resources.
-      security:
-        - bearerAuth: []
-      responses:
-        '200':
-          $ref: '#/components/responses/LearningAction'
-        '400':
-          $ref: '#/components/responses/BadRequest'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '404':
-          $ref: '#/components/responses/NotFound'
-  /api/v1/learning/mentees/{menteeId}/modules:
-    parameters:
-      - $ref: '#/components/parameters/MenteeId'
-    get:
-      tags: [Mentee Module Assignments]
-      summary: List modules assigned to a mentee
-      description: Available to administrators and the mentor assigned to the mentee.
-      security:
-        - bearerAuth: []
-      responses:
-        '200':
-          $ref: '#/components/responses/LearningList'
-        '400':
-          $ref: '#/components/responses/BadRequest'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-  /api/v1/learning/modules/{moduleId}/assignments:
-    parameters:
-      - $ref: '#/components/parameters/ModuleId'
-    post:
-      tags: [Mentee Module Assignments]
-      summary: Assign a complete module to a mentee
-      description: Available only to a mentor who has access to the module and an active mentor-mentee assignment for the module's thematic area. The module must be published and authorized.
-      security:
-        - bearerAuth: []
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              required: [menteeId]
-              properties:
-                menteeId:
-                  type: integer
-                  minimum: 1
-      responses:
-        '201':
-          $ref: '#/components/responses/LearningCreated'
-        '400':
-          $ref: '#/components/responses/BadRequest'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '404':
-          $ref: '#/components/responses/NotFound'
-        '409':
-          $ref: '#/components/responses/Conflict'
-  /api/v1/learning/modules/{moduleId}/mentees/{menteeId}/assignment:
-    parameters:
-      - $ref: '#/components/parameters/ModuleId'
-      - $ref: '#/components/parameters/MenteeId'
-    delete:
-      tags: [Mentee Module Assignments]
-      summary: Revoke a mentee's complete module assignment
-      description: Available only to the mentor who has an active assignment with the mentee. This revokes access to the complete module while preserving the progress record.
-      security:
-        - bearerAuth: []
-      responses:
-        '200':
-          $ref: '#/components/responses/LearningAction'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '404':
-          $ref: '#/components/responses/NotFound'
   /api/v1/learning/my/modules:
     get:
       tags: [Learning Modules]
@@ -6158,6 +5927,7 @@ paths:
   /api/v1/learning/my/modules/{moduleId}:
     parameters:
       - $ref: '#/components/parameters/ModuleId'
+      - $ref: '#/components/parameters/CycleIdQuery'
     get:
       tags: [Module Completion]
       summary: Get the authenticated mentee's module progress
@@ -6165,7 +5935,16 @@ paths:
         - bearerAuth: []
       responses:
         '200':
-          $ref: '#/components/responses/LearningObject'
+          description: Resource completion progress for the selected cycle.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/ResourceModuleProgress'
         '400':
           $ref: '#/components/responses/BadRequest'
         '401':
@@ -6174,17 +5953,29 @@ paths:
           $ref: '#/components/responses/Forbidden'
         '404':
           $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
   /api/v1/learning/my/modules/{moduleId}/progress:
     parameters:
       - $ref: '#/components/parameters/ModuleId'
+      - $ref: '#/components/parameters/CycleIdQuery'
     get:
       tags: [Module Completion]
-      summary: Get the authenticated mentee's module progress
+      summary: Get Resource-based progress for the selected mentorship cycle
       security:
         - bearerAuth: []
       responses:
         '200':
-          $ref: '#/components/responses/LearningObject'
+          description: Resource completion progress for one cycle.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/ResourceModuleProgress'
         '400':
           $ref: '#/components/responses/BadRequest'
         '401':
@@ -6193,35 +5984,29 @@ paths:
           $ref: '#/components/responses/Forbidden'
         '404':
           $ref: '#/components/responses/NotFound'
-  /api/v1/learning/my/modules/{moduleId}/contents/progress:
+        '409':
+          $ref: '#/components/responses/Conflict'
+  /api/v1/learning/my/modules/{moduleId}/resources/progress:
     parameters:
       - $ref: '#/components/parameters/ModuleId'
+      - $ref: '#/components/parameters/CycleIdQuery'
     get:
       tags: [Module Completion]
-      summary: Get content completion progress for a module
+      summary: Get required Resource progress for a mentorship cycle
       security:
         - bearerAuth: []
       responses:
         '200':
-          $ref: '#/components/responses/LearningList'
-        '400':
-          $ref: '#/components/responses/BadRequest'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-  /api/v1/learning/my/modules/{moduleId}/contents/{contentId}/complete:
-    parameters:
-      - $ref: '#/components/parameters/ModuleId'
-      - $ref: '#/components/parameters/ContentId'
-    post:
-      tags: [Module Completion]
-      summary: Mark module content as completed
-      security:
-        - bearerAuth: []
-      responses:
-        '200':
-          $ref: '#/components/responses/LearningObject'
+          description: Resource completion progress for one cycle.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/ResourceModuleProgress'
         '400':
           $ref: '#/components/responses/BadRequest'
         '401':
@@ -6233,6 +6018,7 @@ paths:
   /api/v1/learning/my/modules/{moduleId}/confirm-completion:
     parameters:
       - $ref: '#/components/parameters/ModuleId'
+      - $ref: '#/components/parameters/CycleIdQuery'
     post:
       tags: [Module Completion]
       summary: Confirm completion of a learning module
@@ -6249,12 +6035,17 @@ paths:
           $ref: '#/components/responses/Forbidden'
         '404':
           $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
   /api/v1/learning/modules/{moduleId}/quiz:
     parameters:
       - $ref: '#/components/parameters/ModuleId'
     get:
       tags: [Quiz Retrieval]
       summary: Get the quiz for a module
+      description: Mentee eligibility uses Resource-based progress for cycleId. If omitted, the cycle is inferred only when exactly one valid assignment context exists; multiple contexts return 400, while incomplete or unconfirmed Resource progress returns 409.
+      parameters:
+        - $ref: '#/components/parameters/CycleIdQuery'
       security:
         - bearerAuth: []
       responses:
@@ -6268,12 +6059,17 @@ paths:
           $ref: '#/components/responses/Forbidden'
         '404':
           $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
   /api/v1/learning/quizzes/{quizId}/start:
     parameters:
       - $ref: '#/components/parameters/QuizId'
     post:
       tags: [Quiz Attempt Management]
       summary: Start a quiz attempt
+      description: Eligibility is revalidated against cycleId before an attempt is created. If omitted, the cycle is inferred only when exactly one valid assignment context exists; multiple contexts return 400. Attempt limits remain global per mentee and quiz across cycles, preserving historical attempt counts.
+      parameters:
+        - $ref: '#/components/parameters/CycleIdQuery'
       security:
         - bearerAuth: []
       responses:
@@ -6295,7 +6091,9 @@ paths:
     post:
       tags: [Quiz Attempt Management]
       summary: Submit answers for a quiz attempt
-      description: Submits quiz answers for an active attempt and returns the result.
+      description: Submits quiz answers for an active attempt and returns the result. Eligibility is revalidated against cycleId; if omitted, the cycle is inferred only when exactly one valid assignment context exists, and multiple contexts return 400.
+      parameters:
+        - $ref: '#/components/parameters/CycleIdQuery'
       security:
         - bearerAuth: []
       requestBody:
@@ -6524,7 +6322,7 @@ paths:
     get:
       tags: [Answer Key]
       summary: Get the answer key for a quiz
-      description: Facility Admin for quizzes in their facility. Mentors only if the Facility Admin granted learning.quiz.answer_key.view on the module and the mentor has an active assignment.
+      description: Facility Admin for quizzes in their facility. Mentors can view quiz answer keys for modules in thematic areas where they have an active assignment, when the quiz/module is published and authorized. No manual permission grant is required.
       security:
         - bearerAuth: []
       responses:
@@ -6757,13 +6555,13 @@ paths:
           $ref: '#/components/responses/Forbidden'
         '404':
           $ref: '#/components/responses/NotFound'
-  /api/v1/learning/modules/{moduleId}/quiz-imports:
+  /api/v1/learning/thematic-areas/{thematicAreaId}/quiz-imports:
     parameters:
-      - $ref: '#/components/parameters/ModuleId'
+      - $ref: '#/components/parameters/ThematicAreaId'
     post:
       tags: [Quiz Import]
-      summary: Upload quiz question and optional answer-key PDFs
-      description: Super Admin only. Multipart fields are questionPdf (required) and answerKeyPdf (optional). Creates an unpublished import draft.
+      summary: Upload quiz PDFs for a thematic-area quiz
+      description: Super Admin only. The selected thematic area is retained on the import draft and confirmed quiz.
       security:
         - bearerAuth: []
       requestBody:
@@ -6772,10 +6570,39 @@ paths:
           multipart/form-data:
             schema:
               type: object
-              required: [questionPdf]
+              required: [questionPdf, assessmentStage]
               properties:
                 questionPdf: { type: string, format: binary }
                 answerKeyPdf: { type: string, format: binary }
+                assessmentStage: { type: string, enum: [PRETEST, POST_TEST] }
+      responses:
+        '201': { $ref: '#/components/responses/LearningCreated' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /api/v1/learning/modules/{moduleId}/quiz-imports:
+    parameters:
+      - $ref: '#/components/parameters/ModuleId'
+    post:
+      tags: [Quiz Import]
+      summary: Upload quiz question and optional answer-key PDFs
+      description: Super Admin only. questionPdf is required, answerKeyPdf is optional, and assessmentStage must be PRETEST or POST_TEST. Creates an unpublished import draft.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [questionPdf, assessmentStage]
+              properties:
+                questionPdf: { type: string, format: binary }
+                answerKeyPdf: { type: string, format: binary }
+                assessmentStage:
+                  type: string
+                  enum: [PRETEST, POST_TEST]
+                  description: Required stage associated with the imported examination and retained on the confirmed quiz.
       responses:
         '201': { $ref: '#/components/responses/LearningCreated' }
         '400': { $ref: '#/components/responses/BadRequest' }
@@ -6821,7 +6648,7 @@ paths:
     put:
       tags: [Quiz Import]
       summary: Review or edit an extracted question
-      description: Super Admin only. Accepts the editable question object including options and isCorrect values.
+      description: Super Admin only. Accepts the editable question object including options, isCorrect values, and explanation. Every extracted question must be explicitly reviewed with this endpoint before confirmation, even when extraction found a likely answer.
       security: [{ bearerAuth: [] }]
       requestBody:
         required: true
@@ -6846,7 +6673,7 @@ paths:
     post:
       tags: [Quiz Import]
       summary: Confirm an import into a quiz
-      description: Super Admin only. Correctly extracted questions can be confirmed without editing; incomplete, invalid, ambiguous, or unanswered questions must be corrected first. Creates an unpublished quiz transactionally.
+      description: Super Admin only. Every question must be explicitly reviewed through the question update endpoint before confirmation; incomplete, invalid, ambiguous, or unanswered questions must also be corrected. Creates an unpublished quiz transactionally using the stage saved on the draft. Existing drafts without a saved stage must supply assessmentStage here.
       security: [{ bearerAuth: [] }]
       requestBody:
         required: true
@@ -6858,6 +6685,10 @@ paths:
               properties:
                 title: { type: string }
                 description: { type: string }
+                assessmentStage:
+                  type: string
+                  enum: [PRETEST, POST_TEST]
+                  description: Required only when confirming a legacy draft that has no saved stage.
                 passScore: { type: number, minimum: 0 }
                 timeLimitMinutes: { type: integer, minimum: 0 }
                 attemptLimit: { type: integer, minimum: 0 }
@@ -7594,7 +7425,11 @@ paths:
   /api/v1/uploads:
     post:
       summary: Upload a file
-      description: Uploads a media file (PDF, MP3, WAV, MP4, MOV, or WebM) using multipart/form-data. The file is validated by magic bytes signature and size limit, then stored in the configured storage provider.
+      description: >
+        Upload a PDF, PPT, PPTX, audio, or video file using multipart/form-data.
+        The file is validated by its signature and size limit. To create a
+        learning material, use the returned file ID in POST /api/v1/resources
+        and provide the category and optional learning module association.
       tags:
         - Uploads
       security:
@@ -7611,7 +7446,7 @@ paths:
                 file:
                   type: string
                   format: binary
-                  description: Binary file to upload
+                  description: PDF, PPT, PPTX, audio, or video file to upload
                 context:
                   type: string
                   default: resource
@@ -7787,7 +7622,7 @@ paths:
   /api/v1/resources:
     get:
       summary: List learning resources
-      description: Retrieves a paginated list of learning resources. System Admin and Facility Admin can view all resources; Mentors can view resources in modules they are authorized to access; Mentees can view only individually assigned resources, without a separate learning.resources.view permission grant.
+      description: Retrieves resources with category and examination-stage filters. System Admin can view all resources; Facility Admin is scoped to thematic areas in their facility; Mentors require an active thematic-area assignment and a published, authorized module. Mentors need the separate answer-key permission for ANSWER_KEY. Mentees can view only individually assigned resources, excluding FACILITATOR_GUIDE and ANSWER_KEY.
       tags:
         - Resources
       security:
@@ -7822,8 +7657,20 @@ paths:
           name: type
           schema:
             type: string
-            enum: [pdf, audio, video]
+            enum: [pdf, presentation, audio, video]
           description: Filter by resource type
+        - in: query
+          name: category
+          schema:
+            type: string
+            enum: [PARTICIPANT_MANUAL, POWERPOINT_PRESENTATION, FACILITATOR_GUIDE, EXAMINATION, ANSWER_KEY]
+          description: Filter by material category
+        - in: query
+          name: examination_stage
+          schema:
+            type: string
+            enum: [PRETEST, POST_TEST]
+          description: Filter examination resources by stage; use with category=EXAMINATION
       responses:
         '200':
           description: Paginated resource list
@@ -7851,7 +7698,7 @@ paths:
                 $ref: '#/components/schemas/ErrorResponse'
     post:
       summary: Create a learning resource
-      description: Creates a regular resource associated with an uploaded file, module, and thematic area. Only System Admin can create resources.
+      description: Creates a Resource referencing an existing Upload. Category, thematic_area_id, module_id, and file_id are required. Only System Admin can create resources. When category is EXAMINATION, examination_stage is required; for every other category, omit it.
       tags:
         - Resources
       security:
@@ -7862,6 +7709,69 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/CreateResourceRequest'
+            examples:
+              participantManual:
+                summary: Participant Manual
+                value:
+                  title: Neonatal Resuscitation Guidelines
+                  type: pdf
+                  category: PARTICIPANT_MANUAL
+                  is_required: true
+                  thematic_area_id: 1
+                  module_id: 2
+                  file_id: 15
+              powerpointPresentation:
+                summary: PowerPoint Presentation
+                value:
+                  title: Neonatal Resuscitation Training Slides
+                  type: presentation
+                  category: POWERPOINT_PRESENTATION
+                  is_required: true
+                  thematic_area_id: 1
+                  module_id: 2
+                  file_id: 16
+              facilitatorGuide:
+                summary: Facilitator Guide
+                value:
+                  title: Neonatal Resuscitation Facilitator Guide
+                  type: pdf
+                  category: FACILITATOR_GUIDE
+                  is_required: false
+                  thematic_area_id: 1
+                  module_id: 2
+                  file_id: 17
+              examinationPretest:
+                summary: Examination Pretest
+                value:
+                  title: Neonatal Resuscitation Pretest
+                  type: pdf
+                  category: EXAMINATION
+                  examination_stage: PRETEST
+                  is_required: true
+                  thematic_area_id: 1
+                  module_id: 2
+                  file_id: 18
+              examinationPostTest:
+                summary: Examination Post-test
+                value:
+                  title: Neonatal Resuscitation Post-test
+                  type: pdf
+                  category: EXAMINATION
+                  examination_stage: POST_TEST
+                  is_required: true
+                  thematic_area_id: 1
+                  module_id: 2
+                  file_id: 19
+              answerKey:
+                summary: Answer Key
+                value:
+                  title: Neonatal Resuscitation Answer Key
+                  type: pdf
+                  category: ANSWER_KEY
+                  is_required: false
+                  thematic_area_id: 1
+                  module_id: 2
+                  file_id: 20
       responses:
         '201':
           description: Resource created successfully
@@ -7897,7 +7807,7 @@ paths:
   /api/v1/resources/{id}:
     get:
       summary: Get learning resource details
-      description: Retrieves complete metadata for a learning resource including associated module, thematic area, and file details. System Admin and Facility Admin have unrestricted read access; mentors require authorized module access; mentees require an active individual assignment.
+      description: Retrieves Resource metadata and associated file details. Facility Admin reads are facility-scoped; mentors require active thematic-area assignment and published/authorized modules; ANSWER_KEY additionally requires the separate answer-key permission; mentees require an active ResourceAssignment and cannot access FACILITATOR_GUIDE or ANSWER_KEY.
       tags:
         - Resources
       security:
@@ -7937,7 +7847,7 @@ paths:
                 $ref: '#/components/schemas/ErrorResponse'
     patch:
       summary: Update a learning resource
-      description: Updates resource metadata such as title, type, thematic area, module, or file.
+      description: Updates resource metadata, material category, examination stage, or required status. EXAMINATION requires examination_stage; other categories must omit or clear it.
       tags:
         - Resources
       security:
@@ -8041,97 +7951,6 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
 
-  /api/v1/resources/{id}/mentees/{menteeId}:
-    post:
-      summary: Assign a resource to a mentee
-      description: Mentors may assign individual resources linked to an authorized learning module to their own actively assigned mentees when they have permission to access that module. Resource assignment is separate from module access.
-      tags:
-        - Resource Assignments
-      security:
-        - bearerAuth: []
-      parameters:
-        - in: path
-          name: id
-          required: true
-          schema:
-            type: integer
-            minimum: 1
-        - in: path
-          name: menteeId
-          required: true
-          schema:
-            type: integer
-            minimum: 1
-      responses:
-        '201':
-          description: Resource assigned
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  success:
-                    type: boolean
-                  data:
-                    type: object
-                    properties:
-                      resourceId:
-                        type: integer
-                      menteeId:
-                        type: integer
-                      assignmentId:
-                        type: integer
-                      assigned:
-                        type: boolean
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '404':
-          $ref: '#/components/responses/NotFound'
-    delete:
-      summary: Revoke a mentee's resource assignment
-      description: Revokes this individual resource assignment without changing the mentee's separate learning-module access.
-      tags:
-        - Resource Assignments
-      security:
-        - bearerAuth: []
-      parameters:
-        - in: path
-          name: id
-          required: true
-          schema:
-            type: integer
-            minimum: 1
-        - in: path
-          name: menteeId
-          required: true
-          schema:
-            type: integer
-            minimum: 1
-      responses:
-        '200':
-          description: Resource assignment revoked
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  success:
-                    type: boolean
-                  data:
-                    type: object
-                    properties:
-                      assignmentId:
-                        type: integer
-                      revoked:
-                        type: boolean
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '404':
-          $ref: '#/components/responses/NotFound'
   /api/v1/learning/modules/{moduleId}/resources/{resourceId}/assignments:
     post:
       summary: Assign a resource to a mentee
@@ -8270,7 +8089,7 @@ paths:
   /api/v1/learning/my/resources:
     get:
       summary: List my active resource assignments
-      description: Returns only individually assigned resources whose assignments remain active and whose modules remain published and authorized. Mentees do not need a separate learning.resources.view permission.
+      description: Returns only individually assigned resources whose assignments remain active and whose modules remain published and authorized. Mentors access all resource categories (including Answer Keys) automatically via active thematic-area assignments. Mentees do not need a separate permission and remain restricted to assigned materials.
       tags:
         - Mentee Resource Access
       security:

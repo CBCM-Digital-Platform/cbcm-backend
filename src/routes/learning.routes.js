@@ -1,14 +1,12 @@
 const express = require('express');
 const authenticate = require('../middlewares/auth/authenticate.middleware');
 const requireRole = require('../middlewares/auth/require-role.middleware');
-const { FACILITY_MANAGEMENT_ROLES } = require('../constants/roles.constants');
 const Role = require('../enums/role.enum');
 const controller = require('../controllers/learning.controller');
 const resourcesController = require('../controllers/resources.controller');
 const validator = require('../validators/learning.validator');
 const resourceValidator = require('../validators/resources.validator');
-const { uploadResourceFile, uploadQuizPdfs } = require('../middlewares/upload.middleware');
-const uploadsService = require('../services/uploads.service');
+const { uploadQuizPdfs } = require('../middlewares/upload.middleware');
 
 const router = express.Router();
 const validate = (parser) => (req, res, next) => {
@@ -23,7 +21,7 @@ const validate = (parser) => (req, res, next) => {
 const validateId = (fieldName) => (req, res, next) => {
 	try {
 		if (fieldName === 'moduleId') req.params.moduleId = validator.parseId(req.params.moduleId, 'moduleId');
-		if (fieldName === 'contentId') req.params.contentId = validator.parseId(req.params.contentId, 'contentId');
+		if (fieldName === 'thematicAreaId') req.params.thematicAreaId = validator.parseId(req.params.thematicAreaId, 'thematicAreaId');
 		if (fieldName === 'quizId') req.params.quizId = validator.parseId(req.params.quizId, 'quizId');
 		if (fieldName === 'id') req.params.id = validator.parseId(req.params.id, 'id');
 		if (fieldName === 'questionId') req.params.questionId = validator.parseId(req.params.questionId, 'questionId');
@@ -31,6 +29,7 @@ const validateId = (fieldName) => (req, res, next) => {
 		if (fieldName === 'menteeId') req.params.menteeId = validator.parseId(req.params.menteeId, 'menteeId');
 		if (fieldName === 'mentorId') req.params.mentorId = validator.parseId(req.params.mentorId, 'mentorId');
 		if (fieldName === 'resourceId') req.params.resourceId = validator.parseId(req.params.resourceId, 'resourceId');
+		if (fieldName === 'applicationId') req.params.applicationId = validator.parseId(req.params.applicationId, 'applicationId');
 		if (fieldName === 'assignmentId') req.params.assignmentId = validator.parseId(req.params.assignmentId, 'assignmentId');
 		return next();
 	} catch (error) {
@@ -47,37 +46,15 @@ router.patch('/modules/:id', requireRole(Role.ADMIN), validateId('id'), validate
 router.put('/modules/:id', requireRole(Role.ADMIN), validateId('id'), validate(validator.parseModule), controller.updateModule);
 router.delete('/modules/:id', requireRole(Role.ADMIN), validateId('id'), controller.deleteModule);
 
-router.get('/modules/:moduleId/contents', validateId('moduleId'), controller.listContents);
-router.get('/modules/:moduleId/contents/:contentId', validateId('moduleId'), validateId('contentId'), controller.getContent);
-router.get('/modules/:moduleId/contents/:contentId/file', validateId('moduleId'), validateId('contentId'), controller.downloadContentFile);
-router.post('/modules/:moduleId/contents', requireRole(FACILITY_MANAGEMENT_ROLES), validateId('moduleId'), validate(validator.parseContent), controller.createContent);
-router.post('/modules/:moduleId/content-file', requireRole(FACILITY_MANAGEMENT_ROLES), validateId('moduleId'), uploadResourceFile, async (req, res, next) => {
-	try {
-		const file = await uploadsService.createUpload({ actor: req.user, upload: req.resourceUpload, context: 'learning-content' });
-		return res.status(201).json({ success: true, data: file });
-	} catch (error) {
-		return next(error);
-	}
-});
-router.patch('/modules/:moduleId/contents/:contentId', requireRole(FACILITY_MANAGEMENT_ROLES), validateId('moduleId'), validateId('contentId'), validate(validator.parseContentPatch), controller.updateContent);
-router.put('/modules/:moduleId/contents/:contentId', requireRole(FACILITY_MANAGEMENT_ROLES), validateId('moduleId'), validateId('contentId'), validate(validator.parseContent), controller.updateContent);
-router.delete('/modules/:moduleId/contents/:contentId', requireRole(FACILITY_MANAGEMENT_ROLES), validateId('moduleId'), validateId('contentId'), controller.deleteContent);
-
 router.post('/modules/:moduleId/quizzes', requireRole(Role.ADMIN), validateId('moduleId'), validate(validator.parseQuiz), controller.createQuiz);
+router.post('/thematic-areas/:thematicAreaId/quiz', requireRole(Role.ADMIN), validateId('thematicAreaId'), validate(validator.parseThematicAreaQuiz), controller.createThematicAreaQuiz);
+router.get('/thematic-areas/:thematicAreaId/quiz', requireRole([Role.ADMIN, Role.FACILITY_ADMIN, Role.MENTOR, Role.MENTEE]), validateId('thematicAreaId'), controller.getQuizByThematicArea);
 router.patch('/quizzes/:quizId', requireRole(Role.ADMIN), validateId('quizId'), validate(validator.parseQuizPatch), controller.updateQuiz);
-
-router.get('/modules/:moduleId/mentor-permissions', requireRole(FACILITY_MANAGEMENT_ROLES), validateId('moduleId'), controller.getModuleMentorPermissions);
-router.post('/modules/:moduleId/mentor-permissions', requireRole(Role.FACILITY_ADMIN), validateId('moduleId'), validate(validator.parseMentorPermissionGrant), controller.grantModuleMentorPermission);
-router.delete('/modules/:moduleId/mentor-permissions/:mentorId', requireRole(Role.FACILITY_ADMIN), validateId('moduleId'), validateId('mentorId'), controller.revokeModuleMentorPermission);
-router.get('/mentees/:menteeId/modules', requireRole([...FACILITY_MANAGEMENT_ROLES, Role.MENTOR]), validateId('menteeId'), controller.getMenteeModules);
-router.post('/modules/:moduleId/assignments', requireRole(Role.MENTOR), validateId('moduleId'), validate(validator.parseMenteeId), controller.assignModuleToMentee);
-router.delete('/modules/:moduleId/mentees/:menteeId/assignment', requireRole(Role.MENTOR), validateId('moduleId'), validateId('menteeId'), controller.revokeModuleAssignment);
 
 router.get('/my/modules', requireRole('mentee'), controller.getMyModules);
 router.get('/my/modules/:moduleId', requireRole('mentee'), validateId('moduleId'), controller.getMyModuleProgress);
 router.get('/my/modules/:moduleId/progress', requireRole('mentee'), validateId('moduleId'), controller.getMyModuleProgress);
-router.get('/my/modules/:moduleId/contents/progress', requireRole('mentee'), validateId('moduleId'), controller.getContentProgress);
-router.post('/my/modules/:moduleId/contents/:contentId/complete', requireRole('mentee'), validateId('moduleId'), validateId('contentId'), controller.completeContent);
+router.get('/my/modules/:moduleId/resources/progress', requireRole('mentee'), validateId('moduleId'), controller.getResourceProgress);
 router.post('/my/modules/:moduleId/confirm-completion', requireRole('mentee'), validateId('moduleId'), controller.confirmModuleCompletion);
 
 router.post(
@@ -126,10 +103,13 @@ router.put('/questions/:questionId/options/:optionId', requireRole(Role.ADMIN), 
 router.delete('/questions/:questionId/options/:optionId', requireRole(Role.ADMIN), validateId('questionId'), validateId('optionId'), controller.deleteQuestionOption);
 
 router.post('/modules/:moduleId/quiz-imports', requireRole(Role.ADMIN), validateId('moduleId'), uploadQuizPdfs, controller.createQuizImport);
+router.post('/thematic-areas/:thematicAreaId/quiz-imports', requireRole(Role.ADMIN), validateId('thematicAreaId'), uploadQuizPdfs, controller.createThematicAreaQuizImport);
 router.post('/quiz-imports/:draftId/extract', requireRole(Role.ADMIN), validateId('draftId'), controller.extractQuizImport);
 router.get('/quiz-imports/:draftId', requireRole(Role.ADMIN), validateId('draftId'), controller.getQuizImport);
 router.put('/quiz-imports/:draftId/questions/:questionIndex', requireRole(Role.ADMIN), validateId('draftId'), controller.updateQuizImportQuestion);
 router.delete('/quiz-imports/:draftId/questions/:questionIndex', requireRole(Role.ADMIN), validateId('draftId'), controller.deleteQuizImportQuestion);
 router.post('/quiz-imports/:draftId/confirm', requireRole(Role.ADMIN), validateId('draftId'), controller.confirmQuizImport);
+router.post('/resources/:resourceId/answer-key-applications', requireRole(Role.ADMIN), validateId('resourceId'), controller.startAnswerKeyApplication);
+router.post('/answer-key-applications/:applicationId/extract', requireRole(Role.ADMIN), validateId('applicationId'), controller.extractAnswerKeyApplication);
 
 module.exports = router;

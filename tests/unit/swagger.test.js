@@ -39,15 +39,13 @@ describe('Swagger / OpenAPI Configuration Validation', () => {
 		assert.equal(userGuidesTag.description, 'User guide management (Facility Admin only)');
 	});
 
-	it('should document mentee module assignment endpoints', () => {
+	it('should not document retired mentee module assignment endpoints', () => {
 		const raw = fs.readFileSync(specPath, 'utf8');
 		const doc = yaml.load(raw);
-		const tag = doc.tags.find((entry) => entry.name === 'Mentee Module Assignments');
-		assert.ok(tag);
-		assert.ok(doc.paths['/api/v1/learning/mentees/{menteeId}/modules'].get);
-		assert.ok(doc.paths['/api/v1/learning/modules/{moduleId}/assignments'].post);
-		assert.ok(doc.paths['/api/v1/learning/modules/{moduleId}/mentees/{menteeId}/assignment'].delete);
-		assert.deepEqual(doc.paths['/api/v1/learning/modules/{moduleId}/assignments'].post.requestBody.content['application/json'].schema.required, ['menteeId']);
+		assert.equal(doc.tags.some((entry) => entry.name === 'Mentee Module Assignments'), false);
+		assert.equal(doc.paths['/api/v1/learning/mentees/{menteeId}/modules'], undefined);
+		assert.equal(doc.paths['/api/v1/learning/modules/{moduleId}/assignments'], undefined);
+		assert.equal(doc.paths['/api/v1/learning/modules/{moduleId}/mentees/{menteeId}/assignment'], undefined);
 	});
 
 	it('should resolve all internal $ref references within openapi.yaml', () => {

@@ -1,4 +1,5 @@
 // src/repositories/thematic-areas.repository.js
+const { Op, fn, col, where } = require('sequelize');
 const { ThematicArea } = require('../models');
 
 async function findAndCountAll(options = {}) {
@@ -11,6 +12,15 @@ async function findById(id) {
 
 async function findByCode(code) {
 	return ThematicArea.findOne({ where: { code } });
+}
+
+async function findByNormalizedName(name, { excludeId, transaction } = {}) {
+	const normalized = String(name || '').trim().toLowerCase();
+	const nameMatch = where(fn('lower', fn('trim', col('name'))), normalized);
+	const conditions = excludeId
+		? { [Op.and]: [nameMatch, { id: { [Op.ne]: excludeId } }] }
+		: { [Op.and]: [nameMatch] };
+	return ThematicArea.findOne({ where: conditions, transaction });
 }
 
 async function create(data, options = {}) {
@@ -36,6 +46,7 @@ module.exports = {
 	findAndCountAll,
 	findById,
 	findByCode,
+	findByNormalizedName,
 	create,
 	update,
 	destroy,

@@ -1,9 +1,21 @@
 const service = require('../services/learning.service');
+const AppError = require('../errors/app-error');
 const moduleDto = require('../dtos/response/module.response.dto');
 const quizDto = require('../dtos/response/quiz-result.response.dto');
 const learningMapper = require('../mappers/learning.mapper');
-const AppError = require('../errors/app-error');
 const quizPdfImportService = require('../services/quiz-pdf-import.service');
+const validator = require('../validators/learning.validator');
+
+const cycleIdFromQuery = (query = {}) => {
+	const value = query.cycleId ?? query.cycle_id;
+	return value == null ? undefined : validator.parseId(value, 'cycleId');
+};
+const stageFromQuery = (query = {}) => {
+	const value = query.assessmentStage ?? query.assessment_stage;
+	if (value == null) return undefined;
+	if (!['PRETEST', 'POST_TEST'].includes(value)) throw new AppError('assessmentStage must be PRETEST or POST_TEST.', 400, 'VALIDATION_ERROR');
+	return value;
+};
 
 const asyncHandler = (handler) => (req, res, next) => {
 	Promise.resolve(handler(req, res, next)).catch(next);
@@ -41,62 +53,6 @@ module.exports = {
 		await service.deleteModule(req.params.id, req.user);
 		return res.json({ success: true, data: { deleted: true } });
 	}),
-	listContents: asyncHandler(async (req, res) => {
-		const contents = await service.listContents(req.params.moduleId, req.user);
-		return res.json({ success: true, data: contents });
-	}),
-	getContent: asyncHandler(async (req, res) => {
-		const content = await service.getContent(req.params.contentId, req.user);
-		if (Number(content.module_id) !== Number(req.params.moduleId)) {
-			throw new AppError('Learning content not found.', 404, 'NOT_FOUND');
-		}
-		return res.json({ success: true, data: content });
-	}),
-	downloadContentFile: asyncHandler(async (req, res, next) => {
-		const file = await service.openContentFile(req.params.moduleId, req.params.contentId, req.user);
-		res.setHeader('Content-Type', file.mimeType);
-		res.setHeader('Content-Length', String(file.sizeBytes || 0));
-		res.setHeader('Content-Disposition', 'inline');
-		file.stream.on('error', next);
-		return file.stream.pipe(res);
-	}),
-	createContent: asyncHandler(async (req, res) => {
-		const content = await service.createContent({
-			...req.learningInput,
-			moduleId: req.params.moduleId,
-			createdBy: req.user.id,
-			actor: req.user,
-		});
-		return res.status(201).json({ success: true, data: content });
-	}),
-	updateContent: asyncHandler(async (req, res) => {
-		const content = await service.updateContent(req.params.moduleId, req.params.contentId, { ...req.learningInput, updatedBy: req.user.id }, req.user);
-		return res.json({ success: true, data: content });
-	}),
-	deleteContent: asyncHandler(async (req, res) => {
-		await service.deleteContent(req.params.moduleId, req.params.contentId, req.user);
-		return res.json({ success: true, data: { deleted: true } });
-	}),
-	getModuleMentorPermissions: asyncHandler(async (req, res) => {
-		const permissions = await service.listModuleMentorPermissions(req.params.moduleId, req.user);
-		return res.json({ success: true, data: permissions.map(learningMapper.toMentorPermission) });
-	}),
-	grantModuleMentorPermission: asyncHandler(async (req, res) => {
-		const grant = await service.grantModuleMentorPermission({
-			moduleId: req.params.moduleId,
-			mentorId: req.learningInput.mentorId,
-			actor: req.user,
-		});
-		return res.status(201).json({ success: true, data: learningMapper.toMentorPermission(grant) });
-	}),
-	revokeModuleMentorPermission: asyncHandler(async (req, res) => {
-		const revoked = await service.revokeModuleMentorPermission({
-			moduleId: req.params.moduleId,
-			mentorId: req.params.mentorId,
-			actor: req.user,
-		});
-		return res.json({ success: true, data: { revoked } });
-	}),
 	getMenteeModules: asyncHandler(async (req, res) => {
 		const menteeId = req.params.menteeId;
 		if (String(req.user.role).toLowerCase() === 'mentor') {
@@ -131,39 +87,65 @@ module.exports = {
 		return res.json({ success: true, data: records.map(learningMapper.toProgress) });
 	}),
 	getMyModuleProgress: asyncHandler(async (req, res) => {
-		const record = await service.getMyModuleProgress({ menteeId: req.user.id, moduleId: req.params.moduleId });
-		return res.json({ success: true, data: learningMapper.toProgress(record) });
+		const record = await service.getMyModuleProgress({
+			menteeId: req.user.id,
+			moduleId: req.params.moduleId,
+			cycleId: cycleIdFromQuery(req.query),
+		});
+		return res.json({ success: true, data: record });
 	}),
-	getContentProgress: asyncHandler(async (req, res) => {
-		const progress = await service.getContentProgress({ menteeId: req.user.id, moduleId: req.params.moduleId });
+	getResourceProgress: asyncHandler(async (req, res) => {
+		const progress = await service.getResourceProgress({
+			menteeId: req.user.id,
+			moduleId: req.params.moduleId,
+			cycleId: cycleIdFromQuery(req.query),
+		});
 		return res.json({ success: true, data: progress });
 	}),
-	completeContent: asyncHandler(async (req, res) => {
-		const progress = await service.completeContent({ menteeId: req.user.id, moduleId: req.params.moduleId, contentId: req.params.contentId });
-		return res.json({ success: true, data: learningMapper.toProgress(progress) });
-	}),
 	confirmModuleCompletion: asyncHandler(async (req, res) => {
-		const progress = await service.confirmModuleCompletion({ menteeId: req.user.id, moduleId: req.params.moduleId });
+		const progress = await service.confirmModuleCompletion({
+			menteeId: req.user.id,
+			moduleId: req.params.moduleId,
+			cycleId: cycleIdFromQuery(req.query),
+		});
 		return res.json({ success: true, data: learningMapper.toProgress(progress) });
 	}),
 	getQuizByModule: asyncHandler(async (req, res) => {
-		const quiz = await service.getQuizByModule(req.params.moduleId, req.user.id);
+		const quiz = await service.getQuizByModule(req.params.moduleId, req.user.id, cycleIdFromQuery(req.query), stageFromQuery(req.query));
+		return res.json({ success: true, data: quiz });
+	}),
+	getQuizByThematicArea: asyncHandler(async (req, res) => {
+		const quiz = await service.getQuizByThematicArea(req.params.thematicAreaId, req.user, cycleIdFromQuery(req.query), stageFromQuery(req.query));
 		return res.json({ success: true, data: quiz });
 	}),
 	getQuizByModuleForViewer: asyncHandler(async (req, res) => {
-		const quiz = await service.getQuizByModuleForViewer(req.params.moduleId, req.user);
+		const cycleId = String(req.user.role).toLowerCase() === 'mentee'
+			? cycleIdFromQuery(req.query)
+			: undefined;
+		const quiz = await service.getQuizByModuleForViewer(req.params.moduleId, req.user, cycleId, stageFromQuery(req.query));
 		return res.json({ success: true, data: quiz });
 	}),
 	getQuiz: asyncHandler(async (req, res) => {
-		const quiz = await service.getQuiz(req.params.quizId, req.user.id);
+		const quiz = await service.getQuiz(req.params.quizId, req.user.id, cycleIdFromQuery(req.query), stageFromQuery(req.query));
 		return res.json({ success: true, data: quiz });
 	}),
 	startQuizAttempt: asyncHandler(async (req, res) => {
-		const attempt = await service.startQuizAttempt({ quizId: req.params.quizId, menteeId: req.user.id });
+		const attempt = await service.startQuizAttempt({
+			quizId: req.params.quizId,
+			menteeId: req.user.id,
+			cycleId: cycleIdFromQuery(req.query),
+			assessmentStage: stageFromQuery(req.query),
+		});
 		return res.status(201).json({ success: true, data: attempt });
 	}),
 	submitQuiz: asyncHandler(async (req, res) => {
-		const result = await service.submitQuiz({ quizId: req.params.quizId, menteeId: req.user.id, answers: req.learningInput.answers });
+		const result = await service.submitQuiz({
+			quizId: req.params.quizId,
+			menteeId: req.user.id,
+			answers: req.learningInput.answers,
+			cycleId: cycleIdFromQuery(req.query),
+			assessmentStage: stageFromQuery(req.query),
+		});
 		return res.json({ success: true, data: quizDto.toQuizResult(result) });
 	}),
 	getQuizResults: asyncHandler(async (req, res) => {
@@ -177,6 +159,15 @@ module.exports = {
 	createQuiz: asyncHandler(async (req, res) => {
 		const quiz = await service.createQuiz({
 			moduleId: req.params.moduleId,
+			createdBy: req.user.id,
+			actor: req.user,
+			...req.learningInput,
+		});
+		return res.status(201).json({ success: true, data: quiz });
+	}),
+	createThematicAreaQuiz: asyncHandler(async (req, res) => {
+		const quiz = await service.createThematicAreaQuiz({
+			thematicAreaId: req.params.thematicAreaId,
 			createdBy: req.user.id,
 			actor: req.user,
 			...req.learningInput,
@@ -220,7 +211,23 @@ module.exports = {
 		return res.json({ success: true, data: answerKey });
 	}),
 	createQuizImport: asyncHandler(async (req, res) => {
-		const draft = await quizPdfImportService.upload({ actor: req.user, moduleId: req.params.moduleId, question: req.quizPdfs.question, answerKey: req.quizPdfs.answerKey });
+		const draft = await quizPdfImportService.upload({
+			actor: req.user,
+			moduleId: req.params.moduleId,
+			assessmentStage: req.body?.assessmentStage ?? req.body?.assessment_stage,
+			question: req.quizPdfs.question,
+			answerKey: req.quizPdfs.answerKey,
+		});
+		return res.status(201).json({ success: true, data: draft });
+	}),
+	createThematicAreaQuizImport: asyncHandler(async (req, res) => {
+		const draft = await quizPdfImportService.upload({
+			actor: req.user,
+			thematicAreaId: req.params.thematicAreaId,
+			assessmentStage: req.body?.assessmentStage ?? req.body?.assessment_stage,
+			question: req.quizPdfs.question,
+			answerKey: req.quizPdfs.answerKey,
+		});
 		return res.status(201).json({ success: true, data: draft });
 	}),
 	extractQuizImport: asyncHandler(async (req, res) => {
@@ -242,5 +249,13 @@ module.exports = {
 	confirmQuizImport: asyncHandler(async (req, res) => {
 		const quiz = await quizPdfImportService.confirm(req.params.draftId, req.body, req.user);
 		return res.status(201).json({ success: true, data: quiz });
+	}),
+	startAnswerKeyApplication: asyncHandler(async (req, res) => {
+		const application = await require('../services/quiz-answer-key.service').start({ resourceId: req.params.resourceId, actor: req.user });
+		return res.status(201).json({ success: true, data: application });
+	}),
+	extractAnswerKeyApplication: asyncHandler(async (req, res) => {
+		const application = await require('../services/quiz-answer-key.service').extract({ applicationId: req.params.applicationId, actor: req.user });
+		return res.json({ success: true, data: application });
 	}),
 };

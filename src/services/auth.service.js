@@ -1,5 +1,5 @@
 // src/services/auth.service.js
-const { User, RefreshToken, UserPreference, Facility, ActivityLog } = require('../models');
+const { User, RefreshToken, UserPreference, Facility, ActivityLog, ThematicArea } = require('../models');
 const AppError = require('../errors/app-error');
 const authRepository = require('../repositories/auth.repository');
 const { hashPassword, comparePassword, hashToken, randomToken } = require('../utils/hash.util');
@@ -46,11 +46,18 @@ function sanitizeUser(user) {
   if (!user) return null;
   const plain = user.toJSON ? user.toJSON() : { ...user };
   const fields = [
-    'id', 'full_name', 'email', 'phone', 'role', 'facility_id',
+    'id', 'full_name', 'email', 'phone', 'role', 'facility_id', 'thematic_area_id',
     'highest_qualification', 'training_status', 'avatar_url', 'status',
     'must_change_password', 'created_at', 'updated_at',
   ];
-  return Object.fromEntries(fields.filter((field) => plain[field] !== undefined).map((field) => [field, plain[field]]));
+  const sanitized = Object.fromEntries(fields.filter((field) => plain[field] !== undefined).map((field) => [field, plain[field]]));
+  if (plain.thematicArea) {
+    const thematicArea = plain.thematicArea.toJSON ? plain.thematicArea.toJSON() : plain.thematicArea;
+    sanitized.thematic_area = Object.fromEntries(
+      ['id', 'code', 'name'].filter((field) => thematicArea[field] !== undefined).map((field) => [field, thematicArea[field]])
+    );
+  }
+  return sanitized;
 }
 
 function isUserEligible(user) {
@@ -388,6 +395,25 @@ async function updateUserProfile(userId, payload) {
     }
   }
 
+  if (Object.prototype.hasOwnProperty.call(payload, 'thematic_area_id')) {
+    if (String(user.role || '').toLowerCase() !== 'mentor') {
+      throw new AppError('Only mentors can have a thematic area assigned.', 403, 'FORBIDDEN');
+    }
+    const value = payload.thematic_area_id;
+    if (value === null || value === '') {
+      updates.thematic_area_id = null;
+    } else {
+      const thematicAreaId = Number(value);
+      if (!Number.isInteger(thematicAreaId) || thematicAreaId < 1) {
+        throw new AppError('Thematic area id must be a positive integer.', 400, 'VALIDATION_ERROR');
+      }
+      if (!(await ThematicArea.findByPk(thematicAreaId))) {
+        throw new AppError('Thematic area was not found.', 404, 'THEMATIC_AREA_NOT_FOUND');
+      }
+      updates.thematic_area_id = thematicAreaId;
+    }
+  }
+
   if (!Object.keys(updates).length) {
     return sanitizeUser(user);
   }
@@ -492,6 +518,20 @@ async function createUserByAdmin(payload) {
     throw new AppError('Facility was not found.', 404, 'FACILITY_NOT_FOUND');
   }
 
+  let thematicAreaId = null;
+  if (payload.thematic_area_id !== undefined && payload.thematic_area_id !== null) {
+    thematicAreaId = Number(payload.thematic_area_id);
+    if (!Number.isInteger(thematicAreaId) || thematicAreaId < 1) {
+      throw new AppError('Thematic area id must be a positive integer.', 400, 'VALIDATION_ERROR');
+    }
+    if (cleanedRole !== 'mentor') {
+      throw new AppError('A thematic area can only be assigned to mentors.', 422, 'THEMATIC_AREA_ROLE_RESTRICTED');
+    }
+    if (!(await ThematicArea.findByPk(thematicAreaId))) {
+      throw new AppError('Thematic area was not found.', 404, 'THEMATIC_AREA_NOT_FOUND');
+    }
+  }
+
   const password = payload.password;
   if (typeof password !== 'string' || password.length < 8) {
     throw new AppError('A temporary password of at least 8 characters is required.', 400, 'VALIDATION_ERROR');
@@ -506,6 +546,7 @@ async function createUserByAdmin(payload) {
       password_hash: hashed,
       role: cleanedRole,
       facility_id: payload.facility_id || null,
+      thematic_area_id: thematicAreaId,
       highest_qualification: payload.highest_qualification || null,
       training_status: payload.training_status || null,
       avatar_url: payload.avatar_url || null,
@@ -531,7 +572,7 @@ async function createUserByAdmin(payload) {
 		facilityIds: [user.facility_id],
 	});
 
-  return sanitizeUser(user);
+  return sanitizeUser(await authRepository.findUserById(user.id));
 }
 
 async function updateUserStatus(userId, status, updatedBy) {

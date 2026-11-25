@@ -1,43 +1,18 @@
 const moduleDto = require('../dtos/response/module.response.dto');
 const quizResultDto = require('../dtos/response/quiz-result.response.dto');
 
-const toContent = (content = {}) => ({
-	id: content.id,
-	moduleId: content.module_id ?? content.moduleId ?? null,
-	title: content.title,
-	type: content.type || 'article',
-	contentText: content.content_text ?? content.contentText ?? null,
-	contentUrl: content.content_url ?? content.contentUrl ?? null,
-	fileId: content.file_id ?? content.fileId ?? null,
-	file: content.file ? {
-		id: content.file.id,
-		originalName: content.file.original_name ?? content.file.originalName ?? null,
-		mimeType: content.file.mime_type ?? content.file.mimeType ?? null,
-		sizeBytes: Number(content.file.size_bytes ?? content.file.sizeBytes ?? 0),
-	} : null,
-	orderNumber: content.order_number ?? content.orderNumber ?? 0,
-	isRequired: Boolean(content.is_required ?? content.isRequired ?? true),
-	isPublished: Boolean(content.is_published ?? content.isPublished),
-	isAuthorized: Boolean(content.is_authorized ?? content.isAuthorized),
-	durationMinutes: content.duration_minutes ?? content.durationMinutes ?? 0,
-	createdBy: content.created_by ?? content.createdBy ?? null,
-	updatedBy: content.updated_by ?? content.updatedBy ?? null,
-	createdAt: content.created_at ?? null,
-	updatedAt: content.updated_at ?? null,
-});
-
 const toModule = (moduleRecord) => moduleDto.toModule(moduleRecord);
 
 const toModuleDetail = (moduleRecord) => {
 	const value = moduleRecord?.get ? moduleRecord.get({ plain: true }) : (moduleRecord || {});
 	return {
 		...toModule(value),
-		contents: Array.isArray(value.contents) ? value.contents.map(toContent) : [],
 		quizzes: Array.isArray(value.quizzes) ? value.quizzes.map((quiz) => ({
 			id: quiz.id,
 			moduleId: quiz.module_id ?? quiz.moduleId ?? null,
 			title: quiz.title,
 			description: quiz.description || null,
+			assessmentStage: quiz.assessment_stage ?? quiz.assessmentStage ?? null,
 			passScore: quiz.pass_score ?? quiz.passScore ?? 0,
 			timeLimitMinutes: quiz.time_limit_minutes ?? quiz.timeLimitMinutes ?? 0,
 			attemptLimit: quiz.attempt_limit ?? quiz.attemptLimit ?? 1,
@@ -54,6 +29,7 @@ const toProgress = (progress = {}) => ({
 	id: progress.id,
 	menteeId: progress.mentee_id ?? progress.menteeId ?? null,
 	moduleId: progress.module_id ?? progress.moduleId ?? null,
+	cycleId: progress.cycle_id ?? progress.cycleId ?? null,
 	assignedBy: progress.assigned_by ?? progress.assignedBy ?? null,
 	assignedAt: progress.assigned_at ?? progress.assignedAt ?? null,
 	status: progress.status || 'not_started',
@@ -101,7 +77,6 @@ const toQuizAttempt = (attempt = {}) => ({
 const toQuizResult = (result) => quizResultDto.toQuizResult(result);
 
 module.exports = {
-	toContent,
 	toModule,
 	toModuleDetail,
 	toProgress,

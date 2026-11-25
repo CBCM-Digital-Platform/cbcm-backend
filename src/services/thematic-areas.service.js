@@ -48,12 +48,22 @@ async function createThematicArea(payload, actorId) {
 	const existing = await repository.findByCode(code);
 	if (existing) throw new AppError('A thematic area with this code already exists.', 409, 'THEMATIC_AREA_EXISTS');
 
+	const nameDuplicate = await repository.findByNormalizedName(name);
+	if (nameDuplicate) throw new AppError('A thematic area with this name already exists.', 409, 'THEMATIC_AREA_NAME_EXISTS');
+
 	const values = Object.fromEntries(THEMATIC_AREA_FIELDS.filter((field) => payload[field] !== undefined).map((field) => [field, payload[field]]));
 	values.code = code;
 	values.name = name;
 
-	const thematicArea = await sequelize.transaction((transaction) => repository.create(values, { transaction }));
-	return toThematicAreaResponse(thematicArea);
+	try {
+		const thematicArea = await sequelize.transaction((transaction) => repository.create(values, { transaction }));
+		return toThematicAreaResponse(thematicArea);
+	} catch (error) {
+		if (error.name === 'SequelizeUniqueConstraintError') {
+			throw new AppError('A thematic area with this code or name already exists.', 409, 'THEMATIC_AREA_EXISTS');
+		}
+		throw error;
+	}
 }
 
 async function updateThematicArea(id, payload, actorId) {
@@ -72,10 +82,19 @@ async function updateThematicArea(id, payload, actorId) {
 	if (values.name !== undefined) {
 		values.name = String(values.name).trim();
 		if (!values.name) throw new AppError('Thematic area name cannot be empty.', 400, 'VALIDATION_ERROR');
+		const nameDuplicate = await repository.findByNormalizedName(values.name, { excludeId: id });
+		if (nameDuplicate) throw new AppError('A thematic area with this name already exists.', 409, 'THEMATIC_AREA_NAME_EXISTS');
 	}
 
-	const updated = await sequelize.transaction((transaction) => repository.update(id, values, { transaction }));
-	return toThematicAreaResponse(updated);
+	try {
+		const updated = await sequelize.transaction((transaction) => repository.update(id, values, { transaction }));
+		return toThematicAreaResponse(updated);
+	} catch (error) {
+		if (error.name === 'SequelizeUniqueConstraintError') {
+			throw new AppError('A thematic area with this code or name already exists.', 409, 'THEMATIC_AREA_EXISTS');
+		}
+		throw error;
+	}
 }
 
 async function deleteThematicArea(id, actorId) {

@@ -1,6 +1,15 @@
 module.exports = (sequelize, DataTypes) => sequelize.define('QuizImportDraft', {
 	id: { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true },
-	module_id: { type: DataTypes.INTEGER, allowNull: false },
+	module_id: { type: DataTypes.INTEGER, allowNull: true },
+	thematic_area_id: { type: DataTypes.INTEGER, allowNull: true },
+	assessment_stage: {
+		type: DataTypes.STRING,
+		allowNull: true,
+		defaultValue: null,
+		validate: {
+			isIn: [['PRETEST', 'POST_TEST']],
+		},
+	},
 	question_file_id: { type: DataTypes.INTEGER, allowNull: false },
 	answer_key_file_id: { type: DataTypes.INTEGER },
 	created_by: { type: DataTypes.INTEGER, allowNull: false },
