@@ -7,6 +7,13 @@ const env = require('./env');
 const AppError = require('../errors/app-error');
 
 const UPLOAD_FIELD_NAME = 'file';
+const EXAM_CSV_MIME_TYPES = new Set([
+	'text/csv',
+	'application/csv',
+	'application/vnd.ms-excel',
+	'text/plain',
+	'application/octet-stream',
+]);
 
 const ALLOWED_RESOURCE_MIME_TYPES = Object.freeze({
 	'application/pdf': 'pdf',
@@ -270,6 +277,38 @@ const aiDocumentUpload = multer({
 	},
 });
 
+function inspectExamCsvUpload(file, { maxBytes = env.EXAM_CSV_MAX_BYTES } = {}) {
+	if (!file) throw new AppError('A CSV file is required.', 400, 'FILE_REQUIRED');
+	const originalName = displayNameFrom(file.originalname);
+	if (!originalName || path.extname(originalName).toLowerCase() !== '.csv') {
+		throw new AppError('The Exam import file must use the .csv extension.', 400, 'FILE_TYPE_UNSUPPORTED');
+	}
+	const body = Buffer.isBuffer(file.buffer) ? file.buffer : Buffer.from(file.buffer || '');
+	if (!body.length) throw new AppError('The uploaded CSV file is empty.', 400, 'FILE_EMPTY');
+	if (body.length > maxBytes) throw new AppError('The uploaded CSV file exceeds the maximum allowed size.', 400, 'FILE_TOO_LARGE');
+	if (body.includes(0)) throw new AppError('The uploaded file is not a valid CSV text file.', 400, 'FILE_TYPE_MISMATCH');
+	const declaredMime = String(file.mimetype || '').trim().toLowerCase();
+	if (declaredMime && !EXAM_CSV_MIME_TYPES.has(declaredMime)) {
+		throw new AppError('Only CSV files are allowed for Exam imports.', 400, 'FILE_TYPE_UNSUPPORTED');
+	}
+	const text = body.toString('utf8');
+	if (text.includes('\uFFFD')) throw new AppError('The CSV file must be valid UTF-8 text.', 400, 'FILE_TYPE_MISMATCH');
+	return { body, mimeType: declaredMime || 'text/csv', sizeBytes: body.length, originalName };
+}
+
+const examCsvUpload = multer({
+	storage: multer.memoryStorage(),
+	limits: { fileSize: env.EXAM_CSV_MAX_BYTES, files: 1 },
+	fileFilter: (_req, file, callback) => {
+		const name = displayNameFrom(file?.originalname);
+		const mime = String(file?.mimetype || '').trim().toLowerCase();
+		if (!name || path.extname(name).toLowerCase() !== '.csv' || (mime && !EXAM_CSV_MIME_TYPES.has(mime))) {
+			return callback(new AppError('Only CSV files are allowed for Exam imports.', 400, 'FILE_TYPE_UNSUPPORTED'));
+		}
+		return callback(null, true);
+	},
+});
+
 module.exports = {
 	UPLOAD_FIELD_NAME,
 	ALLOWED_RESOURCE_MIME_TYPES,
@@ -280,4 +319,7 @@ module.exports = {
 	mapMulterError,
 	resourceUpload,
 	aiDocumentUpload,
+	EXAM_CSV_MIME_TYPES,
+	examCsvUpload,
+	inspectExamCsvUpload,
 };
