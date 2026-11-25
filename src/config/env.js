@@ -45,6 +45,16 @@ const env = {
   S3_KEY_PREFIX: String(process.env.S3_KEY_PREFIX || '').trim(),
   AWS_ACCESS_KEY_ID: String(process.env.AWS_ACCESS_KEY_ID || '').trim(),
   AWS_SECRET_ACCESS_KEY: String(process.env.AWS_SECRET_ACCESS_KEY || '').trim(),
+  GEMINI_API_KEY: String(process.env.GEMINI_API_KEY || '').trim(),
+  GEMINI_MODEL: String(process.env.GEMINI_MODEL || 'gemini-3.8-flash').trim(),
+  GEMINI_EMBEDDING_MODEL: String(process.env.GEMINI_EMBEDDING_MODEL || 'gemini-embedding-2').trim(),
+  GEMINI_EMBEDDING_DIMENSIONS: parsePositiveInteger(process.env.GEMINI_EMBEDDING_DIMENSIONS, 768, 'GEMINI_EMBEDDING_DIMENSIONS'),
+  AI_MAX_OUTPUT_TOKENS: parsePositiveInteger(process.env.AI_MAX_OUTPUT_TOKENS, 2048, 'AI_MAX_OUTPUT_TOKENS'),
+  AI_TEMPERATURE: Number.isFinite(Number(process.env.AI_TEMPERATURE)) ? Number(process.env.AI_TEMPERATURE) : 0.3,
+  AI_MAX_RETRIEVED_CHUNKS: parsePositiveInteger(process.env.AI_MAX_RETRIEVED_CHUNKS, 5, 'AI_MAX_RETRIEVED_CHUNKS'),
+  AI_REQUEST_TIMEOUT: parsePositiveInteger(process.env.AI_REQUEST_TIMEOUT, 60000, 'AI_REQUEST_TIMEOUT'),
+  AI_MAX_RETRIES: parsePositiveInteger(process.env.AI_MAX_RETRIES, 2, 'AI_MAX_RETRIES'),
+  AI_SEND_USER_CONTEXT: process.env.AI_SEND_USER_CONTEXT === 'true',
 };
 
 module.exports = env;
