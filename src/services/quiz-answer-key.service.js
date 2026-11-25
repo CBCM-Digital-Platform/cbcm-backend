@@ -2,9 +2,31 @@ const AppError = require('../errors/app-error');
 const Role = require('../enums/role.enum');
 const models = require('../models');
 const repository = require('../repositories/learning.repository');
-const quizPdfImport = require('./quiz-pdf-import.service');
+const storage = require('../providers/storage.provider');
 
 const assertAdmin = (actor) => { if (String(actor?.role || '').toLowerCase() !== Role.ADMIN) throw new AppError('Only Super Admin can process answer keys.', 403, 'FORBIDDEN'); };
+
+const streamToBuffer = async (stream) => {
+  const chunks = [];
+  for await (const chunk of stream) chunks.push(Buffer.from(chunk));
+  return Buffer.concat(chunks);
+};
+
+const readPdf = async (fileId) => {
+  const file = await models.UploadedFile.findByPk(fileId);
+  if (!file) throw new AppError('Answer Key PDF was not found.', 404, 'FILE_NOT_FOUND');
+  const opened = await storage.getStorageProvider().open(file.storage_key);
+  return require('pdf-parse')(await streamToBuffer(opened.stream));
+};
+
+const answerKeyEntriesFromText = (text) => {
+  const answers = new Map();
+  for (const line of String(text || '').split(/\r?\n/)) {
+    const match = line.match(/^\s*(?:question\s*)?(\d+)\s*(?:[.):]|-)\s*([A-D](?:\s*[,/]\s*[A-D])?)\b(?:\s*(?:[-:.)]\s*|\s+)(.*))?$/i);
+    if (match) answers.set(Number(match[1]), { options: match[2].toUpperCase().split(/\s*[,/]\s*/), explanation: match[3]?.trim() || null });
+  }
+  return answers;
+};
 
 const start = async ({ resourceId, actor }) => {
   assertAdmin(actor);
@@ -24,8 +46,8 @@ const extract = async ({ applicationId, actor }) => {
   if (application.status === 'confirmed') throw new AppError('This Answer Key application is already confirmed.', 409, 'CONFLICT');
   const quiz = await repository.getQuizByThematicArea(application.thematic_area_id, { includeCorrectAnswers: true });
   if (!quiz) throw new AppError('No shared quiz exists for this thematic area.', 409, 'QUIZ_NOT_FOUND_FOR_THEMATIC_AREA');
-  const pdf = await quizPdfImport.readPdf(application.answer_key_file_id);
-  const entries = quizPdfImport.answerKeyEntriesFromText(pdf.text);
+  const pdf = await readPdf(application.answer_key_file_id);
+  const entries = answerKeyEntriesFromText(pdf.text);
   const questions = (quiz.questions || []).slice().sort((a, b) => Number(a.order_number) - Number(b.order_number));
   const proposed = [];
   const warnings = [];

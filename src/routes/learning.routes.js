@@ -6,7 +6,6 @@ const controller = require('../controllers/learning.controller');
 const resourcesController = require('../controllers/resources.controller');
 const validator = require('../validators/learning.validator');
 const resourceValidator = require('../validators/resources.validator');
-const { uploadQuizPdfs } = require('../middlewares/upload.middleware');
 
 const router = express.Router();
 const validate = (parser) => (req, res, next) => {
@@ -102,13 +101,6 @@ router.post('/questions/:questionId/options', requireRole(Role.ADMIN), validateI
 router.put('/questions/:questionId/options/:optionId', requireRole(Role.ADMIN), validateId('questionId'), validateId('optionId'), validate(validator.parseOption), controller.updateQuestionOption);
 router.delete('/questions/:questionId/options/:optionId', requireRole(Role.ADMIN), validateId('questionId'), validateId('optionId'), controller.deleteQuestionOption);
 
-router.post('/modules/:moduleId/quiz-imports', requireRole(Role.ADMIN), validateId('moduleId'), uploadQuizPdfs, controller.createQuizImport);
-router.post('/thematic-areas/:thematicAreaId/quiz-imports', requireRole(Role.ADMIN), validateId('thematicAreaId'), uploadQuizPdfs, controller.createThematicAreaQuizImport);
-router.post('/quiz-imports/:draftId/extract', requireRole(Role.ADMIN), validateId('draftId'), controller.extractQuizImport);
-router.get('/quiz-imports/:draftId', requireRole(Role.ADMIN), validateId('draftId'), controller.getQuizImport);
-router.put('/quiz-imports/:draftId/questions/:questionIndex', requireRole(Role.ADMIN), validateId('draftId'), controller.updateQuizImportQuestion);
-router.delete('/quiz-imports/:draftId/questions/:questionIndex', requireRole(Role.ADMIN), validateId('draftId'), controller.deleteQuizImportQuestion);
-router.post('/quiz-imports/:draftId/confirm', requireRole(Role.ADMIN), validateId('draftId'), controller.confirmQuizImport);
 router.post('/resources/:resourceId/answer-key-applications', requireRole(Role.ADMIN), validateId('resourceId'), controller.startAnswerKeyApplication);
 router.post('/answer-key-applications/:applicationId/extract', requireRole(Role.ADMIN), validateId('applicationId'), controller.extractAnswerKeyApplication);
 

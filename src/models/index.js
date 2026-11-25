@@ -33,7 +33,6 @@ const definitions = {
 	QuizAttempt: require('./quiz-attempt.model'),
 	QuizAttemptAnswer: require('./quiz-attempt-answer.model'),
 	QuizAttemptAnswerOption: require('./quiz-attempt-answer-option.model'),
-	QuizImportDraft: require('./quiz-import-draft.model'),
 	QuizAnswerKeyApplication: require('./quiz-answer-key-application.model'),
 	ClinicalEncounter: require('./clinical-encounter.model'),
 	EncounterFocusArea: require('./encounter-focus-area.model'),
@@ -65,6 +64,7 @@ const definitions = {
 	UploadedFile: require('./uploaded-file.model'),
 	ResourceAssignment: require('./resource-assignment.model'),
 	News: require('./news.model'),
+	LandingPageContent: require('./landing-page-content.model'),
 };
 
 const models = Object.fromEntries(
@@ -153,12 +153,6 @@ const foreignKeys = [
 	['QuizAttemptAnswer', 'QuizQuestionOption', 'selected_option_id', 'selectedOption', 'answersSelected'],
 	['QuizAttemptAnswerOption', 'QuizAttemptAnswer', 'answer_id', 'answer', 'selectedOptions'],
 	['QuizAttemptAnswerOption', 'QuizQuestionOption', 'option_id', 'option', 'answerOptionSelections'],
-	['QuizImportDraft', 'LearningModule', 'module_id', 'module', 'quizImportDrafts'],
-	['QuizImportDraft', 'ThematicArea', 'thematic_area_id', 'thematicArea', 'quizImportDrafts'],
-	['QuizImportDraft', 'UploadedFile', 'question_file_id', 'questionFile', 'questionFileImports'],
-	['QuizImportDraft', 'UploadedFile', 'answer_key_file_id', 'answerKeyFile', 'answerKeyFileImports'],
-	['QuizImportDraft', 'User', 'created_by', 'createdBy', 'quizImportDraftsCreated'],
-	['QuizImportDraft', 'Quiz', 'quiz_id', 'quiz', 'quizImportDraft'],
 	['AssessmentPassingRule', 'MentorshipCycle', 'cycle_id', 'cycle', 'passingRules'],
 	['AssessmentPassingRule', 'ThematicArea', 'thematic_area_id', 'thematicArea', 'passingRules'],
 	['AssessmentPassingRule', 'User', 'created_by', 'createdBy', 'passingRulesCreated'],
@@ -206,6 +200,7 @@ const foreignKeys = [
 	['NewsPost', 'User', 'created_by', 'createdBy', 'newsPostsCreated'],
 	['NewsPost', 'User', 'updated_by', 'updatedBy', 'newsPostsUpdated'],
 	['News', 'User', 'author_id', 'author', 'newsArticles'],
+	['LandingPageContent', 'User', 'updated_by', 'updatedBy', 'landingPageContentsUpdated'],
 	['FAQ', 'User', 'created_by', 'createdBy', 'faqsCreated'],
 	['FAQ', 'User', 'updated_by', 'updatedBy', 'faqsUpdated'],
 	['FAQ', 'Facility', 'facility_id', 'facility', 'facilityFaqs'],
