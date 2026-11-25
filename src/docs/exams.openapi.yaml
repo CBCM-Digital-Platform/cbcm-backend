@@ -1,0 +1,263 @@
+openapi: 3.0.0
+info:
+  title: CBCM Examination Management System API
+  version: 1.0.0
+  description: CSV-based examination import API for the CBCM examination system.
+servers:
+  - url: http://localhost:5000
+    description: Local development server
+tags:
+  - name: Exams
+    description: Examination import and management operations.
+security:
+  - bearerAuth: []
+paths:
+  /api/v1/exams/questions:
+    get:
+      tags: [Exams]
+      summary: Retrieve the authenticated mentee's examination questions
+      description: Returns the one published and authorized PRE_TEST or POST_TEST examination matching the requested cycle and thematic area. The mentee must have an active assignment in the same facility, cycle, and thematic area. Correct-answer information is never returned.
+      operationId: getExamQuestions
+      parameters:
+        - name: stage
+          in: query
+          required: true
+          schema:
+            type: string
+            enum: [PRE_TEST, POST_TEST]
+        - name: cycle_id
+          in: query
+          required: true
+          schema:
+            type: integer
+            minimum: 1
+        - name: thematic_area_id
+          in: query
+          required: true
+          schema:
+            type: integer
+            minimum: 1
+      responses:
+        '200':
+          description: Examination questions returned without answer keys.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ExamQuestionsResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          description: No eligible examination exists for the requested scope.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: More than one published examination version matches the scope.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /api/v1/exams/import:
+    post:
+      tags: [Exams]
+      summary: Import an examination from CSV
+      description: Creates an unpublished examination with four-option multiple-choice questions. Only Super Admin users may import examinations. PRE_TEST records baseline knowledge and POST_TEST records the post-training stage.
+      operationId: importExamFromCsv
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/ExamImportRequest'
+            encoding:
+              file:
+                contentType: text/csv
+      responses:
+        '201':
+          description: Examination created successfully.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ExamImportResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          $ref: '#/components/responses/Conflict'
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  schemas:
+    ExamImportRequest:
+      type: object
+      required: [title, stage, thematic_area_id, cycle_id, file]
+      properties:
+        title:
+          type: string
+          example: Family Planning Post-Test
+        description:
+          type: string
+          nullable: true
+        stage:
+          type: string
+          enum: [PRE_TEST, POST_TEST]
+        thematic_area_id:
+          type: integer
+          example: 1
+        cycle_id:
+          type: integer
+          example: 1
+        version:
+          type: integer
+          default: 1
+        file:
+          type: string
+          format: binary
+          description: UTF-8 CSV containing question, option_a, option_b, option_c, option_d, correct_answer, and marks columns.
+    ExamImportResponse:
+      type: object
+      required: [success, data]
+      properties:
+        success:
+          type: boolean
+          example: true
+        data:
+          type: object
+          description: The created examination and import summary.
+          required: [id, title, stage, version, totalQuestions, totalMarks, isPublished, importSummary]
+          properties:
+            id:
+              type: integer
+              example: 12
+            title:
+              type: string
+              example: Family Planning Post-Test
+            description:
+              type: string
+              nullable: true
+            stage:
+              type: string
+              enum: [PRE_TEST, POST_TEST]
+              example: POST_TEST
+            thematicArea:
+              type: object
+              properties:
+                id: { type: integer, example: 1 }
+                code: { type: string, example: FP }
+                name: { type: string, example: Family Planning }
+            cycle:
+              type: object
+              properties:
+                id: { type: integer, example: 1 }
+                name: { type: string, example: 2026 Cycle }
+                status: { type: string, example: ACTIVE }
+            version:
+              type: integer
+              example: 1
+            totalQuestions:
+              type: integer
+              example: 20
+            totalMarks:
+              type: number
+              example: 20
+            isPublished:
+              type: boolean
+              example: false
+            isAuthorized:
+              type: boolean
+              example: false
+            createdAt:
+              type: string
+              format: date-time
+              nullable: true
+            importSummary:
+              type: object
+              properties:
+                questionsCreated: { type: integer, example: 20 }
+                optionsPerQuestion: { type: integer, example: 4 }
+        meta:
+          type: object
+          additionalProperties: true
+    ExamQuestionsResponse:
+      type: object
+      required: [success, data]
+      properties:
+        success:
+          type: boolean
+          example: true
+        data:
+          type: object
+          required: [id, stage, cycleId, thematicAreaId, version, questions]
+          properties:
+            id: { type: integer, example: 12 }
+            title: { type: string, example: Family Planning Post-Test }
+            stage: { type: string, enum: [PRE_TEST, POST_TEST], example: POST_TEST }
+            cycleId: { type: integer, example: 1 }
+            thematicAreaId: { type: integer, example: 1 }
+            version: { type: integer, example: 1 }
+            totalQuestions: { type: integer, example: 20 }
+            totalMarks: { type: number, example: 20 }
+            questions:
+              type: array
+              items:
+                type: object
+                required: [id, text, order, marks, options]
+                properties:
+                  id: { type: integer, example: 101 }
+                  text: { type: string, example: Which method is long-acting? }
+                  order: { type: integer, example: 1 }
+                  marks: { type: number, example: 1 }
+                  options:
+                    type: array
+                    items:
+                      type: object
+                      required: [id, label, text]
+                      properties:
+                        id: { type: integer, example: 1001 }
+                        label: { type: string, enum: [A, B, C, D], example: A }
+                        text: { type: string, example: Implant }
+    ErrorResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: false
+        error:
+          type: object
+          additionalProperties: true
+  responses:
+    BadRequest:
+      description: Invalid examination metadata, file, or CSV content.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    Unauthorized:
+      description: Authentication is required.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    Forbidden:
+      description: Super Admin role required.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    Conflict:
+      description: An examination already exists for the same scope, stage, and version.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'

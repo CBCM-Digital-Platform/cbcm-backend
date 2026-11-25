@@ -47,6 +47,7 @@ app.use('/api/docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec, {
     tryItOutEnabled: true,
   },
   customSiteTitle: 'CBCM API Documentation',
+
 }));
 app.use('/api/v1', routes);
 app.use(notFoundHandler);

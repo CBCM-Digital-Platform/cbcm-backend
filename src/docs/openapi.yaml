@@ -1589,6 +1589,151 @@ components:
           type: string
           format: date-time
           nullable: true
+    ExamImportRequest:
+      type: object
+      required: [title, stage, thematic_area_id, cycle_id, file]
+      properties:
+        title: { type: string, example: Family Planning Post-Test }
+        description: { type: string, nullable: true }
+        stage: { type: string, enum: [PRE_TEST, POST_TEST] }
+        thematic_area_id: { type: integer, example: 1 }
+        cycle_id: { type: integer, example: 1 }
+        version: { type: integer, default: 1 }
+        file:
+          type: string
+          format: binary
+          description: UTF-8 CSV containing question, option_a, option_b, option_c, option_d, correct_answer, and marks columns.
+    ExamImportResponse:
+      type: object
+      required: [success, data]
+      properties:
+        success: { type: boolean, example: true }
+        data:
+          type: object
+          required: [id, title, stage, version, totalQuestions, totalMarks, isPublished, importSummary]
+          properties:
+            id: { type: integer, example: 12 }
+            title: { type: string, example: Family Planning Post-Test }
+            description: { type: string, nullable: true }
+            stage: { type: string, enum: [PRE_TEST, POST_TEST], example: POST_TEST }
+            thematicArea: { type: object, additionalProperties: true }
+            cycle: { type: object, additionalProperties: true }
+            version: { type: integer, example: 1 }
+            totalQuestions: { type: integer, example: 20 }
+            totalMarks: { type: number, example: 20 }
+            isPublished: { type: boolean, example: false }
+            isAuthorized: { type: boolean, example: false }
+            createdAt: { type: string, format: date-time, nullable: true }
+            importSummary:
+              type: object
+              properties:
+                questionsCreated: { type: integer, example: 20 }
+                optionsPerQuestion: { type: integer, example: 4 }
+        meta: { type: object, additionalProperties: true }
+    ExamQuestionsResponse:
+      type: object
+      required: [success, data]
+      properties:
+        success: { type: boolean, example: true }
+        data:
+          type: object
+          required: [id, stage, cycleId, thematicAreaId, version, questions]
+          properties:
+            id: { type: integer, example: 12 }
+            title: { type: string, example: Family Planning Post-Test }
+            stage: { type: string, enum: [PRE_TEST, POST_TEST], example: POST_TEST }
+            cycleId: { type: integer, example: 1 }
+            thematicAreaId: { type: integer, example: 1 }
+            version: { type: integer, example: 1 }
+            totalQuestions: { type: integer, example: 20 }
+            totalMarks: { type: number, example: 20 }
+            questions:
+              type: array
+              items:
+                type: object
+                required: [id, text, order, marks, options]
+                properties:
+                  id: { type: integer, example: 101 }
+                  text: { type: string, example: Which method is long-acting? }
+                  order: { type: integer, example: 1 }
+                  marks: { type: number, example: 1 }
+                  options:
+                    type: array
+                    items:
+                      type: object
+                      required: [id, label, text]
+                      properties:
+                        id: { type: integer, example: 1001 }
+                        label: { type: string, enum: [A, B, C, D], example: A }
+                        text: { type: string, example: Implant }
+    ExamPublicationResponse:
+      type: object
+      required: [success, data]
+      properties:
+        success: { type: boolean, example: true }
+        data:
+          type: object
+          required: [id, title, stage, version, isPublished, isAuthorized]
+          properties:
+            id: { type: integer, example: 12 }
+            title: { type: string, example: Family Planning Post-Test }
+            stage: { type: string, enum: [PRE_TEST, POST_TEST], example: POST_TEST }
+            cycleId: { type: integer, example: 1 }
+            thematicAreaId: { type: integer, example: 7 }
+            version: { type: integer, example: 1 }
+            isPublished: { type: boolean, example: true }
+            isAuthorized: { type: boolean, example: true }
+    ExamSummaryResponse:
+      type: object
+      required: [success, data]
+      properties:
+        success: { type: boolean, example: true }
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/ExamSummary'
+    ExamSummary:
+      type: object
+      properties:
+        id: { type: integer, example: 12 }
+        title: { type: string, example: Family Planning Post-Test }
+        description: { type: string, nullable: true }
+        stage: { type: string, enum: [PRE_TEST, POST_TEST], example: POST_TEST }
+        cycleId: { type: integer, example: 1 }
+        thematicAreaId: { type: integer, example: 7 }
+        version: { type: integer, example: 1 }
+        totalQuestions: { type: integer, example: 20 }
+        totalMarks: { type: number, example: 20 }
+        isPublished: { type: boolean, example: true }
+        isAuthorized: { type: boolean, example: true }
+    ExamDetailResponse:
+      type: object
+      required: [success, data]
+      properties:
+        success: { type: boolean, example: true }
+        data:
+          allOf:
+            - $ref: '#/components/schemas/ExamSummary'
+            - type: object
+              properties:
+                questions:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      id: { type: integer, example: 101 }
+                      text: { type: string, example: Which method is long-acting? }
+                      type: { type: string, example: single_choice }
+                      marks: { type: number, example: 1 }
+                      order: { type: integer, example: 1 }
+                      options:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            id: { type: integer, example: 1001 }
+                            label: { type: string, enum: [A, B, C, D], example: A }
+                            text: { type: string, example: Implant }
     QuizAttempt:
       type: object
       properties:
@@ -3783,6 +3928,8 @@ tags:
     description: Retrieve quiz results and attempt history.
   - name: Answer Key
     description: Retrieve quiz answer keys for authorized users.
+  - name: Exams
+    description: Examination import and question retrieval for PRE_TEST and POST_TEST stages.
   - name: Notifications
     description: Notifications belonging to the authenticated user.
   - name: Certificates
@@ -5603,6 +5750,199 @@ paths:
           $ref: '#/components/responses/NotFound'
         '500':
           $ref: '#/components/responses/ServerError'
+  /api/v1/exams/questions:
+    get:
+      tags: [Exams]
+      summary: Retrieve examination questions for the authenticated mentee
+      description: Returns the published and authorized PRE_TEST or POST_TEST examination matching the requested cycle and thematic area. The mentee must have an active assignment in the same facility, cycle, and thematic area. Correct-answer information is never returned.
+      operationId: getExamQuestions
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: stage
+          in: query
+          required: true
+          schema: { type: string, enum: [PRE_TEST, POST_TEST] }
+        - name: cycle_id
+          in: query
+          required: true
+          schema: { type: integer, minimum: 1 }
+        - name: thematic_area_id
+          in: query
+          required: true
+          schema: { type: integer, minimum: 1 }
+      responses:
+        '200':
+          description: Examination questions returned without answer keys.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ExamQuestionsResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          description: No eligible examination exists for the requested scope.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: More than one published examination version matches the scope.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /api/v1/exams:
+    get:
+      tags: [Exams]
+      summary: List examinations
+      description: Admins can list all examinations. Facility Admins can list examinations belonging to cycles assigned to their facility.
+      operationId: listExams
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Examinations returned successfully.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ExamSummaryResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /api/v1/exams/{examId}:
+    get:
+      tags: [Exams]
+      summary: Retrieve an examination by ID
+      description: Returns examination metadata, ordered questions, and ordered options for an authorized management role. Correct-answer fields are never returned.
+      operationId: getExam
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: examId
+          in: path
+          required: true
+          schema: { type: integer, minimum: 1 }
+      responses:
+        '200':
+          description: Examination returned successfully.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ExamDetailResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          description: Exam not found or outside the actor's scope.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /api/v1/exams/{examId}/publish:
+    post:
+      tags: [Exams]
+      summary: Publish an examination
+      description: Super Admin only. Makes an imported examination published. Publication alone is not enough for mentee access; the examination must also be authorized.
+      operationId: publishExam
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: examId
+          in: path
+          required: true
+          schema: { type: integer, minimum: 1 }
+      responses:
+        '200':
+          description: Examination published successfully.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ExamPublicationResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          description: Exam not found.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /api/v1/exams/{examId}/authorize:
+    post:
+      tags: [Exams]
+      summary: Authorize an examination
+      description: Super Admin only. Authorizes an imported examination. Mentee access requires both authorization and publication.
+      operationId: authorizeExam
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: examId
+          in: path
+          required: true
+          schema: { type: integer, minimum: 1 }
+      responses:
+        '200':
+          description: Examination authorized successfully.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ExamPublicationResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          description: Exam not found.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /api/v1/exams/import:
+    post:
+      tags: [Exams]
+      summary: Import an examination from CSV
+      description: Creates an unpublished examination with four-option multiple-choice questions. Only Super Admin users may import examinations. PRE_TEST records baseline knowledge and POST_TEST records the post-training stage.
+      operationId: importExamFromCsv
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/ExamImportRequest'
+            encoding:
+              file:
+                contentType: text/csv
+      responses:
+        '201':
+          description: Examination created successfully.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ExamImportResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          $ref: '#/components/responses/Conflict'
   /api/v1/learning/modules:
     get:
       tags: [Learning Modules]
