@@ -3395,6 +3395,13 @@ components:
       schema:
         type: integer
         minimum: 1
+    ThematicAreaId:
+      name: thematicAreaId
+      in: path
+      required: true
+      schema:
+        type: integer
+        minimum: 1
     QuizId:
       name: quizId
       in: path
@@ -3595,14 +3602,8 @@ tags:
     description: Audit and activity logging
   - name: Analytics
     description: Dashboard metrics and analytics
-  - name: Learning Permissions
-    description: Grant, list, and revoke mentor capabilities for learning modules.
-  - name: Mentee Module Assignments
-    description: Assign, list, and revoke complete learning modules for assigned mentees.
   - name: Learning Modules
     description: Retrieve learning modules and module availability for authenticated users.
-  - name: Learning Content
-    description: Retrieve learning content items within authorized learning modules.
   - name: Learning Content Management
     description: Create, update, and delete learning modules and content.
   - name: Quiz Retrieval
@@ -5650,6 +5651,35 @@ paths:
           $ref: '#/components/responses/Forbidden'
         '404':
           $ref: '#/components/responses/NotFound'
+  /api/v1/learning/thematic-areas/{thematicAreaId}/quiz:
+    parameters:
+      - $ref: '#/components/parameters/ThematicAreaId'
+    get:
+      tags: [Quiz Retrieval]
+      summary: Get the quiz owned by a thematic area
+      security:
+        - bearerAuth: []
+      responses:
+        '200': { $ref: '#/components/responses/LearningObject' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    post:
+      tags: [Quiz Question Management]
+      summary: Create a quiz owned by a thematic area
+      description: Super Admin only. A thematic area may have one active quiz.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LearningQuizWrite'
+      responses:
+        '201': { $ref: '#/components/responses/LearningCreated' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '409': { $ref: '#/components/responses/Conflict' }
   /api/v1/learning/modules/{moduleId}/quizzes:
     parameters:
       - $ref: '#/components/parameters/ModuleId'
@@ -5844,76 +5874,6 @@ paths:
           $ref: '#/components/responses/LearningObject'
         '400':
           $ref: '#/components/responses/BadRequest'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '404':
-          $ref: '#/components/responses/NotFound'
-  /api/v1/learning/mentees/{menteeId}/modules:
-    parameters:
-      - $ref: '#/components/parameters/MenteeId'
-    get:
-      tags: [Mentee Module Assignments]
-      summary: List modules assigned to a mentee
-      description: Available to administrators and the mentor assigned to the mentee.
-      security:
-        - bearerAuth: []
-      responses:
-        '200':
-          $ref: '#/components/responses/LearningList'
-        '400':
-          $ref: '#/components/responses/BadRequest'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-  /api/v1/learning/modules/{moduleId}/assignments:
-    parameters:
-      - $ref: '#/components/parameters/ModuleId'
-    post:
-      tags: [Mentee Module Assignments]
-      summary: Assign a complete module to a mentee
-      description: Available only to a mentor who has access to the module and an active mentor-mentee assignment for the module's thematic area. The module must be published and authorized.
-      security:
-        - bearerAuth: []
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              required: [menteeId]
-              properties:
-                menteeId:
-                  type: integer
-                  minimum: 1
-      responses:
-        '201':
-          $ref: '#/components/responses/LearningCreated'
-        '400':
-          $ref: '#/components/responses/BadRequest'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '404':
-          $ref: '#/components/responses/NotFound'
-        '409':
-          $ref: '#/components/responses/Conflict'
-  /api/v1/learning/modules/{moduleId}/mentees/{menteeId}/assignment:
-    parameters:
-      - $ref: '#/components/parameters/ModuleId'
-      - $ref: '#/components/parameters/MenteeId'
-    delete:
-      tags: [Mentee Module Assignments]
-      summary: Revoke a mentee's complete module assignment
-      description: Available only to the mentor who has an active assignment with the mentee. This revokes access to the complete module while preserving the progress record.
-      security:
-        - bearerAuth: []
-      responses:
-        '200':
-          $ref: '#/components/responses/LearningAction'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
@@ -6564,6 +6524,31 @@ paths:
           $ref: '#/components/responses/Forbidden'
         '404':
           $ref: '#/components/responses/NotFound'
+  /api/v1/learning/thematic-areas/{thematicAreaId}/quiz-imports:
+    parameters:
+      - $ref: '#/components/parameters/ThematicAreaId'
+    post:
+      tags: [Quiz Import]
+      summary: Upload quiz PDFs for a thematic-area quiz
+      description: Super Admin only. The selected thematic area is retained on the import draft and confirmed quiz.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [questionPdf, assessmentStage]
+              properties:
+                questionPdf: { type: string, format: binary }
+                answerKeyPdf: { type: string, format: binary }
+                assessmentStage: { type: string, enum: [PRETEST, POST_TEST] }
+      responses:
+        '201': { $ref: '#/components/responses/LearningCreated' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
   /api/v1/learning/modules/{moduleId}/quiz-imports:
     parameters:
       - $ref: '#/components/parameters/ModuleId'
@@ -7935,97 +7920,6 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
 
-  /api/v1/resources/{id}/mentees/{menteeId}:
-    post:
-      summary: Assign a resource to a mentee
-      description: Mentors may assign individual resources linked to an authorized learning module to their own actively assigned mentees when they have permission to access that module. Resource assignment is separate from module access.
-      tags:
-        - Resource Assignments
-      security:
-        - bearerAuth: []
-      parameters:
-        - in: path
-          name: id
-          required: true
-          schema:
-            type: integer
-            minimum: 1
-        - in: path
-          name: menteeId
-          required: true
-          schema:
-            type: integer
-            minimum: 1
-      responses:
-        '201':
-          description: Resource assigned
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  success:
-                    type: boolean
-                  data:
-                    type: object
-                    properties:
-                      resourceId:
-                        type: integer
-                      menteeId:
-                        type: integer
-                      assignmentId:
-                        type: integer
-                      assigned:
-                        type: boolean
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '404':
-          $ref: '#/components/responses/NotFound'
-    delete:
-      summary: Revoke a mentee's resource assignment
-      description: Revokes this individual resource assignment without changing the mentee's separate learning-module access.
-      tags:
-        - Resource Assignments
-      security:
-        - bearerAuth: []
-      parameters:
-        - in: path
-          name: id
-          required: true
-          schema:
-            type: integer
-            minimum: 1
-        - in: path
-          name: menteeId
-          required: true
-          schema:
-            type: integer
-            minimum: 1
-      responses:
-        '200':
-          description: Resource assignment revoked
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  success:
-                    type: boolean
-                  data:
-                    type: object
-                    properties:
-                      assignmentId:
-                        type: integer
-                      revoked:
-                        type: boolean
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '404':
-          $ref: '#/components/responses/NotFound'
   /api/v1/learning/modules/{moduleId}/resources/{resourceId}/assignments:
     post:
       summary: Assign a resource to a mentee

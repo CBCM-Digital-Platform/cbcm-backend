@@ -6,6 +6,7 @@ const { SYSTEM_ADMIN_ROLES } = require('../constants/roles.constants');
 const notificationService = require('./notifications.service');
 const NotificationType = require('../enums/notification-type.enum');
 const resourceProgressService = require('./learning-resource-progress.service');
+const { Op } = require('sequelize');
 
 const normalizeRole = (role) => String(role || '').toLowerCase();
 const isSystemAdmin = (role) => SYSTEM_ADMIN_ROLES.includes(normalizeRole(role));
@@ -220,7 +221,71 @@ const confirmModuleCompletion = async ({ menteeId, moduleId, cycleId }) => {
 	return resourceProgressService.confirmProgress({ menteeId, module, cycleId });
 };
 
-const assertQuizEligibility = async ({ quiz, menteeId, cycleId }) => {
+
+
+
+const resolveThematicContext = async (thematicAreaId, menteeId, cycleId) => {
+	const { Assignment, CycleFacility, CycleThematicArea } = require('../models');
+	const where = {
+		mentee_id: menteeId,
+		thematic_area_id: thematicAreaId,
+		status: { [Op.in]: ['assigned', 'active'] },
+		unassigned_at: null,
+		facility_id: { [Op.ne]: null },
+		cycle_id: { [Op.ne]: null },
+	};
+	if (cycleId != null) where.cycle_id = cycleId;
+	const assignments = await Assignment.findAll({ where, attributes: ['facility_id', 'cycle_id', 'thematic_area_id'] });
+	const pairs = [...new Map(assignments.map((entry) => [`${entry.facility_id}:${entry.cycle_id}:${entry.thematic_area_id}`, entry])).values()];
+	const valid = [];
+	for (const pair of pairs) {
+		const [facility, area] = await Promise.all([
+			CycleFacility.findOne({ where: { cycle_id: pair.cycle_id, facility_id: pair.facility_id } }),
+			CycleThematicArea.findOne({ where: { cycle_id: pair.cycle_id, thematic_area_id: thematicAreaId } }),
+		]);
+		if (facility && area) valid.push(pair);
+	}
+	if (!valid.length) throw new AppError('No valid mentorship context exists for this thematic area and mentee.', 403, 'FORBIDDEN');
+	if (valid.length > 1) throw new AppError('Multiple valid mentorship contexts match this thematic area; provide a cycleId.', 400, 'AMBIGUOUS_CYCLE_CONTEXT');
+	return valid[0];
+};
+
+const assertThematicPostTestEligibility = async ({ quiz, menteeId, context }) => {
+	const { LearningModule, Resource, LearningModuleProgress, QuizAttempt } = require('../models');
+	const pretest = await QuizAttempt.findOne({ where: {
+		quiz_id: quiz.id, mentee_id: menteeId, cycle_id: context.cycle_id,
+		assessment_stage: 'PRETEST', status: 'completed',
+	} });
+	if (!pretest) throw new AppError('Complete the PRETEST before taking the POST_TEST.', 409, 'PRETEST_REQUIRED');
+	const modules = await LearningModule.findAll({
+		where: { thematic_area_id: quiz.thematic_area_id, is_published: true, is_authorized: true, status: 'published' },
+		attributes: ['id'],
+	});
+	const requiredModules = [];
+	for (const module of modules) {
+		const count = await Resource.count({ where: { module_id: module.id, is_required: true } });
+		if (count > 0) requiredModules.push(module);
+	}
+	for (const module of requiredModules) {
+		const progress = await resourceProgressService.getProgress({ menteeId, module, cycleId: context.cycle_id });
+		const confirmed = await LearningModuleProgress.findOne({ where: { mentee_id: menteeId, module_id: module.id, cycle_id: context.cycle_id, status: 'completed' } });
+		if (!confirmed || progress.status !== 'completed' || progress.incompleteRequiredResources !== 0) {
+			throw new AppError('Complete and confirm all required modules in this thematic area before taking the POST_TEST.', 409, 'REQUIRED_MODULES_INCOMPLETE');
+		}
+	}
+};
+
+const assertQuizEligibility = async ({ quiz, menteeId, cycleId, assessmentStage }) => {
+	const stage = assessmentStage || quiz.assessment_stage || null;
+	if (quiz.thematic_area_id) {
+		if (!quiz.is_published || !quiz.is_authorized) throw new AppError('This quiz is not published and authorized.', 403, 'FORBIDDEN');
+		const context = await resolveThematicContext(quiz.thematic_area_id, menteeId, cycleId);
+		const { QuizAttempt } = require('../models');
+		const completed = await QuizAttempt.findOne({ where: { quiz_id: quiz.id, mentee_id: menteeId, cycle_id: context.cycle_id, assessment_stage: stage, status: 'completed' } });
+		if (completed) throw new AppError(`${stage || 'Quiz'} has already been completed for this mentorship cycle.`, 409, 'ATTEMPT_LIMIT_REACHED');
+		if (stage === 'POST_TEST') await assertThematicPostTestEligibility({ quiz, menteeId, context });
+		return { module: null, cycleId: Number(context.cycle_id), context };
+	}
 	const module = await ensureModule(quiz.module_id);
 	if (!module.is_published || String(module.status).toLowerCase() !== 'published') {
 		throw new AppError('This learning module is not published.', 403, 'FORBIDDEN');
@@ -230,36 +295,41 @@ const assertQuizEligibility = async ({ quiz, menteeId, cycleId }) => {
 	}
 	const resourceProgress = await resourceProgressService.getProgress({ menteeId, module, cycleId });
 	const selectedCycleId = resourceProgress.cycleId;
-	const moduleAccess = await repository.getModuleProgress({
-		menteeId,
-		moduleId: module.id,
-		cycleId: selectedCycleId,
-	});
+	const moduleAccess = await repository.getModuleProgress({ menteeId, moduleId: module.id, cycleId: selectedCycleId });
 	if (!moduleAccess) throw new AppError('Module access has not been granted for this cycle.', 403, 'FORBIDDEN');
-	if (resourceProgress.status !== 'completed'
-		|| resourceProgress.totalRequiredResources < 1
-		|| resourceProgress.incompleteRequiredResources !== 0
-		|| resourceProgress.completionPercentage !== 100) {
+	if (resourceProgress.status !== 'completed' || resourceProgress.totalRequiredResources < 1 || resourceProgress.incompleteRequiredResources !== 0 || resourceProgress.completionPercentage !== 100) {
 		throw new AppError('Complete all required Resources and confirm module completion for this cycle before taking the quiz.', 409, 'CONFLICT');
 	}
-	return { module, cycleId: selectedCycleId };
+	return { module, cycleId: selectedCycleId, context: { cycle_id: selectedCycleId } };
 };
 
-const getQuizByModule = async (moduleId, menteeId, cycleId) => {
+const getQuizByModule = async (moduleId, menteeId, cycleId, assessmentStage) => {
 	const module = await ensureModule(moduleId);
 	if (!isModulePublishedAndAuthorized(module)) {
 		throw new AppError('This learning module is not published and authorized.', 403, 'FORBIDDEN');
 	}
 	const quiz = await repository.getQuizByModule(moduleId);
 	if (!quiz) throw new AppError('Quiz not found.', 404, 'NOT_FOUND');
-	await assertQuizEligibility({ quiz, menteeId, cycleId });
+	await assertQuizEligibility({ quiz, menteeId, cycleId, assessmentStage });
 	return quiz;
 };
 
-const getQuizByModuleForViewer = async (moduleId, actor, cycleId) => {
+const getQuizByThematicArea = async (thematicAreaId, actor, cycleId, assessmentStage) => {
+	const { ThematicArea } = require('../models');
+	if (!await ThematicArea.findByPk(thematicAreaId)) throw new AppError('Thematic area not found.', 404, 'NOT_FOUND');
+	const quiz = await repository.getQuizByThematicArea(thematicAreaId);
+	if (!quiz) throw new AppError('Quiz not found.', 404, 'NOT_FOUND');
+	if (!isSystemAdmin(actor?.role)) {
+		if (!quiz.is_published || !quiz.is_authorized) throw new AppError('This quiz is not published and authorized.', 403, 'FORBIDDEN');
+		if (normalizeRole(actor?.role) === Role.MENTEE) await assertQuizEligibility({ quiz, menteeId: actor.id, cycleId, assessmentStage });
+	}
+	return quiz;
+};
+
+const getQuizByModuleForViewer = async (moduleId, actor, cycleId, assessmentStage) => {
 	const module = await ensureModule(moduleId);
 	const role = normalizeRole(actor?.role);
-	if (role === Role.MENTEE) return getQuizByModule(moduleId, actor.id, cycleId);
+	if (role === Role.MENTEE) return getQuizByModule(moduleId, actor.id, cycleId, assessmentStage);
 	if (role === Role.FACILITY_ADMIN) await assertFacilityAdminModuleScope(module, actor);
 	else if (role === Role.MENTOR) await assertModuleAvailableToLearner({ module, role, userId: actor.id });
 	else if (!isSystemAdmin(role)) throw new AppError('You do not have permission to view this quiz.', 403, 'FORBIDDEN');
@@ -271,33 +341,36 @@ const getQuizByModuleForViewer = async (moduleId, actor, cycleId) => {
 	return quiz;
 };
 
-const getQuiz = async (quizId, menteeId, cycleId) => {
+const getQuiz = async (quizId, menteeId, cycleId, assessmentStage) => {
 	const quiz = await repository.getQuizById(quizId);
 	if (!quiz) throw new AppError('Quiz not found.', 404, 'NOT_FOUND');
-	await assertQuizEligibility({ quiz, menteeId, cycleId });
+	await assertQuizEligibility({ quiz, menteeId, cycleId, assessmentStage });
 	return repository.getQuizForLearner(quizId);
 };
 
-const startQuizAttempt = async ({ quizId, menteeId, cycleId }) => {
+const startQuizAttempt = async ({ quizId, menteeId, cycleId, assessmentStage }) => {
 	if (!menteeId) throw new AppError('menteeId is required.', 400, 'VALIDATION_ERROR');
 	const quiz = await repository.getQuizById(quizId, { includeCorrectAnswers: false });
 	if (!quiz) throw new AppError('Quiz not found.', 404, 'NOT_FOUND');
-	await assertQuizEligibility({ quiz, menteeId, cycleId });
+	const eligibility = await assertQuizEligibility({ quiz, menteeId, cycleId, assessmentStage });
 	if (!quiz.questions || quiz.questions.length === 0) {
 		throw new AppError('This quiz does not have any questions yet.', 409, 'CONFLICT');
 	}
-	return repository.startQuizAttempt({ quizId, menteeId });
+	return repository.startQuizAttempt({ quizId, menteeId, cycleId: eligibility.cycleId, assessmentStage: assessmentStage || quiz.assessment_stage });
 };
 
-const submitQuiz = async ({ quizId, menteeId, answers, cycleId }) => {
+const submitQuiz = async ({ quizId, menteeId, answers, cycleId, assessmentStage }) => {
 	if (!menteeId) throw new AppError('menteeId is required.', 400, 'VALIDATION_ERROR');
 	if (!Array.isArray(answers) || answers.length === 0) {
 		throw new AppError('answers must be a non-empty array.', 400, 'VALIDATION_ERROR');
 	}
 	const quiz = await repository.getQuizById(quizId, { includeCorrectAnswers: false });
 	if (!quiz) throw new AppError('Quiz not found.', 404, 'NOT_FOUND');
-	await assertQuizEligibility({ quiz, menteeId, cycleId });
-	const result = await repository.submitQuiz({ quizId, menteeId, answers });
+	const eligibility = await assertQuizEligibility({ quiz, menteeId, cycleId, assessmentStage });
+	const result = await repository.submitQuiz({ quizId, menteeId, answers, cycleId: eligibility.cycleId, assessmentStage: assessmentStage || quiz.assessment_stage });
+	if ((result.assessmentStage || assessmentStage || quiz.assessment_stage) === 'PRETEST') {
+		result.answers = undefined;
+	}
 	await notificationService.createNotification({
 		userId: menteeId,
 		type: NotificationType.QUIZ_RESULT_FINALIZED,
@@ -336,7 +409,7 @@ const assertCanViewQuizAnswerKey = async ({ quiz, module, actor }) => {
 const getQuizForManagement = async (quizId, actor) => {
 	const visibleQuiz = await repository.getQuizById(quizId, { includeCorrectAnswers: false });
 	if (!visibleQuiz) throw new AppError('Quiz not found.', 404, 'NOT_FOUND');
-	const module = await ensureModule(visibleQuiz.module_id);
+	const module = visibleQuiz.module_id ? await ensureModule(visibleQuiz.module_id) : null;
 	await assertFacilityAdminQuizScope(module, actor);
 	const quiz = await repository.getQuizById(quizId, { includeCorrectAnswers: true });
 	if (!quiz) throw new AppError('Quiz not found.', 404, 'NOT_FOUND');
@@ -344,12 +417,24 @@ const getQuizForManagement = async (quizId, actor) => {
 };
 
 const createQuiz = async ({ moduleId, createdBy, actor, ...payload }) => {
-	const module = await ensureModule(moduleId);
-	await assertFacilityAdminQuizScope(module, actor);
-	if (!Object.values(LearningExaminationStage).includes(payload.assessmentStage)) {
+	if (moduleId && payload.thematicAreaId) throw new AppError('A quiz cannot be owned by both a module and a thematic area.', 400, 'VALIDATION_ERROR');
+	const module = moduleId ? await ensureModule(moduleId) : null;
+	if (module) await assertFacilityAdminQuizScope(module, actor);
+	if (!payload.thematicAreaId && !moduleId) throw new AppError('thematicAreaId is required.', 400, 'VALIDATION_ERROR');
+	if (moduleId && !payload.assessmentStage) throw new AppError('assessmentStage is required for legacy module quizzes.', 400, 'VALIDATION_ERROR');
+	if (moduleId && payload.assessmentStage && !Object.values(LearningExaminationStage).includes(payload.assessmentStage)) {
 		throw new AppError('assessmentStage must be PRETEST or POST_TEST.', 400, 'VALIDATION_ERROR');
 	}
 	return repository.createQuiz(moduleId, payload, createdBy);
+};
+
+const createThematicAreaQuiz = async ({ thematicAreaId, createdBy, actor, ...payload }) => {
+	const { ThematicArea } = require('../models');
+	const area = await ThematicArea.findByPk(thematicAreaId);
+	if (!area) throw new AppError('Thematic area not found.', 404, 'NOT_FOUND');
+	if (payload.moduleId) throw new AppError('A thematic-area quiz cannot also be owned by a module.', 400, 'VALIDATION_ERROR');
+	await assertFacilityAdminQuizScope(null, actor);
+	return repository.createQuiz(null, { ...payload, thematicAreaId }, createdBy);
 };
 
 const updateQuiz = async (quizId, payload, actor) => {
@@ -474,6 +559,7 @@ module.exports = {
 	updateModule,
 	deleteModule,
 	createQuiz,
+	createThematicAreaQuiz,
 	updateQuiz,
 	assertMentorCanAccessMentee,
 	assignModuleToMentee,
@@ -484,6 +570,7 @@ module.exports = {
 	getResourceProgress,
 	confirmModuleCompletion,
 	getQuizByModule,
+	getQuizByThematicArea,
 	getQuizByModuleForViewer,
 	getQuiz,
 	startQuizAttempt,
