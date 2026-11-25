@@ -75,7 +75,7 @@ test('create passing rule with valid thresholds', async () => {
 			{ criteria_min_score: 75, theory_min_score: 85, practical_min_score: 4 },
 			{ id: 1, role: 'admin' }
 		);
-		assert.strictEqual(result.criteria_min_score, 75);
+		assert.strictEqual(result.pre_test_threshold, 75);
 	} finally {
 		repository.create = originals.create;
 		repository.findById = originals.findById;

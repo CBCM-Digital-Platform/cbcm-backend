@@ -1497,6 +1497,51 @@ components:
           C: Discharge immediately
           D: Wait for lab results
         correctAnswer: B
+    LearningQuizWrite:
+      type: object
+      required:
+        - title
+      properties:
+        title:
+          type: string
+          example: Family Planning pre-test
+        description:
+          type: string
+          nullable: true
+          example: Pre-test quiz for the family planning thematic area.
+        assessmentStage:
+          type: string
+          enum: [PRETEST, POST_TEST]
+          example: PRETEST
+          description: Explicit quiz stage. Pre-test and post-test quizzes may coexist for the same thematic area.
+        passScore:
+          type: number
+          example: 70
+        timeLimitMinutes:
+          type: integer
+          example: 15
+        attemptLimit:
+          type: integer
+          example: 1
+        isPublished:
+          type: boolean
+          example: true
+        isAuthorized:
+          type: boolean
+          example: true
+        questions:
+          type: array
+          items:
+            $ref: '#/components/schemas/LearningQuizQuestionWrite'
+      example:
+        title: Family Planning pre-test
+        description: Pre-test quiz for the family planning thematic area.
+        assessmentStage: PRETEST
+        passScore: 70
+        timeLimitMinutes: 15
+        attemptLimit: 1
+        isPublished: true
+        isAuthorized: true
     Quiz:
       type: object
       required:
@@ -3113,31 +3158,120 @@ components:
           format: date-time
     AssessmentPassingRule:
       type: object
+      description: Super Admin-configured passing thresholds. The applicable active rule is resolved dynamically by scope precedence (cycle + thematic area, then cycle, then thematic area, then system-wide) and is the source of truth for pre-test, post-test, and practical assessment thresholds. There is no hardcoded fallback.
       properties:
         id: { type: integer }
         cycle_id: { type: integer, nullable: true }
         thematic_area_id: { type: integer, nullable: true }
-        criteria_min_score: { type: integer, minimum: 0, maximum: 100 }
-        theory_min_score: { type: integer, minimum: 0, maximum: 100 }
-        practical_min_score: { type: integer, minimum: 1, maximum: 5 }
+        pre_test_threshold:
+          type: number
+          minimum: 0
+          maximum: 100
+          description: Minimum pre-test (PRETEST quiz) score required to pass.
+        post_test_threshold:
+          type: number
+          minimum: 0
+          maximum: 100
+          description: Minimum post-test (POST_TEST quiz) score required to pass.
+        practical_threshold:
+          type: integer
+          minimum: 1
+          maximum: 5
+          description: Minimum practical assessment score (1-5 scale) required to pass.
         is_active: { type: boolean }
     AssessmentPassingRuleCreateRequest:
       type: object
+      description: Threshold fields are pre_test_threshold (0-100, informational), post_test_threshold (0-100, mandatory), and practical_threshold (1-5, mandatory).
       properties:
         cycle_id: { type: integer, minimum: 1 }
         thematic_area_id: { type: integer, minimum: 1 }
-        criteria_min_score: { type: integer, minimum: 0, maximum: 100 }
-        theory_min_score: { type: integer, minimum: 0, maximum: 100 }
-        practical_min_score: { type: integer, minimum: 1, maximum: 5 }
+        pre_test_threshold: { type: number, minimum: 0, maximum: 100 }
+        post_test_threshold: { type: number, minimum: 0, maximum: 100 }
+        practical_threshold: { type: integer, minimum: 1, maximum: 5 }
     AssessmentPassingRuleUpdateRequest:
       type: object
       properties:
         cycle_id: { type: integer, minimum: 1 }
         thematic_area_id: { type: integer, minimum: 1 }
-        criteria_min_score: { type: integer, minimum: 0, maximum: 100 }
-        theory_min_score: { type: integer, minimum: 0, maximum: 100 }
-        practical_min_score: { type: integer, minimum: 1, maximum: 5 }
+        pre_test_threshold: { type: number, minimum: 0, maximum: 100 }
+        post_test_threshold: { type: number, minimum: 0, maximum: 100 }
+        practical_threshold: { type: integer, minimum: 1, maximum: 5 }
         is_active: { type: boolean }
+    AssessmentQuizSyncResponse:
+      type: object
+      description: Result of synchronizing a pre-test or post-test score from a completed quiz attempt.
+      properties:
+        synced: { type: boolean }
+        stage:
+          type: string
+          enum: [PRETEST, POST_TEST]
+        score: { type: number }
+        passed: { type: boolean }
+        quiz_id: { type: integer }
+        quiz_attempt_id: { type: integer }
+        attempt_number: { type: integer, nullable: true }
+        completed_at: { type: string, format: date-time, nullable: true }
+        reason: { type: string, description: 'Present when synced is false.' }
+    AssessmentEligibilityResponse:
+      type: object
+      description: >-
+        Certificate eligibility evaluation for an assessment. Only the post-test
+        score and the practical score are mandatory certificate requirements and
+        are compared against the applicable active Super Admin-configured passing
+        rule (post_test_threshold, practical_threshold). The pre-test component is
+        diagnostic/informational only (informational=true,
+        required_for_certificate=false) and never blocks eligibility.
+      properties:
+        mentee_id: { type: integer }
+        assessment_id: { type: integer }
+        eligibility_status:
+          type: string
+          enum: [pending, eligible, not_eligible]
+        eligible_for_certificate: { type: boolean }
+        components:
+          type: object
+          properties:
+            pre_test:
+              $ref: '#/components/schemas/AssessmentEligibilityComponent'
+            post_test:
+              $ref: '#/components/schemas/AssessmentEligibilityComponent'
+            practical:
+              $ref: '#/components/schemas/AssessmentEligibilityComponent'
+        passing_rule:
+          type: object
+          nullable: true
+          properties:
+            id: { type: integer, nullable: true }
+            cycle_id: { type: integer, nullable: true }
+            thematic_area_id: { type: integer, nullable: true }
+            pre_test_threshold: { type: number }
+            post_test_threshold: { type: number }
+            practical_threshold: { type: integer }
+        unmet_requirements:
+          type: array
+          items: { type: string }
+        lifecycle_state:
+          type: string
+          enum: [draft, in_review, finalized, reviewed]
+        prerequisites_met: { type: boolean }
+    AssessmentEligibilityComponent:
+      type: object
+      properties:
+        score: { type: number, nullable: true }
+        minimum_score: { type: number, nullable: true }
+        status:
+          type: string
+          enum: [pending, passed, failed]
+        informational:
+          type: boolean
+          description: True for the pre-test component; informational components never affect eligibility.
+        required_for_certificate:
+          type: boolean
+          description: False for pre-test; true for post-test and practical.
+        quiz_id: { type: integer, nullable: true }
+        quiz_attempt_id: { type: integer, nullable: true }
+        checklist_id: { type: integer, nullable: true }
+        checklist_version: { type: integer, nullable: true }
     CreateGuideRequest:
       type: object
       required:
@@ -3668,9 +3802,11 @@ tags:
   - name: Logbook
     description: Mentee clinical procedure logbook entries and mentor review workflow
   - name: Assessments
-    description: Clinical competency assessments, scoring, criteria, and evidence
+    description: Clinical competency assessments covering pre-test, post-test, practical assessment, review, and certificate eligibility
   - name: Assessment Passing Rules
-    description: System administrator configuration of criteria, theory, and practical score thresholds
+    description: System administrator configuration of pre-test, post-test, and practical passing thresholds
+  - name: Practical Checklists
+    description: Versioned practical assessment checklist templates managed by Super Admin and evaluated by mentors
   - name: Sessions
     description: Clinical encounter sessions, scheduling, notes, and virtual rooms
 paths:
@@ -5697,7 +5833,7 @@ paths:
     post:
       tags: [Quiz Question Management]
       summary: Create a quiz owned by a thematic area
-      description: Super Admin only. A thematic area may have one active quiz.
+      description: Super Admin only. A thematic area may have multiple quizzes distinguished by assessmentStage (PRETEST / POST_TEST).
       security:
         - bearerAuth: []
       requestBody:
@@ -6965,6 +7101,7 @@ paths:
   /api/v1/assessment-passing-rules:
     get:
       summary: List assessment passing rules
+      description: Lists Super Admin-configured passing rules. Administrators can view rules; the applicable active rule is resolved by scope precedence (cycle + thematic area, then cycle, then thematic area, then system-wide) and supplies the pre_test_threshold, post_test_threshold, and practical_threshold used for assessment and certificate eligibility. There is no hardcoded fallback when no rule applies.
       tags: [Assessment Passing Rules]
       security:
         - bearerAuth: []
@@ -6982,6 +7119,7 @@ paths:
                     items: { $ref: '#/components/schemas/AssessmentPassingRule' }
     post:
       summary: Create an assessment passing rule
+      description: Creates a passing rule for a scope (system-wide when cycle_id and thematic_area_id are null). Only one active rule may exist per scope. Thresholds are pre_test_threshold (0-100), post_test_threshold (0-100), and practical_threshold (1-5). System Admin only.
       tags: [Assessment Passing Rules]
       security:
         - bearerAuth: []
@@ -7044,7 +7182,7 @@ paths:
   /api/v1/certificates/eligibility/{mentee_id}/{cycle_id}/{thematic_area_id}:
     get:
       summary: Check certificate eligibility
-      description: Evaluates whether a mentee is eligible for a certificate in a specific cycle and thematic area. Requires a finalized assessment with theory_passed=true and practical_passed=true, and no existing active certificate.
+      description: Evaluates whether a mentee is eligible for a certificate in a specific cycle and thematic area. Requires a finalized or reviewed assessment whose post-test and practical results each meet the applicable active passing rule configured by the Super Admin (the pre-test is informational and never blocks eligibility), plus satisfied prerequisites and no existing active certificate. Returns 422 NO_ACTIVE_PASSING_RULE when no applicable rule is configured.
       tags:
         - Certificates
       parameters:
@@ -7285,7 +7423,7 @@ paths:
                 $ref: '#/components/schemas/ErrorResponse'
     post:
       summary: Issue certificate
-      description: Issues a certificate for an eligible mentee upon verifying theory and practical assessment passes. Generates and stores the certificate PDF document.
+      description: Issues a certificate for an eligible mentee after verifying post-test and practical assessment passes against the applicable active passing rule (pre-test is informational). Generates and stores the certificate PDF document.
       tags:
         - Certificates
       security:

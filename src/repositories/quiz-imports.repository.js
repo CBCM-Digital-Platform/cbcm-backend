@@ -1,5 +1,6 @@
 const { Op } = require('sequelize');
 const { QuizImportDraft, Quiz, QuizQuestion, QuizQuestionOption, QuizAttempt, sequelize } = require('../models');
+const { componentForStage } = require('../constants/assessment-stage.constants');
 
 const draftInclude = [
 	{ model: require('../models').LearningModule, as: 'module', attributes: ['id', 'title'] },
@@ -24,8 +25,14 @@ const confirmDraft = async ({ draftId, title, description, assessmentStage, pass
 	if (!claimed) throw new Error('This quiz import has already been confirmed or is being confirmed.');
 	const draft = await QuizImportDraft.findByPk(draftId, { transaction, lock: transaction.LOCK.UPDATE });
 	if (!draft) throw new Error('Quiz import draft was not found.');
+	// Thematic-area quizzes are scoped per assessment stage so a pre-test and a
+	// post-test quiz can coexist for the same thematic area.
 	let quiz = draft.thematic_area_id
-		? await Quiz.findOne({ where: { thematic_area_id: draft.thematic_area_id }, transaction, lock: transaction.LOCK.UPDATE })
+		? await Quiz.findOne({
+			where: { thematic_area_id: draft.thematic_area_id, assessment_stage: assessmentStage ?? null },
+			transaction,
+			lock: transaction.LOCK.UPDATE,
+		})
 		: null;
 	if (!quiz) {
 		quiz = await Quiz.create({
@@ -34,6 +41,7 @@ const confirmDraft = async ({ draftId, title, description, assessmentStage, pass
 			title,
 			description: description || null,
 			assessment_stage: assessmentStage,
+			assessment_component: componentForStage(assessmentStage ?? null),
 			pass_score: passScore ?? 0,
 			time_limit_minutes: timeLimitMinutes ?? 0,
 			attempt_limit: attemptLimit ?? 1,
