@@ -10,7 +10,14 @@ const service = require('../../src/services/assessments.service');
 const repository = require('../../src/repositories/assessments.repository');
 const assignmentsRepository = require('../../src/repositories/assignments.repository');
 const progressService = require('../../src/services/progress.service');
+const passingRulesService = require('../../src/services/assessment-passing-rules.service');
 const AssessmentStatus = require('../../src/enums/assessment-status.enum');
+
+function stubActivePassingRule(rule = { id: 1, cycle_id: null, thematic_area_id: null, pre_test_threshold: 70, post_test_threshold: 80, practical_threshold: 3, is_active: true }) {
+	const original = passingRulesService.getActivePassingRule;
+	passingRulesService.getActivePassingRule = async () => rule;
+	return () => { passingRulesService.getActivePassingRule = original; };
+}
 const models = require('../../src/models');
 const { Assignment } = models;
 
@@ -33,7 +40,7 @@ test('assessment validation rejects invalid IDs and missing required fields', ()
 	assert.strictEqual(validator.assessmentIdValidation.length > 0, true);
 	assert.strictEqual(validator.createAssessmentValidation.length > 0, true);
 	assert.strictEqual(validator.updateAssessmentValidation.length > 0, true);
-	assert.strictEqual(validator.setCriteriaScoreValidation.length > 0, true);
+	assert.strictEqual(validator.setPreTestScoresValidation.length > 0, true);
 	assert.strictEqual(validator.setChecklistItemsValidation.length > 0, true);
 	assert.strictEqual(validator.addEvidenceValidation.length > 0, true);
 	assert.strictEqual(validator.reviewAssessmentValidation.length > 0, true);
@@ -157,26 +164,46 @@ test('assessment service prevents updating finalized assessments', async () => {
 	}
 });
 
-test('assessment service validates criteria scores before finalization', async () => {
+test('assessment service does not require pre-test scores for finalization', async () => {
 	const originals = {
 		findById: repository.findById,
 		findAll: models.AssessmentCriteriaScore.findAll,
+		findAllChecklist: models.AssessmentChecklistItem.findAll,
 		update: repository.update,
+		transaction: models.sequelize.transaction,
+		AssessmentUpdate: models.Assessment.update,
 	};
 
-	repository.findById = async (id) => ({ id, mentee_id: 1, mentor_id: 2, facility_id: 1, status: 'in_review', prerequisites_met: true });
+	let findByIdCallCount = 0;
+	repository.findById = async (id) => {
+		findByIdCallCount++;
+		if (findByIdCallCount === 1) {
+			return { id, mentee_id: 1, mentor_id: 2, facility_id: 1, status: 'in_review', prerequisites_met: true };
+		}
+		return { id, mentee_id: 1, mentor_id: 2, facility_id: 1, status: 'finalized', finalized_at: new Date() };
+	};
 	models.AssessmentCriteriaScore.findAll = async () => [];
-	repository.update = async () => ({ id, status: 'finalized' });
+	models.AssessmentChecklistItem.findAll = async () => [];
+	let updatePayload;
+	models.Assessment.update = async (data, options) => {
+		updatePayload = data;
+		return [1];
+	};
+	models.sequelize.transaction = async (callback) => callback({});
+	const restoreRule = stubActivePassingRule();
 
 	try {
-		await assert.rejects(
-			service.finalizeAssessment(1, { id: 2, role: 'mentor' }),
-			{ statusCode: 400 }
-		);
+		const result = await service.finalizeAssessment(1, { id: 2, role: 'mentor' });
+		assert.strictEqual(updatePayload.status, 'finalized');
+		assert.strictEqual(result.id, 1);
 	} finally {
 		repository.findById = originals.findById;
 		models.AssessmentCriteriaScore.findAll = originals.findAll;
+		models.AssessmentChecklistItem.findAll = originals.findAllChecklist;
 		repository.update = originals.update;
+		models.sequelize.transaction = originals.transaction;
+		models.Assessment.update = originals.AssessmentUpdate;
+		restoreRule();
 	}
 });
 
@@ -203,6 +230,7 @@ test('assessment service calculates aggregate score on finalization', async () =
 		return [1];
 	};
 	models.sequelize.transaction = async (callback) => callback({});
+	const restoreRule = stubActivePassingRule();
 
 	try {
 		const result = await service.finalizeAssessment(1, { id: 2, role: 'mentor' });
@@ -216,6 +244,7 @@ test('assessment service calculates aggregate score on finalization', async () =
 		repository.update = originals.update;
 		models.sequelize.transaction = originals.transaction;
 		models.Assessment.update = originals.AssessmentUpdate;
+		restoreRule();
 	}
 });
 
@@ -267,7 +296,7 @@ test('assessment service allows only admins to review assessments', async () => 
 	}
 });
 
-test('assessment service validates criteria score values', async () => {
+test('assessment service validates pre-test score values', async () => {
 	const originals = {
 		findById: repository.findById,
 		findAll: models.AssessmentCriteriaScore.findAll,
@@ -284,17 +313,17 @@ test('assessment service validates criteria score values', async () => {
 
 	try {
 		await assert.rejects(
-			service.setCriteriaScore(1, { criteria_scores: [{ criterion: 'Skill 1', score: 150 }] }, { id: 2, role: 'mentor' }),
+			service.setPreTestScores(1, { pre_test_scores: [{ criterion: 'Skill 1', score: 150 }] }, { id: 2, role: 'mentor' }),
 			{ statusCode: 400 }
 		);
 
 		await assert.rejects(
-			service.setCriteriaScore(1, { criteria_scores: [{ criterion: 'Skill 1', score: -10 }] }, { id: 2, role: 'mentor' }),
+			service.setPreTestScores(1, { pre_test_scores: [{ criterion: 'Skill 1', score: -10 }] }, { id: 2, role: 'mentor' }),
 			{ statusCode: 400 }
 		);
 
 		await assert.rejects(
-			service.setCriteriaScore(1, { criteria_scores: [{ criterion: '', score: 80 }] }, { id: 2, role: 'mentor' }),
+			service.setPreTestScores(1, { pre_test_scores: [{ criterion: '', score: 80 }] }, { id: 2, role: 'mentor' }),
 			{ statusCode: 400 }
 		);
 	} finally {
@@ -418,6 +447,7 @@ test('assessment finalization triggers progress snapshot creation', async () => 
 		return [1];
 	};
 	models.sequelize.transaction = async (callback) => callback({});
+	const restoreRule = stubActivePassingRule();
 	let snapshotCalled = false;
 	let snapshotAssessment;
 	let snapshotActor;
@@ -443,6 +473,7 @@ test('assessment finalization triggers progress snapshot creation', async () => 
 		models.sequelize.transaction = originals.transaction;
 		progressService.createSnapshotFromAssessment = originals.createSnapshotFromAssessment;
 		models.Assessment.update = originals.AssessmentUpdate;
+		restoreRule();
 	}
 });
 
@@ -497,6 +528,7 @@ test('failed snapshot creation does not fail assessment finalization', async () 
 		return [1];
 	};
 	models.sequelize.transaction = async (callback) => callback({});
+	const restoreRule = stubActivePassingRule();
 	progressService.createSnapshotFromAssessment = async () => {
 		throw new Error('Snapshot creation failed');
 	};
@@ -513,6 +545,7 @@ test('failed snapshot creation does not fail assessment finalization', async () 
 		models.sequelize.transaction = originals.transaction;
 		progressService.createSnapshotFromAssessment = originals.createSnapshotFromAssessment;
 		models.Assessment.update = originals.AssessmentUpdate;
+		restoreRule();
 	}
 });
 
@@ -596,6 +629,7 @@ test('practical assessment passes when all required items score 3 or 4', async (
 		return [1];
 	};
 	models.sequelize.transaction = async (callback) => callback({});
+	const restoreRule = stubActivePassingRule();
 
 	try {
 		const result = await service.finalizeAssessment(1, { id: 2, role: 'mentor' });
@@ -608,6 +642,7 @@ test('practical assessment passes when all required items score 3 or 4', async (
 		repository.update = originals.update;
 		models.sequelize.transaction = originals.transaction;
 		models.Assessment.update = originals.AssessmentUpdate;
+		restoreRule();
 	}
 });
 
@@ -640,6 +675,7 @@ test('practical assessment fails when any required item scores 0, 1, or 2', asyn
 		return [1];
 	};
 	models.sequelize.transaction = async (callback) => callback({});
+	const restoreRule = stubActivePassingRule();
 
 	try {
 		const result = await service.finalizeAssessment(1, { id: 2, role: 'mentor' });
@@ -652,6 +688,7 @@ test('practical assessment fails when any required item scores 0, 1, or 2', asyn
 		repository.update = originals.update;
 		models.sequelize.transaction = originals.transaction;
 		models.Assessment.update = originals.AssessmentUpdate;
+		restoreRule();
 	}
 });
 
@@ -708,6 +745,7 @@ test('practical assessment cannot pass without required items', async () => {
 		return [1];
 	};
 	models.sequelize.transaction = async (callback) => callback({});
+	const restoreRule = stubActivePassingRule();
 
 	try {
 		const result = await service.finalizeAssessment(1, { id: 2, role: 'mentor' });
@@ -719,6 +757,7 @@ test('practical assessment cannot pass without required items', async () => {
 		repository.update = originals.update;
 		models.sequelize.transaction = originals.transaction;
 		models.Assessment.update = originals.AssessmentUpdate;
+		restoreRule();
 	}
 });
 
@@ -751,6 +790,7 @@ test('optional checklist items do not affect practical pass/fail', async () => {
 		return [1];
 	};
 	models.sequelize.transaction = async (callback) => callback({});
+	const restoreRule = stubActivePassingRule();
 
 	try {
 		const result = await service.finalizeAssessment(1, { id: 2, role: 'mentor' });
@@ -762,78 +802,142 @@ test('optional checklist items do not affect practical pass/fail', async () => {
 		repository.update = originals.update;
 		models.sequelize.transaction = originals.transaction;
 		models.Assessment.update = originals.AssessmentUpdate;
+		restoreRule();
 	}
 });
 
-test('assessment finalization fails when criteria scores are missing', async () => {
+test('assessment finalization succeeds without any pre-test result', async () => {
 	const originals = {
 		findById: repository.findById,
 		findAll: models.AssessmentCriteriaScore.findAll,
 		findAllChecklist: models.AssessmentChecklistItem.findAll,
+		update: repository.update,
+		transaction: models.sequelize.transaction,
+		AssessmentUpdate: models.Assessment.update,
 	};
 
-	repository.findById = async (id) => ({ id, mentee_id: 1, mentor_id: 2, facility_id: 1, status: 'in_review', prerequisites_met: true });
+	let findByIdCallCount = 0;
+	repository.findById = async (id) => {
+		findByIdCallCount++;
+		if (findByIdCallCount === 1) {
+			return { id, mentee_id: 1, mentor_id: 2, facility_id: 1, status: 'in_review', prerequisites_met: true };
+		}
+		return { id, mentee_id: 1, mentor_id: 2, facility_id: 1, status: 'finalized', finalized_at: new Date() };
+	};
 	models.AssessmentCriteriaScore.findAll = async () => [];
 	models.AssessmentChecklistItem.findAll = async () => [];
+	let updatePayload;
+	models.Assessment.update = async (data, options) => {
+		updatePayload = data;
+		return [1];
+	};
+	models.sequelize.transaction = async (callback) => callback({});
+	const restoreRule = stubActivePassingRule();
 
 	try {
-		await assert.rejects(
-			service.finalizeAssessment(1, { id: 2, role: 'mentor' }),
-			{ statusCode: 400 }
-		);
+		await service.finalizeAssessment(1, { id: 2, role: 'mentor' });
+		assert.strictEqual(updatePayload.status, 'finalized');
+		assert.strictEqual(updatePayload.aggregate_score, null);
+		assert.strictEqual(updatePayload.pre_test_score, null);
+		assert.strictEqual(updatePayload.pre_test_passed, null);
+		assert.ok(updatePayload.passing_rule_snapshot);
 	} finally {
 		repository.findById = originals.findById;
 		models.AssessmentCriteriaScore.findAll = originals.findAll;
 		models.AssessmentChecklistItem.findAll = originals.findAllChecklist;
+		repository.update = originals.update;
+		models.sequelize.transaction = originals.transaction;
+		models.Assessment.update = originals.AssessmentUpdate;
+		restoreRule();
 	}
 });
 
-test('assessment finalization fails when criteria scores have null values', async () => {
+test('assessment finalization ignores null pre-test rubric scores', async () => {
 	const originals = {
 		findById: repository.findById,
 		findAll: models.AssessmentCriteriaScore.findAll,
 		findAllChecklist: models.AssessmentChecklistItem.findAll,
+		update: repository.update,
+		transaction: models.sequelize.transaction,
+		AssessmentUpdate: models.Assessment.update,
 	};
 
-	repository.findById = async (id) => ({ id, mentee_id: 1, mentor_id: 2, facility_id: 1, status: 'in_review', prerequisites_met: true });
+	let findByIdCallCount = 0;
+	repository.findById = async (id) => {
+		findByIdCallCount++;
+		if (findByIdCallCount === 1) {
+			return { id, mentee_id: 1, mentor_id: 2, facility_id: 1, status: 'in_review', prerequisites_met: true };
+		}
+		return { id, mentee_id: 1, mentor_id: 2, facility_id: 1, status: 'finalized', finalized_at: new Date() };
+	};
 	models.AssessmentCriteriaScore.findAll = async () => [
 		{ assessment_id: 1, criterion: 'Skill 1', score: 80 },
 		{ assessment_id: 1, criterion: 'Skill 2', score: null },
 	];
 	models.AssessmentChecklistItem.findAll = async () => [];
+	let updatePayload;
+	models.Assessment.update = async (data, options) => {
+		updatePayload = data;
+		return [1];
+	};
+	models.sequelize.transaction = async (callback) => callback({});
+	const restoreRule = stubActivePassingRule();
 
 	try {
-		await assert.rejects(
-			service.finalizeAssessment(1, { id: 2, role: 'mentor' }),
-			{ statusCode: 400 }
-		);
+		await service.finalizeAssessment(1, { id: 2, role: 'mentor' });
+		assert.strictEqual(updatePayload.status, 'finalized');
+		assert.strictEqual(updatePayload.aggregate_score, 80);
 	} finally {
 		repository.findById = originals.findById;
 		models.AssessmentCriteriaScore.findAll = originals.findAll;
 		models.AssessmentChecklistItem.findAll = originals.findAllChecklist;
+		repository.update = originals.update;
+		models.sequelize.transaction = originals.transaction;
+		models.Assessment.update = originals.AssessmentUpdate;
+		restoreRule();
 	}
 });
 
-test('assessment finalization fails when criteria scores are missing', async () => {
+test('assessment finalization succeeds with an empty pre-test rubric', async () => {
 	const originals = {
 		findById: repository.findById,
 		findAll: models.AssessmentCriteriaScore.findAll,
 		findAllChecklist: models.AssessmentChecklistItem.findAll,
+		update: repository.update,
+		transaction: models.sequelize.transaction,
+		AssessmentUpdate: models.Assessment.update,
 	};
 
-	repository.findById = async (id) => ({ id, mentee_id: 1, mentor_id: 2, facility_id: 1, status: 'in_review', prerequisites_met: true });
+	let findByIdCallCount = 0;
+	repository.findById = async (id) => {
+		findByIdCallCount++;
+		if (findByIdCallCount === 1) {
+			return { id, mentee_id: 1, mentor_id: 2, facility_id: 1, status: 'in_review', prerequisites_met: true };
+		}
+		return { id, mentee_id: 1, mentor_id: 2, facility_id: 1, status: 'finalized', finalized_at: new Date() };
+	};
 	models.AssessmentCriteriaScore.findAll = async () => [];
 	models.AssessmentChecklistItem.findAll = async () => [];
+	let updatePayload;
+	models.Assessment.update = async (data, options) => {
+		updatePayload = data;
+		return [1];
+	};
+	models.sequelize.transaction = async (callback) => callback({});
+	const restoreRule = stubActivePassingRule();
 
 	try {
-		await assert.rejects(
-			service.finalizeAssessment(1, { id: 2, role: 'mentor' }),
-			{ statusCode: 400 }
-		);
+		await service.finalizeAssessment(1, { id: 2, role: 'mentor' });
+		assert.strictEqual(updatePayload.status, 'finalized');
+		assert.strictEqual(updatePayload.aggregate_score, null);
 	} finally {
 		repository.findById = originals.findById;
 		models.AssessmentCriteriaScore.findAll = originals.findAll;
 		models.AssessmentChecklistItem.findAll = originals.findAllChecklist;
+		repository.update = originals.update;
+		models.sequelize.transaction = originals.transaction;
+		models.Assessment.update = originals.AssessmentUpdate;
+		restoreRule();
 	}
 });
 

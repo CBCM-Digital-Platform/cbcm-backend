@@ -308,7 +308,7 @@ const getQuizByModule = async (moduleId, menteeId, cycleId, assessmentStage) => 
 	if (!isModulePublishedAndAuthorized(module)) {
 		throw new AppError('This learning module is not published and authorized.', 403, 'FORBIDDEN');
 	}
-	const quiz = await repository.getQuizByModule(moduleId);
+	const quiz = await repository.getQuizByModule(moduleId, { assessmentStage });
 	if (!quiz) throw new AppError('Quiz not found.', 404, 'NOT_FOUND');
 	await assertQuizEligibility({ quiz, menteeId, cycleId, assessmentStage });
 	return quiz;
@@ -317,7 +317,7 @@ const getQuizByModule = async (moduleId, menteeId, cycleId, assessmentStage) => 
 const getQuizByThematicArea = async (thematicAreaId, actor, cycleId, assessmentStage) => {
 	const { ThematicArea } = require('../models');
 	if (!await ThematicArea.findByPk(thematicAreaId)) throw new AppError('Thematic area not found.', 404, 'NOT_FOUND');
-	const quiz = await repository.getQuizByThematicArea(thematicAreaId);
+	const quiz = await repository.getQuizByThematicArea(thematicAreaId, { assessmentStage });
 	if (!quiz) throw new AppError('Quiz not found.', 404, 'NOT_FOUND');
 	if (!isSystemAdmin(actor?.role)) {
 		if (!quiz.is_published || !quiz.is_authorized) throw new AppError('This quiz is not published and authorized.', 403, 'FORBIDDEN');
@@ -333,7 +333,7 @@ const getQuizByModuleForViewer = async (moduleId, actor, cycleId, assessmentStag
 	if (role === Role.FACILITY_ADMIN) await assertFacilityAdminModuleScope(module, actor);
 	else if (role === Role.MENTOR) await assertModuleAvailableToLearner({ module, role, userId: actor.id });
 	else if (!isSystemAdmin(role)) throw new AppError('You do not have permission to view this quiz.', 403, 'FORBIDDEN');
-	const quiz = await repository.getQuizByModule(moduleId);
+	const quiz = await repository.getQuizByModule(moduleId, { assessmentStage });
 	if (!quiz) throw new AppError('Quiz not found.', 404, 'NOT_FOUND');
 	if (!isSystemAdmin(role) && (!quiz.is_published || !quiz.is_authorized)) {
 		throw new AppError('This quiz is not published and authorized.', 403, 'FORBIDDEN');
@@ -370,6 +370,28 @@ const submitQuiz = async ({ quizId, menteeId, answers, cycleId, assessmentStage 
 	const result = await repository.submitQuiz({ quizId, menteeId, answers, cycleId: eligibility.cycleId, assessmentStage: assessmentStage || quiz.assessment_stage });
 	if ((result.assessmentStage || assessmentStage || quiz.assessment_stage) === 'PRETEST') {
 		result.answers = undefined;
+	}
+	// Automatically synchronize pre-test/post-test results into matching
+	// assessments. Failures must never fail the quiz submission itself.
+	try {
+		const assessmentsService = require('./assessments.service');
+		await assessmentsService.syncCompletedQuizAttempt({
+			quiz,
+			attempt: {
+				id: result.id,
+				quiz_id: quizId,
+				mentee_id: menteeId,
+				score: result.score,
+				percentage_score: result.percentageScore ?? null,
+				attempt_number: result.attemptNumber ?? null,
+				completed_at: result.submittedAt ?? null,
+			},
+			assessmentStage: result.assessmentStage || assessmentStage || quiz.assessment_stage,
+			cycleId: result.cycleId ?? eligibility.cycleId,
+			thematicAreaId: result.thematicAreaId ?? quiz.thematic_area_id ?? null,
+		});
+	} catch (syncError) {
+		console.error(`Assessment auto-sync after quiz ${quizId} submission failed:`, syncError.message);
 	}
 	await notificationService.createNotification({
 		userId: menteeId,

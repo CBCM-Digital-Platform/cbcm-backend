@@ -477,11 +477,16 @@ const filterValidMentorGrantedAccess = async (records) => {
 	return candidates.filter((progress, index) => validity[index]);
 };
 
-const getQuizByThematicArea = async (thematicAreaId, { includeCorrectAnswers = false, learnerVisible = false } = {}) => {
+const getQuizByThematicArea = async (thematicAreaId, { includeCorrectAnswers = false, learnerVisible = false, assessmentStage } = {}) => {
 	const where = { thematic_area_id: thematicAreaId };
+	// A thematic area may host one quiz per assessment stage (PRETEST and
+	// POST_TEST). When a stage is requested, only that stage's quiz matches.
+	if (assessmentStage !== undefined) {
+		where.assessment_stage = assessmentStage ?? null;
+	}
 	const quizCount = await models.Quiz.count({ where });
 	if (quizCount > 1) {
-		throw new AppError('Multiple quizzes are configured for this thematic area; resolve the duplicate quiz configuration before access.', 409, 'QUIZ_CONFIGURATION_CONFLICT');
+		throw new AppError('Multiple quizzes are configured for this thematic area and assessment stage; resolve the duplicate quiz configuration before access.', 409, 'QUIZ_CONFIGURATION_CONFLICT');
 	}
 	return models.Quiz.findOne({
 		where: { ...where, ...(learnerVisible ? isLearnerVisible : {}) },
@@ -528,11 +533,22 @@ const getQuizById = async (quizId, { includeCorrectAnswers = false, transaction 
 	}],
 });
 
+const { componentForStage } = require('../constants/assessment-stage.constants');
+
 const createQuiz = async (moduleId, payload, createdBy) => models.sequelize.transaction(async (transaction) => {
 	if ((moduleId ?? payload.moduleId) && payload.thematicAreaId) throw new AppError('A quiz cannot have both module and thematic-area ownership.', 400, 'VALIDATION_ERROR');
 	if (payload.thematicAreaId) {
-		const existing = await models.Quiz.count({ where: { thematic_area_id: payload.thematicAreaId }, transaction });
-		if (existing > 0) throw new AppError('A quiz already exists for this thematic area.', 409, 'QUIZ_CONFIGURATION_CONFLICT');
+		// A thematic area may have one quiz per assessment stage (pre-test and
+		// post-test). Quizzes without a stage share the 'general' bucket.
+		const stage = payload.assessmentStage ?? null;
+		const existing = await models.Quiz.count({
+			where: {
+				thematic_area_id: payload.thematicAreaId,
+				assessment_stage: stage,
+			},
+			transaction,
+		});
+		if (existing > 0) throw new AppError('A quiz already exists for this thematic area and assessment stage.', 409, 'QUIZ_CONFIGURATION_CONFLICT');
 	}
 	const quiz = await models.Quiz.create({
 		module_id: moduleId ?? payload.moduleId ?? null,
@@ -540,6 +556,7 @@ const createQuiz = async (moduleId, payload, createdBy) => models.sequelize.tran
 		title: payload.title,
 		description: payload.description || null,
 		assessment_stage: payload.assessmentStage ?? null,
+		assessment_component: componentForStage(payload.assessmentStage ?? null),
 		pass_score: payload.passScore ?? 0,
 		time_limit_minutes: payload.timeLimitMinutes ?? 0,
 		attempt_limit: payload.attemptLimit ?? 1,
@@ -565,6 +582,10 @@ const updateQuiz = async (quizId, payload = {}) => {
 	if ('attemptLimit' in payload) updates.attempt_limit = payload.attemptLimit;
 	if ('isPublished' in payload) updates.is_published = payload.isPublished;
 	if ('isAuthorized' in payload) updates.is_authorized = payload.isAuthorized;
+	if ('assessmentStage' in payload) {
+		updates.assessment_stage = payload.assessmentStage;
+		updates.assessment_component = componentForStage(payload.assessmentStage);
+	}
 	await quiz.update(updates);
 	return getQuizById(quizId, { includeCorrectAnswers: true });
 };
@@ -805,6 +826,7 @@ const submitQuiz = async ({ quizId, menteeId, answers = [], cycleId, assessmentS
 			id: attempt.id,
 			quizId,
 			menteeId,
+			attemptNumber: attempt.attempt_number ?? null,
 			score,
 			totalPoints,
 			passed,

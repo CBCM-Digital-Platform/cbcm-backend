@@ -56,12 +56,12 @@ async function review(req, res) {
 	}
 }
 
-async function setCriteriaScore(req, res) {
+async function setPreTestScores(req, res) {
 	try {
 		const payload = matchedData(req, { locations: ['body'] });
-		return successResponse(res, 200, await service.setCriteriaScore(Number(req.params.id), payload, req.user));
+		return successResponse(res, 200, await service.setPreTestScores(Number(req.params.id), payload, req.user));
 	} catch (error) {
-		return controllerError(res, error, 'Unable to set criteria scores.');
+		return controllerError(res, error, 'Unable to set pre-test scores.');
 	}
 }
 
@@ -74,12 +74,12 @@ async function setChecklistItems(req, res) {
 	}
 }
 
-async function setTheoryScore(req, res) {
+async function setPostTestScore(req, res) {
 	try {
 		const payload = matchedData(req, { locations: ['body'] });
-		return successResponse(res, 200, await service.setTheoryScore(Number(req.params.id), payload, req.user));
+		return successResponse(res, 200, await service.setPostTestScore(Number(req.params.id), payload, req.user));
 	} catch (error) {
-		return controllerError(res, error, 'Unable to set theory score.');
+		return controllerError(res, error, 'Unable to set post-test score.');
 	}
 }
 
@@ -101,19 +101,37 @@ async function setPracticalResult(req, res) {
 	}
 }
 
-async function syncTheoryScore(req, res) {
+async function syncPreTest(req, res) {
 	try {
-		return successResponse(res, 200, await service.syncTheoryScoreFromQuiz(Number(req.params.id), req.user));
+		return successResponse(res, 200, await service.syncPreTestFromQuiz(Number(req.params.id), req.user));
 	} catch (error) {
-		return controllerError(res, error, 'Unable to sync theory score from quiz.');
+		return controllerError(res, error, 'Unable to sync the pre-test result from the quiz.');
 	}
 }
 
-async function syncCriteriaScores(req, res) {
+async function syncPostTest(req, res) {
 	try {
-		return successResponse(res, 200, await service.syncCriteriaScoresFromQuiz(Number(req.params.id), req.user));
+		return successResponse(res, 200, await service.syncPostTestFromQuiz(Number(req.params.id), req.user));
 	} catch (error) {
-		return controllerError(res, error, 'Unable to sync criteria scores from quiz.');
+		return controllerError(res, error, 'Unable to sync the post-test result from the quiz.');
+	}
+}
+
+async function getPracticalChecklist(req, res) {
+	try {
+		const { procedure } = matchedData(req, { locations: ['query'] }) || {};
+		return successResponse(res, 200, await service.getApplicablePracticalChecklists(Number(req.params.id), req.user, { procedure }));
+	} catch (error) {
+		return controllerError(res, error, 'Unable to load the practical checklist.');
+	}
+}
+
+async function submitPracticalEvaluation(req, res) {
+	try {
+		const payload = matchedData(req, { locations: ['body'] });
+		return successResponse(res, 200, await service.submitPracticalEvaluation(Number(req.params.id), payload, req.user));
+	} catch (error) {
+		return controllerError(res, error, 'Unable to submit the practical evaluation.');
 	}
 }
 
@@ -132,12 +150,14 @@ module.exports = {
 	update,
 	finalize,
 	review,
-	setCriteriaScore,
-	setTheoryScore,
+	setPreTestScores,
+	setPostTestScore,
 	setChecklistItems,
 	addEvidence,
 	setPracticalResult,
-	syncTheoryScore,
-	syncCriteriaScores,
+	syncPreTest,
+	syncPostTest,
+	getPracticalChecklist,
+	submitPracticalEvaluation,
 	getCertificateEligibility,
 };

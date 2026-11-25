@@ -17,7 +17,7 @@ module.exports = (sequelize, DataTypes) => sequelize.define('Quiz', {
 		allowNull: true,
 		defaultValue: null,
 		validate: {
-			isIn: [['criteria', 'theory', null]],
+			isIn: [['pre_test', 'post_test', 'criteria', 'theory', null]],
 		},
 	},
 	pass_score: { type: DataTypes.FLOAT, defaultValue: 0 },

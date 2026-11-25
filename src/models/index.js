@@ -19,6 +19,8 @@ const definitions = {
 	AssessmentCriteriaScore: require('./assessment-criteria-score.model'),
 	AssessmentChecklistItem: require('./assessment-checklist-item.model'),
 	AssessmentEvidence: require('./assessment-evidence.model'),
+	PracticalChecklist: require('./practical-checklist.model'),
+	PracticalChecklistItem: require('./practical-checklist-item.model'),
 	LearningModule: require('./learning-module.model'),
 	LearningModuleMentorAccess: require('./learning-module-mentor-access.model'),
 	LearningModuleMentorPermission: require('./learning-module-mentor-permission.model'),
@@ -68,6 +70,7 @@ const definitions = {
 	UploadedFile: require('./uploaded-file.model'),
 	ResourceAssignment: require('./resource-assignment.model'),
 	News: require('./news.model'),
+	LandingPageContent: require('./landing-page-content.model'),
 };
 
 const models = Object.fromEntries(
@@ -117,6 +120,13 @@ const foreignKeys = [
 	['AssessmentEvidence', 'Assessment', 'assessment_id', 'assessment', 'evidence'],
 	['AssessmentEvidence', 'UploadedFile', 'file_id', 'file', 'assessmentEvidence'],
 	['AssessmentEvidence', 'User', 'uploaded_by', 'uploadedBy', 'evidenceUploaded'],
+	['Assessment', 'PracticalChecklist', 'practical_checklist_id', 'practicalChecklist', 'practicalAssessments'],
+	['AssessmentChecklistItem', 'PracticalChecklistItem', 'checklist_item_id', 'templateItem', 'assessmentResponses'],
+	['PracticalChecklist', 'ThematicArea', 'thematic_area_id', 'thematicArea', 'practicalChecklists'],
+	['PracticalChecklist', 'UploadedFile', 'reference_file_id', 'referenceFile', 'practicalChecklistsUsingFile'],
+	['PracticalChecklist', 'User', 'created_by', 'createdBy', 'practicalChecklistsCreated'],
+	['PracticalChecklist', 'User', 'updated_by', 'updatedBy', 'practicalChecklistsUpdated'],
+	['PracticalChecklistItem', 'PracticalChecklist', 'checklist_id', 'checklist', 'items'],
 	['LearningModule', 'ThematicArea', 'thematic_area_id', 'thematicArea', 'learningModules'],
 	['LearningModule', 'User', 'created_by', 'createdBy', 'learningModulesCreated'],
 	['LearningModule', 'User', 'updated_by', 'updatedBy', 'learningModulesUpdated'],
@@ -210,6 +220,7 @@ const foreignKeys = [
 	['NewsPost', 'User', 'created_by', 'createdBy', 'newsPostsCreated'],
 	['NewsPost', 'User', 'updated_by', 'updatedBy', 'newsPostsUpdated'],
 	['News', 'User', 'author_id', 'author', 'newsArticles'],
+	['LandingPageContent', 'User', 'updated_by', 'updatedBy', 'landingPageContentsUpdated'],
 	['FAQ', 'User', 'created_by', 'createdBy', 'faqsCreated'],
 	['FAQ', 'User', 'updated_by', 'updatedBy', 'faqsUpdated'],
 	['FAQ', 'Facility', 'facility_id', 'facility', 'facilityFaqs'],

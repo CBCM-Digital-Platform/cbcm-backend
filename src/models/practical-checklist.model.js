@@ -1,0 +1,20 @@
+module.exports = (sequelize, DataTypes) => sequelize.define('PracticalChecklist', {
+	id: { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true },
+	thematic_area_id: { type: DataTypes.INTEGER, allowNull: false },
+	procedure: { type: DataTypes.STRING, allowNull: false },
+	title: { type: DataTypes.STRING, allowNull: false },
+	description: { type: DataTypes.TEXT, allowNull: true },
+	version: { type: DataTypes.INTEGER, allowNull: false, defaultValue: 1 },
+	status: {
+		type: DataTypes.STRING,
+		allowNull: false,
+		defaultValue: 'draft',
+		validate: { isIn: [['draft', 'published', 'archived']] },
+	},
+	reference_file_id: { type: DataTypes.INTEGER, allowNull: true, defaultValue: null },
+	published_at: { type: DataTypes.DATE, allowNull: true, defaultValue: null },
+	created_by: { type: DataTypes.INTEGER, allowNull: true },
+	updated_by: { type: DataTypes.INTEGER, allowNull: true },
+	created_at: { type: DataTypes.DATE },
+	updated_at: { type: DataTypes.DATE },
+}, { tableName: 'practical_checklists', timestamps: true, createdAt: 'created_at', updatedAt: 'updated_at' });
