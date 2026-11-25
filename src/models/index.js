@@ -62,6 +62,7 @@ const definitions = {
 	UploadedFile: require('./uploaded-file.model'),
 	ResourceAssignment: require('./resource-assignment.model'),
 	News: require('./news.model'),
+	LandingPageContent: require('./landing-page-content.model'),
 };
 
 const models = Object.fromEntries(
@@ -190,6 +191,7 @@ const foreignKeys = [
 	['NewsPost', 'User', 'created_by', 'createdBy', 'newsPostsCreated'],
 	['NewsPost', 'User', 'updated_by', 'updatedBy', 'newsPostsUpdated'],
 	['News', 'User', 'author_id', 'author', 'newsArticles'],
+	['LandingPageContent', 'User', 'updated_by', 'updatedBy', 'landingPageContentsUpdated'],
 	['FAQ', 'User', 'created_by', 'createdBy', 'faqsCreated'],
 	['FAQ', 'User', 'updated_by', 'updatedBy', 'faqsUpdated'],
 	['FAQ', 'Facility', 'facility_id', 'facility', 'facilityFaqs'],
