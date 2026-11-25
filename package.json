@@ -8,9 +8,10 @@
   "scripts": {
     "start": "node src/server.js",
     "dev": "node --watch src/server.js",
+    "test": "node --test tests/unit/messaging.test.js tests/unit/learning.test.js tests/unit/quiz-import.test.js tests/unit/thematic-quiz.test.js tests/unit/assessment-quiz-sync.test.js tests/unit/sessions.test.js tests/unit/storage.test.js tests/unit/upload.test.js tests/unit/uploads-api.test.js tests/unit/resources.test.js",
     "test": "node --test tests/unit/messaging.test.js tests/unit/learning.test.js tests/unit/quiz-import.test.js tests/unit/sessions.test.js tests/unit/storage.test.js tests/unit/upload.test.js tests/unit/uploads-api.test.js tests/unit/resources.test.js tests/unit/ai-gemini.test.js tests/unit/ai-chat.test.js tests/unit/ai-safety.test.js tests/unit/ai-validators.test.js tests/unit/ai-rate-limiter.test.js tests/unit/ai-rag-retriever.test.js tests/unit/text-chunker.test.js tests/unit/ai-upload.test.js tests/unit/thematic-areas.test.js tests/unit/user-thematic-area.test.js",
     "test:swagger": "node --test tests/unit/swagger.test.js",
-    "test:learning": "node --test tests/unit/learning.test.js tests/unit/quiz-import.test.js",
+    "test:learning": "node --test tests/unit/learning.test.js tests/unit/quiz-import.test.js tests/unit/thematic-quiz.test.js tests/unit/assessment-quiz-sync.test.js",
     "test:messaging": "node --test tests/unit/messaging.test.js",
     "test:sessions": "node --test tests/unit/sessions.test.js",
     "test:storage": "node --test tests/unit/storage.test.js",

@@ -477,11 +477,11 @@ const filterValidMentorGrantedAccess = async (records) => {
 	return candidates.filter((progress, index) => validity[index]);
 };
 
-const getQuizByModule = async (moduleId, { includeCorrectAnswers = false, learnerVisible = false } = {}) => {
-	const where = { module_id: moduleId };
+const getQuizByThematicArea = async (thematicAreaId, { includeCorrectAnswers = false, learnerVisible = false } = {}) => {
+	const where = { thematic_area_id: thematicAreaId };
 	const quizCount = await models.Quiz.count({ where });
 	if (quizCount > 1) {
-		throw new AppError('Multiple quizzes are configured for this module; resolve the duplicate quiz configuration before learner access.', 409, 'QUIZ_CONFIGURATION_CONFLICT');
+		throw new AppError('Multiple quizzes are configured for this thematic area; resolve the duplicate quiz configuration before access.', 409, 'QUIZ_CONFIGURATION_CONFLICT');
 	}
 	return models.Quiz.findOne({
 		where: { ...where, ...(learnerVisible ? isLearnerVisible : {}) },
@@ -502,6 +502,15 @@ const getQuizByModule = async (moduleId, { includeCorrectAnswers = false, learne
 	});
 };
 
+// Legacy lookup retained for old module-scoped callers during migration.
+const getQuizByModule = async (moduleId, options = {}) => {
+	const module = await models.LearningModule.findByPk(moduleId, { attributes: ['thematic_area_id'] });
+	if (!module) return null;
+	const legacyQuiz = await models.Quiz.findOne({ where: { module_id: moduleId }, order: [['id', 'ASC']] });
+	if (legacyQuiz) return legacyQuiz;
+	return module.thematic_area_id ? getQuizByThematicArea(module.thematic_area_id, options) : null;
+};
+
 const getQuizById = async (quizId, { includeCorrectAnswers = false, transaction } = {}) => models.Quiz.findByPk(quizId, {
 	transaction,
 	include: [{
@@ -520,11 +529,17 @@ const getQuizById = async (quizId, { includeCorrectAnswers = false, transaction 
 });
 
 const createQuiz = async (moduleId, payload, createdBy) => models.sequelize.transaction(async (transaction) => {
+	if ((moduleId ?? payload.moduleId) && payload.thematicAreaId) throw new AppError('A quiz cannot have both module and thematic-area ownership.', 400, 'VALIDATION_ERROR');
+	if (payload.thematicAreaId) {
+		const existing = await models.Quiz.count({ where: { thematic_area_id: payload.thematicAreaId }, transaction });
+		if (existing > 0) throw new AppError('A quiz already exists for this thematic area.', 409, 'QUIZ_CONFIGURATION_CONFLICT');
+	}
 	const quiz = await models.Quiz.create({
-		module_id: moduleId,
+		module_id: moduleId ?? payload.moduleId ?? null,
+		thematic_area_id: payload.thematicAreaId,
 		title: payload.title,
 		description: payload.description || null,
-		assessment_stage: payload.assessmentStage,
+		assessment_stage: payload.assessmentStage ?? null,
 		pass_score: payload.passScore ?? 0,
 		time_limit_minutes: payload.timeLimitMinutes ?? 0,
 		attempt_limit: payload.attemptLimit ?? 1,
@@ -544,7 +559,7 @@ const updateQuiz = async (quizId, payload = {}) => {
 	const updates = {};
 	if ('title' in payload) updates.title = payload.title;
 	if ('description' in payload) updates.description = payload.description;
-	if ('assessmentStage' in payload) updates.assessment_stage = payload.assessmentStage;
+	if ('thematicAreaId' in payload) updates.thematic_area_id = payload.thematicAreaId;
 	if ('passScore' in payload) updates.pass_score = payload.passScore;
 	if ('timeLimitMinutes' in payload) updates.time_limit_minutes = payload.timeLimitMinutes;
 	if ('attemptLimit' in payload) updates.attempt_limit = payload.attemptLimit;
@@ -648,17 +663,21 @@ const deleteQuestionOption = async (optionId) => {
 	await option.destroy();
 };
 
-const startQuizAttempt = async ({ quizId, menteeId }) => {
+const startQuizAttempt = async ({ quizId, menteeId, cycleId, assessmentStage }) => {
 	return models.sequelize.transaction(async (transaction) => {
 		const quiz = await models.Quiz.findByPk(quizId, { transaction, lock: transaction.LOCK.UPDATE });
 		if (!quiz) throw new AppError('Quiz not found.', 404, 'NOT_FOUND');
+		const stage = assessmentStage || quiz.assessment_stage || null;
+		const attemptScope = { quiz_id: quizId, mentee_id: menteeId };
+		if (cycleId !== undefined && cycleId !== null) attemptScope.cycle_id = cycleId;
+		if (stage) attemptScope.assessment_stage = stage;
 		const activeAttempt = await models.QuizAttempt.findOne({
-			where: { quiz_id: quizId, mentee_id: menteeId, status: 'in_progress' },
+			where: { ...attemptScope, status: 'in_progress' },
 			order: [['attempt_number', 'DESC']],
 			transaction,
 		});
 		if (activeAttempt) return activeAttempt;
-		const attemptNumber = await models.QuizAttempt.count({ where: { quiz_id: quizId, mentee_id: menteeId }, transaction }) + 1;
+		const attemptNumber = await models.QuizAttempt.count({ where: attemptScope, transaction }) + 1;
 		if (quiz.attempt_limit > 0 && attemptNumber > quiz.attempt_limit) {
 			throw new AppError('Quiz attempt limit reached.', 409, 'CONFLICT');
 		}
@@ -666,6 +685,9 @@ const startQuizAttempt = async ({ quizId, menteeId }) => {
 		return models.QuizAttempt.create({
 			quiz_id: quizId,
 			mentee_id: menteeId,
+			assessment_stage: stage,
+			cycle_id: cycleId ?? null,
+			thematic_area_id: quiz.thematic_area_id ?? null,
 			attempt_number: attemptNumber,
 			score: 0,
 			passed: false,
@@ -676,12 +698,15 @@ const startQuizAttempt = async ({ quizId, menteeId }) => {
 	});
 };
 
-const submitQuiz = async ({ quizId, menteeId, answers = [] }) => {
+const submitQuiz = async ({ quizId, menteeId, answers = [], cycleId, assessmentStage }) => {
 	return models.sequelize.transaction(async (transaction) => {
 		const quiz = await getQuizById(quizId, { includeCorrectAnswers: true, transaction });
 		if (!quiz) throw new AppError('Quiz not found.', 404, 'NOT_FOUND');
+		const attemptWhere = { quiz_id: quizId, mentee_id: menteeId, status: 'in_progress' };
+		if (cycleId !== undefined && cycleId !== null) attemptWhere.cycle_id = cycleId;
+		if (assessmentStage || quiz.assessment_stage) attemptWhere.assessment_stage = assessmentStage || quiz.assessment_stage;
 		const attempt = await models.QuizAttempt.findOne({
-			where: { quiz_id: quizId, mentee_id: menteeId, status: 'in_progress' },
+			where: attemptWhere,
 			order: [['attempt_number', 'DESC']],
 			transaction,
 			lock: transaction.LOCK.UPDATE,
@@ -764,11 +789,15 @@ const submitQuiz = async ({ quizId, menteeId, answers = [] }) => {
 		}
 
 		const passed = totalPoints > 0 && score >= Number(quiz.pass_score ?? 0);
+		const percentageScore = totalPoints > 0 ? (score / totalPoints) * 100 : 0;
 		await attempt.update({
 			score,
+			max_score: totalPoints,
+			percentage_score: percentageScore,
 			passed,
 			status: 'completed',
 			completed_at: now,
+			submitted_at: now,
 			ended_at: now,
 			updated_at: now,
 		}, { transaction });
@@ -779,6 +808,10 @@ const submitQuiz = async ({ quizId, menteeId, answers = [] }) => {
 			score,
 			totalPoints,
 			passed,
+			percentageScore,
+			assessmentStage: attempt.assessment_stage || assessmentStage || quiz.assessment_stage || null,
+			cycleId: attempt.cycle_id ?? cycleId ?? null,
+			thematicAreaId: attempt.thematic_area_id ?? quiz.thematic_area_id ?? null,
 			status: 'completed',
 			submittedAt: now,
 			answers: answerRecords,
@@ -786,8 +819,14 @@ const submitQuiz = async ({ quizId, menteeId, answers = [] }) => {
 	});
 };
 
-const listQuizAttempts = async ({ quizId, menteeId, completedOnly = false }) => models.QuizAttempt.findAll({
-	where: { quiz_id: quizId, mentee_id: menteeId, ...(completedOnly ? { status: 'completed' } : {}) },
+const listQuizAttempts = async ({ quizId, menteeId, cycleId, assessmentStage, completedOnly = false }) => models.QuizAttempt.findAll({
+	where: {
+		quiz_id: quizId,
+		mentee_id: menteeId,
+		...(cycleId == null ? {} : { cycle_id: cycleId }),
+		...(assessmentStage ? { assessment_stage: assessmentStage } : {}),
+		...(completedOnly ? { status: 'completed' } : {}),
+	},
 	order: [['attempt_number', 'DESC']],
 });
 
@@ -861,6 +900,7 @@ module.exports = {
 	assignModuleToMentee,
 	revokeModuleAssignment,
 	getQuizByModule,
+	getQuizByThematicArea,
 	getQuizById,
 	createQuiz,
 	updateQuiz,

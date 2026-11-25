@@ -1,15 +1,16 @@
 module.exports = (sequelize, DataTypes) => sequelize.define('Quiz', {
 	id: { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true },
-	module_id: { type: DataTypes.INTEGER, allowNull: false },
+	// Legacy module ownership is retained for historical rows. New quizzes are
+	// owned by a thematic area and may be shared by all of its modules.
+	module_id: { type: DataTypes.INTEGER, allowNull: true },
+	thematic_area_id: { type: DataTypes.INTEGER, allowNull: true },
 	title: { type: DataTypes.STRING, allowNull: false },
 	description: { type: DataTypes.TEXT },
 	assessment_stage: {
 		type: DataTypes.STRING,
 		allowNull: true,
 		defaultValue: null,
-		validate: {
-			isIn: [['PRETEST', 'POST_TEST']],
-		},
+		validate: { isIn: [['PRETEST', 'POST_TEST']] },
 	},
 	assessment_component: {
 		type: DataTypes.STRING,

@@ -172,6 +172,26 @@ async function hasActiveMentorThematicAreaAssignment({ mentorId, thematicAreaId 
 	return Boolean(assignment);
 }
 
+async function hasActiveMenteeThematicAreaAssignment({ menteeId, thematicAreaId }) {
+	if (!menteeId || !thematicAreaId || !models.Assignment) return false;
+	const mentee = await models.User.findByPk(menteeId, {
+		attributes: ['id', 'role', 'status'],
+	});
+	if (!mentee || String(mentee.role || '').toLowerCase() !== 'mentee') return false;
+	if (mentee.status && String(mentee.status).toLowerCase() !== 'active') return false;
+
+	const assignment = await models.Assignment.findOne({
+		where: {
+			mentee_id: menteeId,
+			thematic_area_id: Number(thematicAreaId),
+			status: { [Op.in]: ['assigned', 'active'] },
+			unassigned_at: null,
+		},
+		attributes: ['id'],
+	});
+	return Boolean(assignment);
+}
+
 async function listActiveMentorMenteeAssignmentContexts({ mentorId, menteeId, thematicAreaId }) {
 	const [mentor, mentee] = await Promise.all([
 		models.User.findByPk(mentorId, { attributes: ['id', 'role', 'facility_id'] }),
@@ -227,6 +247,7 @@ module.exports = {
 	listFacilityThematicAreaIds,
 	listActiveMentorThematicAreaIds,
 	hasActiveMentorThematicAreaAssignment,
+	hasActiveMenteeThematicAreaAssignment,
 	listActiveMentorMenteeAssignmentContexts,
 	// Re-exported learning repository helpers for testing stubbing and scope checks
 	isModuleInFacilityScope: (...args) => learningRepository.isModuleInFacilityScope(...args),

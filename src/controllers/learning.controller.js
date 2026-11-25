@@ -1,4 +1,5 @@
 const service = require('../services/learning.service');
+const AppError = require('../errors/app-error');
 const moduleDto = require('../dtos/response/module.response.dto');
 const quizDto = require('../dtos/response/quiz-result.response.dto');
 const learningMapper = require('../mappers/learning.mapper');
@@ -8,6 +9,12 @@ const validator = require('../validators/learning.validator');
 const cycleIdFromQuery = (query = {}) => {
 	const value = query.cycleId ?? query.cycle_id;
 	return value == null ? undefined : validator.parseId(value, 'cycleId');
+};
+const stageFromQuery = (query = {}) => {
+	const value = query.assessmentStage ?? query.assessment_stage;
+	if (value == null) return undefined;
+	if (!['PRETEST', 'POST_TEST'].includes(value)) throw new AppError('assessmentStage must be PRETEST or POST_TEST.', 400, 'VALIDATION_ERROR');
+	return value;
 };
 
 const asyncHandler = (handler) => (req, res, next) => {
@@ -104,18 +111,22 @@ module.exports = {
 		return res.json({ success: true, data: learningMapper.toProgress(progress) });
 	}),
 	getQuizByModule: asyncHandler(async (req, res) => {
-		const quiz = await service.getQuizByModule(req.params.moduleId, req.user.id, cycleIdFromQuery(req.query));
+		const quiz = await service.getQuizByModule(req.params.moduleId, req.user.id, cycleIdFromQuery(req.query), stageFromQuery(req.query));
+		return res.json({ success: true, data: quiz });
+	}),
+	getQuizByThematicArea: asyncHandler(async (req, res) => {
+		const quiz = await service.getQuizByThematicArea(req.params.thematicAreaId, req.user, cycleIdFromQuery(req.query), stageFromQuery(req.query));
 		return res.json({ success: true, data: quiz });
 	}),
 	getQuizByModuleForViewer: asyncHandler(async (req, res) => {
 		const cycleId = String(req.user.role).toLowerCase() === 'mentee'
 			? cycleIdFromQuery(req.query)
 			: undefined;
-		const quiz = await service.getQuizByModuleForViewer(req.params.moduleId, req.user, cycleId);
+		const quiz = await service.getQuizByModuleForViewer(req.params.moduleId, req.user, cycleId, stageFromQuery(req.query));
 		return res.json({ success: true, data: quiz });
 	}),
 	getQuiz: asyncHandler(async (req, res) => {
-		const quiz = await service.getQuiz(req.params.quizId, req.user.id, cycleIdFromQuery(req.query));
+		const quiz = await service.getQuiz(req.params.quizId, req.user.id, cycleIdFromQuery(req.query), stageFromQuery(req.query));
 		return res.json({ success: true, data: quiz });
 	}),
 	startQuizAttempt: asyncHandler(async (req, res) => {
@@ -123,6 +134,7 @@ module.exports = {
 			quizId: req.params.quizId,
 			menteeId: req.user.id,
 			cycleId: cycleIdFromQuery(req.query),
+			assessmentStage: stageFromQuery(req.query),
 		});
 		return res.status(201).json({ success: true, data: attempt });
 	}),
@@ -132,6 +144,7 @@ module.exports = {
 			menteeId: req.user.id,
 			answers: req.learningInput.answers,
 			cycleId: cycleIdFromQuery(req.query),
+			assessmentStage: stageFromQuery(req.query),
 		});
 		return res.json({ success: true, data: quizDto.toQuizResult(result) });
 	}),
@@ -146,6 +159,15 @@ module.exports = {
 	createQuiz: asyncHandler(async (req, res) => {
 		const quiz = await service.createQuiz({
 			moduleId: req.params.moduleId,
+			createdBy: req.user.id,
+			actor: req.user,
+			...req.learningInput,
+		});
+		return res.status(201).json({ success: true, data: quiz });
+	}),
+	createThematicAreaQuiz: asyncHandler(async (req, res) => {
+		const quiz = await service.createThematicAreaQuiz({
+			thematicAreaId: req.params.thematicAreaId,
 			createdBy: req.user.id,
 			actor: req.user,
 			...req.learningInput,
@@ -198,6 +220,16 @@ module.exports = {
 		});
 		return res.status(201).json({ success: true, data: draft });
 	}),
+	createThematicAreaQuizImport: asyncHandler(async (req, res) => {
+		const draft = await quizPdfImportService.upload({
+			actor: req.user,
+			thematicAreaId: req.params.thematicAreaId,
+			assessmentStage: req.body?.assessmentStage ?? req.body?.assessment_stage,
+			question: req.quizPdfs.question,
+			answerKey: req.quizPdfs.answerKey,
+		});
+		return res.status(201).json({ success: true, data: draft });
+	}),
 	extractQuizImport: asyncHandler(async (req, res) => {
 		const draft = await quizPdfImportService.extract(req.params.draftId, req.user);
 		return res.json({ success: true, data: draft });
@@ -217,5 +249,13 @@ module.exports = {
 	confirmQuizImport: asyncHandler(async (req, res) => {
 		const quiz = await quizPdfImportService.confirm(req.params.draftId, req.body, req.user);
 		return res.status(201).json({ success: true, data: quiz });
+	}),
+	startAnswerKeyApplication: asyncHandler(async (req, res) => {
+		const application = await require('../services/quiz-answer-key.service').start({ resourceId: req.params.resourceId, actor: req.user });
+		return res.status(201).json({ success: true, data: application });
+	}),
+	extractAnswerKeyApplication: asyncHandler(async (req, res) => {
+		const application = await require('../services/quiz-answer-key.service').extract({ applicationId: req.params.applicationId, actor: req.user });
+		return res.json({ success: true, data: application });
 	}),
 };

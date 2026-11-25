@@ -27,8 +27,6 @@ router.get('/:id', validateId, controller.getById);
 router.get('/:id/content', validateId, controller.download);
 router.patch('/:id', requireRole(SYSTEM_ADMIN_ROLES), validateId, controller.update);
 router.delete('/:id', requireRole(SYSTEM_ADMIN_ROLES), validateId, controller.remove);
-router.post('/:id/mentees/:menteeId', requireRole('mentor'), validateId, controller.assignToMentee);
-router.delete('/:id/mentees/:menteeId', requireRole('mentor'), validateId, controller.revokeFromMentee);
 router.post('/:id/assign-mentee', requireRole('mentor'), validateId, (req, res, next) => {
 	try {
 		req.learningInput = parseResourceAssignments(req.body);

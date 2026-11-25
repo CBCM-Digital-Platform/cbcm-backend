@@ -45,17 +45,14 @@ const parseModule = (body = {}) => {
 const parseQuiz = (body = {}, { partial = false } = {}) => {
 	const title = typeof body.title === 'string' ? body.title.trim() : '';
 	if (!title) throw invalid('title is required.');
+	const thematicAreaId = body.thematicAreaId ?? body.thematic_area_id;
 	const assessmentStage = body.assessmentStage ?? body.assessment_stage;
-	if (assessmentStage != null && !Object.values(LearningExaminationStage).includes(assessmentStage)) {
-		throw invalid('assessmentStage must be PRETEST or POST_TEST.');
-	}
-	if (!partial && assessmentStage == null) {
-		throw invalid('assessmentStage is required for examination quizzes.');
-	}
+	if (assessmentStage != null && !Object.values(LearningExaminationStage).includes(assessmentStage)) throw invalid('assessmentStage must be PRETEST or POST_TEST.');
+	if (!partial && assessmentStage == null && thematicAreaId == null) throw invalid('assessmentStage is required for legacy module quizzes.');
 	const passScore = Number(body.passScore ?? body.pass_score ?? 0);
 	const timeLimitMinutes = Number(body.timeLimitMinutes ?? body.time_limit_minutes ?? 0);
 	const attemptLimit = Number(body.attemptLimit ?? body.attempt_limit ?? 1);
-	if (!Number.isFinite(passScore) || passScore < 0) throw invalid('passScore must be a non-negative number.');
+	if (!Number.isFinite(passScore) || passScore < 0 || passScore > 100) throw invalid('passScore must be between 0 and 100.');
 	if (!Number.isSafeInteger(timeLimitMinutes) || timeLimitMinutes < 0) {
 		throw invalid('timeLimitMinutes must be a non-negative integer.');
 	}
@@ -63,6 +60,7 @@ const parseQuiz = (body = {}, { partial = false } = {}) => {
 		throw invalid('attemptLimit must be a non-negative integer.');
 	}
 	const quiz = {
+		...(thematicAreaId === undefined ? {} : { thematicAreaId: parseId(thematicAreaId, 'thematicAreaId') }),
 		title,
 		description: typeof body.description === 'string' ? body.description.trim() : null,
 		...(assessmentStage === undefined ? {} : { assessmentStage }),
@@ -100,6 +98,7 @@ const parseModulePatch = (body = {}) => parsePartial(parseModule, body, {
 const parseQuizPatch = (body = {}) => {
 	const parsed = parsePartial((value) => parseQuiz(value, { partial: true }), body, {
 		title: ['title'],
+		thematicAreaId: ['thematicAreaId', 'thematic_area_id'],
 		description: ['description'],
 		assessmentStage: ['assessmentStage', 'assessment_stage'],
 		passScore: ['passScore', 'pass_score'],
@@ -111,6 +110,8 @@ const parseQuizPatch = (body = {}) => {
 	delete parsed.questions;
 	return parsed;
 };
+
+const parseThematicAreaQuiz = (body = {}) => parseQuiz(body, { partial: true });
 
 const parseMentorId = (body = {}) => {
 	const mentorId = Number(body.mentorId ?? body.mentor_id ?? null);
@@ -275,6 +276,7 @@ module.exports = {
 	parseModule,
 	parseModulePatch,
 	parseQuiz,
+	parseThematicAreaQuiz,
 	parseQuizPatch,
 	parseMentorId,
 	parseLearningPermission,

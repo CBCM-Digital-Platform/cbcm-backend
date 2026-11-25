@@ -94,14 +94,19 @@ async function assertMentorThematicAreaAccess(resource, actor) {
 	return resource;
 }
 
-async function isMenteeAssignmentAuthorized(assignment, resource) {
-	if (!assignment || !resource?.module_id
-		|| !['active', 'completed'].includes(assignment.assignment_status)
-		|| assignment.revoked_at
-		|| isHiddenFromMentees(resource)) return false;
+async function isMenteeAssignmentAuthorized(assignment, resource, menteeId = assignment?.mentee_id) {
+	if (!resource?.module_id || isHiddenFromMentees(resource)) return false;
 	const module = await repository.getModuleById(resource.module_id);
 	if (!isModulePublishedAndAuthorized(module)
 		|| Number(module.thematic_area_id) !== Number(resource.thematic_area_id)) return false;
+	if (resource.category === LearningMaterialCategory.PARTICIPANT_MANUAL) {
+		return repository.hasActiveMenteeThematicAreaAssignment({
+			menteeId,
+			thematicAreaId: resource.thematic_area_id,
+		});
+	}
+	if (!assignment || !['active', 'completed'].includes(assignment.assignment_status)
+		|| assignment.revoked_at) return false;
 	// The active resource assignment is the mentee's access grant. The mentor's
 	// module permission is required when assigning/revoking resources, but it is
 	// not a separate permission the mentee must retain to consume an assignment.
@@ -277,7 +282,7 @@ async function getResource(id, actor) {
 
 	if (role === Role.MENTEE) {
 		const assignment = await findResourceAssignment(id, actor.id);
-		if (!await isMenteeAssignmentAuthorized(assignment, resource)) {
+		if (!await isMenteeAssignmentAuthorized(assignment, resource, actor.id)) {
 			throw new AppError('This resource has not been assigned to you.', 403, 'FORBIDDEN');
 		}
 		return toResource(resource);
@@ -348,18 +353,50 @@ async function listResources(query, actor) {
 			where: { mentee_id: actor.id },
 			order: [['assigned_at', 'DESC'], ['id', 'DESC']],
 		});
-		if (!assignments.length) {
-			return { items: [], total: 0, page: parsed.page, limit: parsed.limit, totalPages: 0 };
-		}
 		const authorizedResourceIds = (await Promise.all(latestAssignmentPerResource(assignments).map(async (assignment) => {
 			const resource = await repository.findById(assignment.resource_id);
-			if (!await isMenteeAssignmentAuthorized(assignment, resource)) return null;
+			if (!await isMenteeAssignmentAuthorized(assignment, resource, actor.id)) return null;
 			return Number(resource.id);
 		}))).filter(Boolean);
-		if (!authorizedResourceIds.length) {
+		const thematicAreaAssignments = await models.Assignment.findAll({
+			where: {
+				mentee_id: actor.id,
+				thematic_area_id: { [Op.ne]: null },
+				status: { [Op.in]: ['assigned', 'active'] },
+				unassigned_at: null,
+			},
+			attributes: ['thematic_area_id'],
+		});
+		const thematicAreaIds = [...new Set(thematicAreaAssignments
+			.map((entry) => Number(entry.thematic_area_id))
+			.filter((value) => Number.isFinite(value) && value > 0))];
+		if (thematicAreaIds.length) {
+			const participantManuals = await models.Resource.findAll({
+				where: {
+					category: LearningMaterialCategory.PARTICIPANT_MANUAL,
+					thematic_area_id: { [Op.in]: thematicAreaIds },
+				},
+				include: [{
+					model: models.LearningModule,
+					as: 'module',
+					required: true,
+					where: {
+						status: 'published',
+						is_published: true,
+						is_authorized: true,
+						thematic_area_id: { [Op.in]: thematicAreaIds },
+					},
+					attributes: ['id'],
+				}],
+				attributes: ['id'],
+			});
+			authorizedResourceIds.push(...participantManuals.map((resource) => Number(resource.id)));
+		}
+		const uniqueAuthorizedResourceIds = [...new Set(authorizedResourceIds)];
+		if (!uniqueAuthorizedResourceIds.length) {
 			return { items: [], total: 0, page: parsed.page, limit: parsed.limit, totalPages: 0 };
 		}
-		where.id = { [Op.in]: authorizedResourceIds };
+		where.id = { [Op.in]: uniqueAuthorizedResourceIds };
 	} else {
 		throw new AppError('You do not have permission to access resources.', 403, 'FORBIDDEN');
 	}
@@ -612,8 +649,61 @@ async function listMyResourceAssignments(actor) {
 	const visible = [];
 	for (const assignment of latestAssignmentPerResource(assignments)) {
 		const resource = await repository.findById(assignment.resource_id);
-		if (await isMenteeAssignmentAuthorized(assignment, resource)) {
+		if (await isMenteeAssignmentAuthorized(assignment, resource, actor.id)) {
 			visible.push({ ...toResourceAssignment(assignment), resource: toResource(resource) });
+		}
+	}
+	const thematicAreaAssignments = await models.Assignment.findAll({
+		where: {
+			mentee_id: actor.id,
+			thematic_area_id: { [Op.ne]: null },
+			status: { [Op.in]: ['assigned', 'active'] },
+			unassigned_at: null,
+		},
+		attributes: ['thematic_area_id'],
+	});
+	const thematicAreaIds = [...new Set(thematicAreaAssignments
+		.map((entry) => Number(entry.thematic_area_id))
+		.filter((value) => Number.isFinite(value) && value > 0))];
+	if (thematicAreaIds.length) {
+		const participantManuals = await models.Resource.findAll({
+			where: {
+				category: LearningMaterialCategory.PARTICIPANT_MANUAL,
+				thematic_area_id: { [Op.in]: thematicAreaIds },
+			},
+			include: [{
+				model: models.LearningModule,
+				as: 'module',
+				required: true,
+				where: {
+					status: 'published',
+					is_published: true,
+					is_authorized: true,
+					thematic_area_id: { [Op.in]: thematicAreaIds },
+				},
+				attributes: ['id'],
+			}],
+		});
+		const assignedResourceIds = new Set(visible.map((entry) => Number(entry.resourceId)));
+		for (const resource of participantManuals) {
+			if (assignedResourceIds.has(Number(resource.id))) continue;
+			visible.push({
+				id: null,
+				resourceId: resource.id,
+				mentorId: null,
+				menteeId: actor.id,
+				facilityId: actor.facility_id ?? null,
+				status: 'active',
+				assignedBy: null,
+				assignedAt: null,
+				moduleId: resource.module_id ?? null,
+				cycleId: null,
+				thematicAreaId: resource.thematic_area_id ?? null,
+				completedAt: null,
+				revokedAt: null,
+				revokedBy: null,
+				resource: toResource(resource),
+			});
 		}
 	}
 	return visible;
