@@ -221,12 +221,78 @@ const quizPdfUpload = multer({
 	},
 });
 
+const ALLOWED_AI_DOCUMENT_MIME_TYPES = Object.freeze({
+	'application/pdf': 'pdf',
+	'application/vnd.openxmlformats-officedocument.wordprocessingml.document': 'docx',
+});
+
+function inspectAiDocumentUpload(file, { maxBytes = env.UPLOAD_MAX_BYTES } = {}) {
+	if (!file) {
+		throw new AppError('A file is required.', 400, 'FILE_REQUIRED');
+	}
+	let body = file.buffer;
+	if (!Buffer.isBuffer(body) && !(body instanceof Uint8Array)) {
+		if (!file.path) {
+			throw new AppError('A file is required.', 400, 'FILE_REQUIRED');
+		}
+		const stats = fs.statSync(file.path);
+		if (stats.size > maxBytes) {
+			throw new AppError('The uploaded file exceeds the maximum allowed size.', 400, 'FILE_TOO_LARGE');
+		}
+		body = fs.readFileSync(file.path);
+		try { fs.unlinkSync(file.path); } catch (_) {}
+	}
+	const buffer = Buffer.from(body);
+	if (!buffer.length) {
+		throw new AppError('The uploaded file is empty.', 400, 'FILE_EMPTY');
+	}
+	if (buffer.length > maxBytes) {
+		throw new AppError('The uploaded file exceeds the maximum allowed size.', 400, 'FILE_TOO_LARGE');
+	}
+	const declaredMime = String(file.mimetype || '').trim().toLowerCase();
+	const kind = ALLOWED_AI_DOCUMENT_MIME_TYPES[declaredMime];
+	if (!kind) {
+		throw new AppError('Only PDF and DOCX files are allowed for knowledge documents.', 400, 'FILE_TYPE_UNSUPPORTED');
+	}
+	const signatureOk = kind === 'pdf'
+		? startsWith(buffer, [0x25, 0x50, 0x44, 0x46, 0x2D])
+		: startsWith(buffer, [0x50, 0x4B, 0x03, 0x04]) || startsWith(buffer, [0x50, 0x4B, 0x05, 0x06]);
+	if (!signatureOk) {
+		throw new AppError('The file contents do not match the declared file type.', 400, 'FILE_TYPE_MISMATCH');
+	}
+	return {
+		body: buffer,
+		mimeType: declaredMime,
+		kind,
+		sizeBytes: buffer.length,
+		originalName: displayNameFrom(file.originalname),
+	};
+}
+
+const aiDocumentUpload = multer({
+	storage: multer.diskStorage({
+		destination: (_req, _file, cb) => cb(null, os.tmpdir()),
+		filename: (_req, _file, cb) => cb(null, `ai-document-${crypto.randomUUID()}`),
+	}),
+	limits: { fileSize: env.UPLOAD_MAX_BYTES, files: 1 },
+	fileFilter: (_req, file, callback) => {
+		const declaredMime = String(file?.mimetype || '').trim().toLowerCase();
+		if (!ALLOWED_AI_DOCUMENT_MIME_TYPES[declaredMime]) {
+			return callback(new AppError('Only PDF and DOCX files are allowed for knowledge documents.', 400, 'FILE_TYPE_UNSUPPORTED'));
+		}
+		return callback(null, true);
+	},
+});
+
 module.exports = {
 	UPLOAD_FIELD_NAME,
 	ALLOWED_RESOURCE_MIME_TYPES,
+	ALLOWED_AI_DOCUMENT_MIME_TYPES,
 	detectSignatureKind,
 	inspectUploadedFile,
+	inspectAiDocumentUpload,
 	mapMulterError,
 	resourceUpload,
 	quizPdfUpload,
+	aiDocumentUpload,
 };
